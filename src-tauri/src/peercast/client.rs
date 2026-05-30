@@ -1,7 +1,8 @@
 //! High-level PeerCast client. Resolves a user-supplied URL into a
-//! concrete stream URL that libmpv can play.
+//! concrete stream URL, and dispatches control commands (bump/stop)
+//! to either the JSON-RPC or the legacy admin endpoint.
 //!
-//! See `docs/protocols/peercast.md` §2.
+//! Strategy selection follows `docs/protocols/peercast.md` §3.3.
 
 use crate::util::{
     errors::{AppError, AppResult},
@@ -9,8 +10,8 @@ use crate::util::{
 };
 
 use super::{
-    playlist,
-    types::PeerCastEndpoint,
+    jsonrpc, legacy_admin, playlist,
+    types::{ChannelInfo, ChannelStatus, PeerCastEndpoint},
     url::{self, UrlKind},
 };
 
@@ -40,4 +41,49 @@ pub async fn resolve_stream_url(url: &str) -> AppResult<String> {
 /// Extract the PeerCast host/port that the URL points at.
 pub fn endpoint_for(url: &str) -> AppResult<PeerCastEndpoint> {
     Ok(url::parse(url)?.endpoint)
+}
+
+/// Fetch channel info, preferring JSON-RPC and falling back to viewxml.
+pub async fn fetch_info(endpoint: &PeerCastEndpoint, channel_id: &str) -> AppResult<ChannelInfo> {
+    match jsonrpc::get_channel_info(endpoint, channel_id).await {
+        Ok(info) => Ok(info),
+        Err(_) => {
+            let list = legacy_admin::view_xml(endpoint).await?;
+            list.into_iter()
+                .find(|c| c.channel_id.eq_ignore_ascii_case(channel_id))
+                .map(|c| c.info)
+                .ok_or_else(|| AppError::Network(format!("channel {channel_id} not found")))
+        }
+    }
+}
+
+/// Fetch channel status with the same strategy as `fetch_info`.
+pub async fn fetch_status(
+    endpoint: &PeerCastEndpoint,
+    channel_id: &str,
+) -> AppResult<ChannelStatus> {
+    match jsonrpc::get_channel_status(endpoint, channel_id).await {
+        Ok(st) => Ok(st),
+        Err(_) => {
+            let list = legacy_admin::view_xml(endpoint).await?;
+            list.into_iter()
+                .find(|c| c.channel_id.eq_ignore_ascii_case(channel_id))
+                .map(|c| c.status)
+                .ok_or_else(|| AppError::Network(format!("channel {channel_id} not found")))
+        }
+    }
+}
+
+pub async fn bump(endpoint: &PeerCastEndpoint, channel_id: &str) -> AppResult<()> {
+    match jsonrpc::bump_channel(endpoint, channel_id).await {
+        Ok(_) => Ok(()),
+        Err(_) => legacy_admin::bump(endpoint, channel_id).await,
+    }
+}
+
+pub async fn stop(endpoint: &PeerCastEndpoint, channel_id: &str) -> AppResult<()> {
+    match jsonrpc::stop_channel(endpoint, channel_id).await {
+        Ok(_) => Ok(()),
+        Err(_) => legacy_admin::stop(endpoint, channel_id).await,
+    }
 }

@@ -30,9 +30,11 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
 - [x] `peercast` モジュール骨組み (`reqwest` ベース、`util::http` 共通クライアント)
 - [x] URL パーサ (`pls`/`stream`/`play.html` 三形式 + `?tip=` パラメータ対応、IPv6 host も)
 - [x] `/pls/{id}` から実ストリーム URL を取得 (PLS/M3U 両対応 + BOM 対応)
-- [ ] `/api/1` JSON-RPC クライアント (リクエスト/レスポンス型は完成。具体メソッドは TODO)
-- [ ] 旧 `/admin?cmd=viewxml` フォールバック (XML パース) - 骨組みのみ
-- [x] 単体テスト (URL 6 件、playlist 6 件、YP 2 件、encoding 5 件、anchor 5 件、cli 4 件、config 1 件)
+- [x] `/api/1` JSON-RPC クライアント (`getVersionInfo`, `getChannels`, `getChannelInfo`, `getChannelStatus`, `bumpChannel`, `stopChannel`)
+- [x] 旧 `/admin?cmd=viewxml` フォールバック (XML パース、quick-xml)
+- [x] 戦略選択 (JSON-RPC 優先 → legacy_admin フォールバック、`client::fetch_info` 等)
+- [x] 単体テスト 43 件 pass (URL 6 / playlist 6 / YP 2 / encoding 5 / anchor 5 / cli 4 / config 1 / jsonrpc 3 / legacy_admin 3)
+- [x] Tauri command 公開 (`resolve_stream_url`, `endpoint_for_url`, `fetch_channel_info`, `fetch_channel_status`, `bump_channel`, `stop_channel`)
 - [x] **CLI 引数からの URL 受け取りで再生開始 (外部ツール連携の基本)** - 引数パース完了
 - [ ] **PeerCast 接続先 (host/port) を設定 UI で指定可能に** (localhost 以外: LAN 内別マシン対応)
 - [ ] **Basic 認証情報の受け渡し** (config から取得して JSON-RPC リクエストに付加)

@@ -18,6 +18,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::ping,
             commands::peercast::resolve_stream_url,
+            commands::peercast::endpoint_for_url,
+            commands::peercast::fetch_channel_info,
+            commands::peercast::fetch_channel_status,
+            commands::peercast::bump_channel,
+            commands::peercast::stop_channel,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

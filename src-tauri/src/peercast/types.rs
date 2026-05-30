@@ -22,29 +22,32 @@ impl ChannelId {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct Track {
-    pub title: String,
-    pub artist: String,
-    pub album: String,
+    pub name: String,
     pub genre: String,
-    pub contact: String,
+    pub album: String,
+    pub creator: String,
+    pub url: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct ChannelInfo {
     pub name: String,
-    pub id: String,
-    pub bitrate: u32,
-    pub content_type: String,
-    pub genre: String,
-    pub desc: String,
-    pub url: String,
-    pub uptime: u64,
     pub comment: String,
-    pub track: Track,
+    pub desc: String,
+    pub genre: String,
+    pub url: String,
+    pub content_type: String,
+    pub mime_type: String,
+    pub bitrate: u32,
+    pub stream_type: String,
+    pub stream_ext: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct ChannelStatus {
     pub status: String,
     pub uptime: u64,
@@ -53,7 +56,27 @@ pub struct ChannelStatus {
     pub total_relays: u32,
     pub total_directs: u32,
     pub is_broadcasting: bool,
-    pub is_firewalled: Option<bool>,
+    pub is_relay_full: bool,
+    pub is_direct_full: bool,
+    pub is_receiving: bool,
+}
+
+/// Identifying record of a channel returned by `getChannels`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ChannelRecord {
+    pub channel_id: String,
+    pub info: ChannelInfo,
+    pub track: Track,
+    pub status: ChannelStatus,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct VersionInfo {
+    pub agent_name: String,
+    pub api_version: String,
+    pub json_rpc_version: String,
 }
 
 /// Endpoint of a PeerCast host we connect to.
