@@ -103,3 +103,94 @@ export async function bumpChannel(endpoint: PeerCastEndpoint, channelId: string)
 export async function stopChannel(endpoint: PeerCastEndpoint, channelId: string): Promise<void> {
 	return call<void>('stop_channel', { endpoint, channelId });
 }
+
+// ── BBS ─────────────────────────────────────────────────────────────
+
+export type BoardKind = 'Shitaraba' | 'Ch2Compat';
+
+export interface SubjectEntry {
+	key: string;
+	title: string;
+	count: number;
+}
+
+export interface Post {
+	number: number;
+	name: string;
+	mail: string;
+	date: string;
+	id: string;
+	body: string;
+	threadTitle: string;
+}
+
+export interface FetchState {
+	lastModified: string | null;
+	lastByte: number;
+	lastCount: number;
+}
+
+export interface PostRequest {
+	name: string;
+	mail: string;
+	body: string;
+}
+
+export async function classifyBoard(url: string): Promise<BoardKind> {
+	return call<BoardKind>('classify_board', { url });
+}
+
+export async function listThreads(boardUrl: string): Promise<SubjectEntry[]> {
+	return call<SubjectEntry[]>('list_threads', { boardUrl });
+}
+
+export async function fetchThread(
+	threadUrl: string,
+	prev?: FetchState | null,
+): Promise<[Post[], FetchState]> {
+	return call<[Post[], FetchState]>('fetch_thread', { threadUrl, prev: prev ?? null });
+}
+
+export async function postToThread(threadUrl: string, req: PostRequest): Promise<void> {
+	return call<void>('post_to_thread', { threadUrl, req });
+}
+
+export async function sanitizeHtml(html: string): Promise<string> {
+	return call<string>('sanitize_html', { html });
+}
+
+// ── Config ──────────────────────────────────────────────────────────
+
+export interface PeerCastConfig {
+	host: string;
+	port: number;
+	authUser: string | null;
+	authPass: string | null;
+	timeoutSec: number;
+	recentHosts: string[];
+}
+
+export interface BbsConfig {
+	defaultName: string;
+	defaultMail: string;
+	autoRefreshSec: number;
+}
+
+export interface Config {
+	peercast: PeerCastConfig;
+	bbs: BbsConfig;
+	// other sections exist but are not exposed yet
+	[key: string]: unknown;
+}
+
+export async function getConfig(): Promise<Config> {
+	return call<Config>('get_config');
+}
+
+export async function setConfig(config: Config): Promise<void> {
+	return call<void>('set_config', { config });
+}
+
+export async function configFilePath(): Promise<string> {
+	return call<string>('config_file_path');
+}

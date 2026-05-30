@@ -1,3 +1,4 @@
+pub mod bbs;
 pub mod config;
 pub mod peercast;
 

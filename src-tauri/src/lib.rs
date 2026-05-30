@@ -26,6 +26,11 @@ pub fn run() {
             commands::config::get_config,
             commands::config::set_config,
             commands::config::config_file_path,
+            commands::bbs::list_threads,
+            commands::bbs::fetch_thread,
+            commands::bbs::post_to_thread,
+            commands::bbs::classify_board,
+            commands::bbs::sanitize_html,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -4,8 +4,9 @@
 //! No HTTP here: callers feed in a decoded UTF-8 body.
 
 use super::{anchor::find_anchors, encoding::unescape_html, types::Post};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SubjectEntry {
     /// Thread "key" (`dat` filename without extension on 2ch,
     /// `cgi` filename without extension on shitaraba — i.e. the

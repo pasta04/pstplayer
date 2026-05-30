@@ -35,6 +35,21 @@ impl BoardEncoding {
     }
 }
 
+/// Percent-encode every byte that is not an unreserved character per RFC 3986.
+/// Used when posting form bodies whose values are already encoded in
+/// the board's native charset (Shift_JIS / EUC-JP).
+pub fn percent_encode(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len() * 3);
+    for &b in bytes {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
 /// Decode HTML entities found in 2ch/shitaraba dat bodies.
 /// Restricted to the common subset (`&lt;` `&gt;` `&amp;` `&quot;`
 /// `&#NNN;` `&#xHHH;`) plus the shitaraba-specific `&#65374;` → `～`.
@@ -126,5 +141,14 @@ mod tests {
     #[test]
     fn passes_through_bare_ampersand() {
         assert_eq!(unescape_html("at & t"), "at & t");
+    }
+
+    #[test]
+    fn percent_encode_basic() {
+        assert_eq!(percent_encode(b"hello"), "hello");
+        assert_eq!(percent_encode(b" "), "%20");
+        assert_eq!(percent_encode(b"a=b&c"), "a%3Db%26c");
+        // EUC-JP-encoded katakana "ア" (0xA5 0xA2).
+        assert_eq!(percent_encode(&[0xA5, 0xA2]), "%A5%A2");
     }
 }

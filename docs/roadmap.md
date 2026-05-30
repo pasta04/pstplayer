@@ -54,10 +54,14 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
 - [x] 2ch 互換 `subject.txt` パース (`<>` 区切り、7 フィールド dat 対応)
 - [x] アンカー (`>>N`, `>>N-M`, 全角 `＞＞`) 抽出
 - [x] URL → BoardKind ルータ (router.rs)
-- [ ] HTTP クライアント (Cookie 対応、cookie_store 永続化)
-- [ ] したらば `rawmode.cgi` での実取得
-- [ ] したらば `write.cgi` への POST (確認ダイアログ付き)
+- [x] HTTP クライアント (Cookie 対応、reqwest cookie_store。永続化はフェーズ 2 で)
+- [x] したらば `rawmode.cgi` での実取得 + `If-Modified-Since` 差分取得
+- [x] したらば `write.cgi` への POST (確認ダイアログはフロント側 TODO)
+- [x] 2ch 系 dat 取得 + `Range` 差分取得 (304/416 ハンドリング含む)
+- [x] 2ch 系 `bbs.cgi` 投稿 (Cookie 2 段階確認自動再送)
 - [x] ammonia による HTML サニタイズ (HTML 表示モード用)
+- [x] Tauri command 公開: `classify_board`, `list_threads`, `fetch_thread`,
+      `post_to_thread`, `sanitize_html`
 
 ### 1.5 UI (最小)
 
