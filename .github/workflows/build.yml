@@ -64,13 +64,19 @@ jobs:
           echo "PKG_CONFIG_PATH=${MPV_PREFIX}/lib/pkgconfig" >> "$GITHUB_ENV"
           echo "DYLD_FALLBACK_LIBRARY_PATH=${MPV_PREFIX}/lib" >> "$GITHUB_ENV"
 
+      - name: Setup MSVC environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - name: Install libmpv (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          # libmpv2 v5 (with the build_libmpv feature) expects
-          # MPV_SOURCE/64/{mpv.lib,libmpv.dll.a,libmpv-2.dll}.
-          # shinchiro/mpv-winbuild-cmake's dev tarball provides those.
+          # shinchiro's mpv-dev only ships MinGW import lib (libmpv.dll.a).
+          # MSVC needs mpv.lib — generate it from libmpv-2.dll via
+          # dumpbin /exports → .def → lib /def:.
           $url  = 'https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20260530/mpv-dev-x86_64-v3-20260530-git-13a3e3a.7z'
           $tmp  = "$env:TEMP\mpv-dev.7z"
           $base = "$env:GITHUB_WORKSPACE\mpv-dev"
@@ -78,6 +84,23 @@ jobs:
           Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $tmp
           New-Item -ItemType Directory -Force -Path $sub | Out-Null
           & 'C:\Program Files\7-Zip\7z.exe' x $tmp -o"$sub" -y
+
+          $dll = Join-Path $sub 'libmpv-2.dll'
+          $def = Join-Path $sub 'mpv.def'
+          $lib = Join-Path $sub 'mpv.lib'
+          $exports = & dumpbin.exe /exports $dll
+          $names = @()
+          foreach ($line in $exports) {
+            if ($line -match '^\s+\d+\s+[0-9A-Fa-f]+\s+[0-9A-Fa-f]+\s+(\S+)\s*$') {
+              $names += $Matches[1]
+            }
+          }
+          if ($names.Count -eq 0) { throw "failed to extract exports from $dll" }
+          'EXPORTS' | Out-File -FilePath $def -Encoding ascii
+          $names    | Out-File -FilePath $def -Encoding ascii -Append
+          & lib.exe /def:$def /out:$lib /machine:x64
+          if (-not (Test-Path $lib)) { throw "lib.exe did not produce $lib" }
+
           "MPV_SOURCE=$base" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       # ── Toolchains ───────────────────────────────────────────────────
