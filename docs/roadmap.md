@@ -27,10 +27,12 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
 ### 1.2 PeerCast 連携 (最小)
 
 - [ ] `peercast` モジュール骨組み (`reqwest` ベース)
+- [ ] URL パーサ (`pls`/`stream` 両形式 + `?tip=` パラメータ対応)
 - [ ] `/pls/{id}` から実ストリーム URL を取得 (playlist パーサ)
 - [ ] `/api/1` JSON-RPC クライアント (`getChannelInfo`, `getChannelStatus`, `stopChannel`, `bumpChannel`)
 - [ ] 旧 `/admin?cmd=viewxml` フォールバック (XML パース)
 - [ ] 単体テスト (モックレスポンス)
+- [ ] **CLI 引数からの URL 受け取りで再生開始 (外部ツール連携の基本)**
 
 ### 1.3 動画再生 (最小)
 

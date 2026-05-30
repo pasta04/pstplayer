@@ -24,16 +24,32 @@ PSTPlayer が PeerCast (主に [PeerCastStation](https://github.com/kumaryu/peer
 
 クライアントがストリームを取得するための URL 形式 (PeerCastStation を含むほとんどの実装で互換):
 
-| URL                                  | 内容                                              |
-| ------------------------------------ | ------------------------------------------------- |
-| `http://host:port/pls/{id}.{ext}`    | プレイリスト (PLS 形式)。中身に実ストリーム URL  |
-| `http://host:port/stream/{id}.{ext}` | 実ストリーム本体                                  |
-| `http://host:port/play.html?id={id}` | HTML 再生ページ (Web UI)                          |
+| URL                                              | 内容                                              |
+| ------------------------------------------------ | ------------------------------------------------- |
+| `http://host:port/pls/{id}[.{ext}][?tip={tip}]`  | プレイリスト (PLS 形式)。中身に実ストリーム URL  |
+| `http://host:port/stream/{id}.{ext}`             | 実ストリーム本体                                  |
+| `http://host:port/play.html?id={id}`             | HTML 再生ページ (Web UI)                          |
 
 - `{id}` は 32 桁の hex (チャンネル ID)
 - `{ext}` はコンテナ種別 (`flv` / `mkv` / `wmv` / `webm` / `ts` 等)
+- `host` 部は **ホスト名 (`localhost` 等)** と **IP アドレス** の両形式が来る
+- `?tip={ip:port}` パラメータ: **トラッカー IP** (任意)。YP やチャンネルリストから渡される。PeerCast 本体がリレー接続の優先候補として使用
 - PCRPlayer は `pls/{id}` を主に扱っていた
 - libmpv は直接 `stream/` も `pls/` も読める
+
+### URL の正規表現サンプル
+
+```
+^https?://
+  (?P<host>[^:/]+)
+  :(?P<port>\d+)
+  /(?P<kind>pls|stream)
+  /(?P<id>[0-9A-Fa-f]{32})
+  (?:\.(?P<ext>[a-z0-9]+))?
+  (?:\?tip=(?P<tip>[^&]+))?
+```
+
+`kind` で `pls` / `stream` を判別し、`pls` の場合は HTTP GET → 中身パース → libmpv に渡す。
 
 ### 推奨クライアント挙動
 

@@ -71,6 +71,8 @@ src-tauri/
 ├── build.rs
 └── src/
     ├── main.rs              # エントリ。Tauri Builder の組み立て
+    ├── cli.rs               # コマンドライン引数パース (起動時 URL)
+    ├── single_instance.rs   # 二重起動制御 (new-window/replace/single)
     ├── commands/            # Tauri command (フロントから呼べる API)
     │   ├── mod.rs
     │   ├── peercast.rs      # チャンネル取得、再生開始/停止、bump
