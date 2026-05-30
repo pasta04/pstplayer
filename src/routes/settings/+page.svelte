@@ -7,6 +7,7 @@
 		getConfig,
 		getHistory,
 		setConfig,
+		snapshotTargetDir,
 		type Config,
 		type HistoryEntry,
 	} from '$lib/api';
@@ -19,6 +20,7 @@
 	let configPath = $state<string>('');
 	let theme = $state<Theme>('system');
 	let history = $state<HistoryEntry[]>([]);
+	let snapshotPreview = $state<string>('');
 
 	onMount(async () => {
 		applyTheme(getTheme()); // settings window also reflects the chosen theme
@@ -27,10 +29,19 @@
 			cfg = await getConfig();
 			configPath = await configFilePath();
 			history = await getHistory();
+			snapshotPreview = await snapshotTargetDir();
 		} catch (e) {
 			message = errMsg(e);
 		}
 	});
+
+	async function refreshSnapshotPreview() {
+		try {
+			snapshotPreview = await snapshotTargetDir();
+		} catch {
+			/* ignore */
+		}
+	}
 
 	async function onClearHistory() {
 		if (!confirm('視聴履歴をすべて削除します。よろしいですか?')) return;
@@ -146,8 +157,31 @@
 					/ on*属性などは除去されます。次回起動から有効。
 				</p>
 			{:else if tab === 'player'}
-				<p class="hint small">
-					プレイヤー設定はまだ最小限です。スナップショット保存先などは順次実装。
+				<label>
+					初期音量 (0-100)
+					<input type="number" min="0" max="100" bind:value={cfg.player.volume} />
+				</label>
+				<label>
+					スナップショット保存先
+					<input
+						type="text"
+						bind:value={cfg.player.snapshot_dir}
+						placeholder="(空 = exe 配下の snapshot/)"
+						onblur={refreshSnapshotPreview}
+					/>
+				</label>
+				<p class="hint small muted">現在の解決先: <code class="path">{snapshotPreview}</code></p>
+				<label>
+					形式
+					<select bind:value={cfg.player.snapshot_format}>
+						<option value="png">PNG (可逆、推奨)</option>
+						<option value="jpg">JPEG (品質 95)</option>
+					</select>
+				</label>
+				<p class="hint small muted">
+					F2 キーまたは配信画面の右クリック → スナップショット で撮影できます。 ファイル名は <code
+						>YYYYMMDD_HHmmss_チャンネル名.png</code
+					> 形式。
 				</p>
 			{:else if tab === 'history'}
 				<div class="hist-head">

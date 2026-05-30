@@ -76,6 +76,14 @@ impl PlayerEngine {
         self.mpv.get_property::<T>(name).ok()
     }
 
+    /// Capture the current video frame to `path`. The file extension
+    /// determines the format (libmpv supports png/jpg/jpeg/webp).
+    /// The `flag` argument is the libmpv "include" flag —
+    /// "subtitles" (default), "video" (no overlay), or "window".
+    pub fn screenshot_to_file(&self, path: &str, flag: &str) -> AppResult<()> {
+        self.mpv.command("screenshot-to-file", &[path, flag]).map_err(map_err)
+    }
+
     /// Borrow the underlying handle for OS-specific window attachment
     /// (see `window.rs`). The returned Arc keeps the same instance.
     pub fn handle(&self) -> Arc<Mpv> {

@@ -8,4 +8,5 @@ pub mod cli;
 pub mod config;
 pub mod peercast;
 pub mod single_instance;
+pub mod snapshot;
 pub mod util;

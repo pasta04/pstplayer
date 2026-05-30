@@ -52,6 +52,8 @@ pub fn run() {
             commands::player::player_set_mute,
             commands::player::player_status,
             commands::player::player_attach,
+            commands::player::player_snapshot,
+            commands::player::snapshot_target_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

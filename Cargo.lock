@@ -2932,6 +2932,7 @@ name = "pst-core"
 version = "0.0.1"
 dependencies = [
  "ammonia",
+ "chrono",
  "directories",
  "encoding_rs",
  "once_cell",

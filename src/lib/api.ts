@@ -177,9 +177,18 @@ export interface BbsConfig {
 	displayMode: 'plain' | 'html';
 }
 
+export interface PlayerCfg {
+	volume: number;
+	aspect_mode: string;
+	snapshot_dir: string;
+	snapshot_format: string;
+	snapshot_jpeg_quality: number;
+}
+
 export interface Config {
 	peercast: PeerCastConfig;
 	bbs: BbsConfig;
+	player: PlayerCfg;
 	// other sections exist but are not exposed yet
 	[key: string]: unknown;
 }
@@ -246,4 +255,12 @@ export async function playerSetMute(mute: boolean): Promise<void> {
 
 export async function playerStatus(): Promise<PlayerStatus> {
 	return call<PlayerStatus>('player_status');
+}
+
+export async function playerSnapshot(channelName?: string): Promise<string> {
+	return call<string>('player_snapshot', { channelName: channelName ?? '' });
+}
+
+export async function snapshotTargetDir(): Promise<string> {
+	return call<string>('snapshot_target_dir');
 }

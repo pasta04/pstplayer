@@ -21,6 +21,7 @@ toml.workspace = true
 directories.workspace = true
 quick-xml.workspace = true
 ammonia.workspace = true
+chrono.workspace = true
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }

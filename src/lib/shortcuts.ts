@@ -17,6 +17,7 @@ export interface ShortcutActions {
 	focusSearch: () => void;
 	reloadThread: () => void;
 	reloadThreadFull: () => void;
+	snapshot: () => void;
 }
 
 /**
@@ -116,6 +117,11 @@ export function installShortcuts(actions: ShortcutActions): () => void {
 			else actions.reloadThread();
 			e.preventDefault();
 			return;
+		}
+		// F2: snapshot (mirrors VLC/most players)
+		if (!ctrl && !e.altKey && !e.shiftKey && e.key === 'F2') {
+			actions.snapshot();
+			e.preventDefault();
 		}
 		if (ctrl && e.key === ',') {
 			actions.openSettings();

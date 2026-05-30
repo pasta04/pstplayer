@@ -11,6 +11,7 @@
 		getConfig,
 		listThreads,
 		playerSetVolume,
+		playerSnapshot,
 		playerStatus,
 		postToThread,
 		pushHistory,
@@ -166,6 +167,7 @@
 					loadCurrentThread(true);
 				}
 			},
+			snapshot: doSnapshot,
 		});
 	});
 
@@ -434,6 +436,15 @@
 		const { getCurrentWindow } = await import('@tauri-apps/api/window');
 		const w = getCurrentWindow();
 		await w.setFullscreen(!(await w.isFullscreen()));
+	}
+
+	async function doSnapshot() {
+		try {
+			const path = await playerSnapshot(channelInfo?.name);
+			notify('スナップショット保存', path);
+		} catch (e) {
+			lastError = errorMessage(e);
+		}
 	}
 
 	async function onOpenSettings() {
@@ -728,6 +739,15 @@
 				</button>
 				<button class="ctx-item" onclick={ctxCopyChannelUrl}>📋 チャンネル URL をコピー</button>
 				<div class="ctx-sep"></div>
+				<button
+					class="ctx-item"
+					onclick={() => {
+						closeCtxMenu();
+						doSnapshot();
+					}}
+				>
+					📷 スナップショット (F2)
+				</button>
 				<button class="ctx-item" onclick={onOpenSettings}>⚙ 設定...</button>
 				<button class="ctx-item" onclick={onOpenThreadList} disabled={!channelInfo?.url}>
 					≡ スレ一覧を開く

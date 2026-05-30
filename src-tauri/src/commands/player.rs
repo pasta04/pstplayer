@@ -1,5 +1,10 @@
 use crate::player::{engine::PlayerEngine, window as player_window};
+use pst_core::config;
+use pst_core::snapshot;
 use pst_core::util::errors::{AppError, IpcError};
+use std::env;
+use std::fs;
+use std::path::PathBuf;
 use tauri::{AppHandle, Manager, Runtime, State};
 
 #[tauri::command]
@@ -49,6 +54,51 @@ pub fn player_attach<R: Runtime>(
         .ok_or_else(|| AppError::InvalidUrl(format!("no such window: {window_label}")))?;
     let handle = engine.handle();
     player_window::attach(&handle, &window).map_err(Into::into)
+}
+
+/// Take a snapshot of the current video frame, saving it under the
+/// configured snapshot directory (or its fallback if the configured
+/// one is unwritable). Returns the absolute path of the saved file.
+#[tauri::command]
+pub fn player_snapshot(
+    channel_name: Option<String>,
+    engine: State<'_, PlayerEngine>,
+) -> Result<String, IpcError> {
+    let cfg = config::load().map_err(IpcError::from)?;
+    let exe_dir = exe_dir();
+    let resolved = snapshot::resolve_dir(&cfg.player, exe_dir.as_deref());
+    if let Err(e) = fs::create_dir_all(&resolved.dir) {
+        return Err(AppError::Decode(format!(
+            "cannot create snapshot dir {}: {e}",
+            resolved.dir.display()
+        ))
+        .into());
+    }
+    let ext = if cfg.player.snapshot_format.eq_ignore_ascii_case("jpeg")
+        || cfg.player.snapshot_format.eq_ignore_ascii_case("jpg")
+    {
+        "jpg"
+    } else {
+        "png"
+    };
+    let name = snapshot::make_filename(channel_name.as_deref().unwrap_or(""), ext);
+    let full = resolved.dir.join(&name);
+    let full_str = full.to_string_lossy().into_owned();
+    engine.screenshot_to_file(&full_str, "subtitles").map_err(IpcError::from)?;
+    Ok(full_str)
+}
+
+/// Where libmpv will write snapshots by default, given the current
+/// config. Returned for previewing in the settings UI.
+#[tauri::command]
+pub fn snapshot_target_dir() -> Result<String, IpcError> {
+    let cfg = config::load().map_err(IpcError::from)?;
+    let resolved = snapshot::resolve_dir(&cfg.player, exe_dir().as_deref());
+    Ok(resolved.dir.to_string_lossy().into_owned())
+}
+
+fn exe_dir() -> Option<PathBuf> {
+    env::current_exe().ok().and_then(|p| p.parent().map(|p| p.to_path_buf()))
 }
 
 #[tauri::command]
