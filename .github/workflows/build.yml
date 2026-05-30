@@ -143,8 +143,11 @@ jobs:
       - name: Bundle libmpv into .app (macOS)
         if: runner.os == 'macOS'
         shell: bash
+        # NOTE: deliberately no `set -e`. `grep` returns exit 1 when nothing
+        # matches, which is a normal "leaf of dependency tree" condition for
+        # us and must not abort the script.
         run: |
-          set -eu
+          set -u
           APP="target/release/bundle/macos/PSTPlayer.app"
           if [ ! -d "$APP" ]; then
             echo "no .app produced at $APP, skipping libmpv bundling"
@@ -154,50 +157,51 @@ jobs:
           FRAMEWORKS="$APP/Contents/Frameworks"
           mkdir -p "$FRAMEWORKS"
 
-          # Recursively copy a dylib and all its non-system dependencies
-          # into Frameworks/, and rewrite each install-name to @rpath/<basename>.
-          copy_deps() {
-            local file="$1"
-            otool -L "$file" 2>/dev/null \
+          # List the non-system, non-@rpath dylibs referenced by $1.
+          list_external_deps() {
+            otool -L "$1" 2>/dev/null \
               | awk 'NR>1 {print $1}' \
               | grep -Ev '^/(usr/lib|System)/' \
-              | grep -v "^@" \
-              | while read -r dep; do
-                  [ -z "$dep" ] && continue
-                  local name
-                  name="$(basename "$dep")"
-                  if [ ! -f "$FRAMEWORKS/$name" ]; then
-                    cp -L "$dep" "$FRAMEWORKS/$name"
-                    chmod +w "$FRAMEWORKS/$name"
-                    install_name_tool -id "@rpath/$name" "$FRAMEWORKS/$name" 2>/dev/null || true
-                    copy_deps "$FRAMEWORKS/$name"
-                  fi
-                done
-            # Rewrite refs inside `file` to point at @rpath/<name>
-            otool -L "$file" 2>/dev/null \
-              | awk 'NR>1 {print $1}' \
-              | grep -Ev '^/(usr/lib|System)/' \
-              | grep -v "^@" \
-              | while read -r dep; do
-                  [ -z "$dep" ] && continue
-                  local name
-                  name="$(basename "$dep")"
-                  install_name_tool -change "$dep" "@rpath/$name" "$file" 2>/dev/null || true
-                done
+              | grep -v '^@' \
+              || true
           }
 
-          # Start from libmpv that the main binary directly references.
+          # Recursively copy a dylib and rewrite install-names.
+          copy_deps() {
+            local file="$1"
+            local dep name
+            for dep in $(list_external_deps "$file"); do
+              name="$(basename "$dep")"
+              if [ ! -f "$FRAMEWORKS/$name" ]; then
+                cp -L "$dep" "$FRAMEWORKS/$name"
+                chmod +w "$FRAMEWORKS/$name"
+                install_name_tool -id "@rpath/$name" "$FRAMEWORKS/$name" 2>/dev/null || true
+                copy_deps "$FRAMEWORKS/$name"
+              fi
+            done
+            # Rewrite refs inside $file to use @rpath/.
+            for dep in $(list_external_deps "$file"); do
+              name="$(basename "$dep")"
+              install_name_tool -change "$dep" "@rpath/$name" "$file" 2>/dev/null || true
+            done
+          }
+
           LIBMPV_SRC="$(brew --prefix mpv)/lib/libmpv.2.dylib"
+          if [ ! -f "$LIBMPV_SRC" ]; then
+            echo "libmpv not found at $LIBMPV_SRC"
+            ls -la "$(brew --prefix mpv)/lib" || true
+            exit 1
+          fi
           cp -L "$LIBMPV_SRC" "$FRAMEWORKS/libmpv.2.dylib"
           chmod +w "$FRAMEWORKS/libmpv.2.dylib"
-          install_name_tool -id "@rpath/libmpv.2.dylib" "$FRAMEWORKS/libmpv.2.dylib"
+          install_name_tool -id "@rpath/libmpv.2.dylib" "$FRAMEWORKS/libmpv.2.dylib" 2>/dev/null || true
           copy_deps "$FRAMEWORKS/libmpv.2.dylib"
 
           # Make the main binary look in Frameworks/ first.
           install_name_tool -change \
             "/opt/homebrew/opt/mpv/lib/libmpv.2.dylib" \
             "@rpath/libmpv.2.dylib" \
-            "$MAIN"
+            "$MAIN" 2>/dev/null || true
           install_name_tool -add_rpath "@executable_path/../Frameworks" "$MAIN" 2>/dev/null || true
 
           echo "── Frameworks ──"
