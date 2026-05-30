@@ -149,7 +149,10 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
 - [ ] プラグイン機構 (BBS タイプ追加、フィルタ等)
 - [ ] 英語 UI (i18n)
 - [ ] PeerCast 本体の自動起動・終了
-- [ ] **リレーサーバ `pst-server`** (iPad/iPhone/Android からブラウザで視聴 + 投稿。HLS 出力で全端末対応、PWA 化。詳細は [ADR-0005](decisions/0005-workspace-and-server.md))
+- [ ] **リレーサーバ `pst-server`** (iPad/iPhone/Android からブラウザで視聴 + 投稿。
+      設定ファイルに紐付け先 PeerCastStation を書き、`getChannels` をプロキシして
+      TOP ページに視聴可能チャンネル一覧を表示、HLS 出力で全端末対応、PWA 化。
+      詳細は [ADR-0005](decisions/0005-workspace-and-server.md))
 - [ ] リモート操作 (別端末からの再生制御) ← 上記サーバの延長
 - [ ] `pstplayer://` カスタム URL スキーマ (ブラウザからのワンクリック起動)
 

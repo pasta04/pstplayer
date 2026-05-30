@@ -99,17 +99,71 @@ MVP では A 一択、B は配信元によっては動かない、というの�
 
 ```
 [pst-server (axum)]
-├── /api/* …………… JSON-RPC (pst-core 経由)
-│   ├── /api/channel/{id}/info
-│   ├── /api/channel/{id}/bump
-│   ├── /api/board?url=...
-│   ├── /api/thread?url=...
-│   └── /api/thread/post (POST)
+├── /api/channels …… 紐付け先 PeerCastStation の getChannels をプロキシ
+│                     → TOP ページの「視聴可能チャンネル一覧」になる
+├── /api/channel/{id}/info / status / bump / stop
+├── /api/board?url=... / thread?url=... / thread/post (POST)
 ├── /stream/{id}.m3u8 … PeerCast 本体の HLS をプロキシ or 再パッケージ
 └── /  …………………… Svelte の Web ビルド (PWA)
 ```
 
 PWA 化 (manifest + Service Worker) しておけば iPhone / Android のホーム画面アイコンから独立アプリ的に起動できる。
+
+### Server の起動・配信源モデル
+
+デスクトップ版 PCRPlayer / PSTPlayer は **外部ツールから渡される URL** が再生のトリガーだが、Server は **ブラウザからアクセスされる側** なのでこのモデルが使えない。代わりに、Server は事前に **特定の PeerCastStation インスタンスに紐付き**、そこから視聴可能なチャンネル一覧を引いて UI に出す。
+
+設定ファイル `pst-server.toml` (案):
+
+```toml
+[peercast]
+host = "192.0.2.10"   # PeerCastStation が動いているホスト
+port = 7144
+auth_user = ""        # 必要なら Basic 認証
+auth_pass = ""
+
+[server]
+bind = "0.0.0.0:8080"
+public_url = "https://pst.example.lan/"   # 逆プロキシ越しの URL (PWA manifest 用)
+```
+
+#### ブラウザでアクセスした時の動作
+
+```
+1. ユーザーが http://pst-server/ にアクセス
+2. Server が PeerCastStation の /api/1 → getChannels を呼ぶ
+3. 一覧を整形してフロントに JSON で返す
+4. フロントがチャンネル一覧をテーブル表示 (PeerCastStation の Web UI に
+   似た見た目: チャンネル名 / ジャンル / 詳細 / kbps / 時間 / L/R / Type)
+5. クリックで再生開始
+   - 動画: /stream/{id}.m3u8 を <video> に流す
+   - BBS: チャンネル情報の contact URL を classify_board でルーティング、
+     対応掲示板なら BBS ペインを自動初期化
+```
+
+これは PeerCastStation 自身の Web UI (上記スクショで言うチャンネル一覧画面) を、**BBS 連携付きでブラウザ上に再現する** イメージ。視聴者の追加操作は不要、URL ペーストすら不要。
+
+#### URL ペーストフロー (補助)
+
+YP 経由で表示されないチャンネル (制限配信、他の YP) もあるので、URL ペースト機能は補助として残す。デスクトップ版と同じ `peercast::url::parse` ロジックが使える。
+
+#### 複数 PeerCastStation 対応 (将来)
+
+設定で複数の PeerCast を登録可能にし、UI 上でホスト切替できるようにする案。MVP では 1 ホスト固定で十分。
+
+```toml
+[[peercast]]
+name = "home"
+host = "192.0.2.10"
+port = 7144
+
+[[peercast]]
+name = "vps"
+host = "203.0.113.5"
+port = 7144
+auth_user = "viewer"
+auth_pass = "..."
+```
 
 ### セキュリティ
 
@@ -136,8 +190,11 @@ ADR-0004 (PCRPlayer 互換 + オフライン系オミット) の **拡張** で�
 ## TBD (フェーズ 4 までに決める)
 
 - PeerCastStation の HLS 出力対応バージョン / URL 形式の調査
+- `getChannels` のレスポンス頻度 / キャッシュ戦略 (毎リクエストで叩くか、Server 側で 数秒キャッシュするか)
+- 一覧表示のソート / フィルタ / 検索 UI (PeerCastStation の Web UI 相当)
 - PWA マニフェスト設計
 - 認証方式 (Basic / OAuth / なし)
 - サーバ常駐方式 (systemd / Docker)
 - マルチセッション対応 (複数ブラウザから同時アクセス)
 - BBS Cookie の扱い (中継サーバ共有 vs ブラウザごと別管理)
+- 複数 PeerCastStation の登録対応 (MVP は単一固定)
