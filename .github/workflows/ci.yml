@@ -125,6 +125,22 @@ jobs:
       - name: cargo clippy (workspace)
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      - name: cargo test build (workspace)
+        if: runner.os == 'Windows'
+        run: cargo test --workspace --no-run
+
+      - name: Stage libmpv-2.dll next to test binaries (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Test binaries live in target/debug/deps/; the OS loader
+          # checks the process directory first, so dropping the DLL
+          # there bypasses PATH / System32 / UAC quirks entirely.
+          $deps = 'target\debug\deps'
+          if (-not (Test-Path $deps)) { throw "no $deps directory" }
+          Copy-Item "$env:MPV_SOURCE\64\libmpv-2.dll" $deps -Force
+          Get-ChildItem "$deps\libmpv-2.dll" | Format-List FullName, Length
+
       - name: cargo test (workspace)
         run: cargo test --workspace
 
