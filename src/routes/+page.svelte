@@ -83,6 +83,9 @@
 	// successful sample.
 	let playerStat = $state<PlayerStatus | null>(null);
 
+	// Right-click context menu over the player area.
+	let ctxMenu = $state<{ x: number; y: number } | null>(null);
+
 	// Polling handles
 	let infoTimer: ReturnType<typeof setInterval> | null = null;
 	let threadTimer: ReturnType<typeof setInterval> | null = null;
@@ -359,6 +362,44 @@
 		}
 	}
 
+	function onPlayerContextMenu(e: MouseEvent) {
+		e.preventDefault();
+		ctxMenu = { x: e.clientX, y: e.clientY };
+	}
+
+	function closeCtxMenu() {
+		ctxMenu = null;
+	}
+
+	async function ctxCopyChannelUrl() {
+		closeCtxMenu();
+		const url = pasteUrl.trim();
+		if (!url) return;
+		try {
+			await navigator.clipboard.writeText(url);
+		} catch {
+			/* permission denied */
+		}
+	}
+
+	async function ctxOpenContactUrl() {
+		closeCtxMenu();
+		if (!channelInfo?.url) return;
+		try {
+			const { openUrl } = await import('@tauri-apps/plugin-opener');
+			await openUrl(channelInfo.url);
+		} catch {
+			/* opener missing */
+		}
+	}
+
+	async function ctxToggleFullscreen() {
+		closeCtxMenu();
+		const { getCurrentWindow } = await import('@tauri-apps/api/window');
+		const w = getCurrentWindow();
+		await w.setFullscreen(!(await w.isFullscreen()));
+	}
+
 	async function onOpenSettings() {
 		try {
 			await openSettings();
@@ -447,7 +488,7 @@
 >
 	<!-- Player + BBS panes -->
 	<div class="panes">
-		<div class="player">
+		<div class="player" oncontextmenu={onPlayerContextMenu} role="presentation">
 			{#if streamUrl}
 				<div class="player-placeholder">
 					<div>
@@ -590,6 +631,44 @@
 			✎
 		</button>
 	</div>
+
+	<!-- Right-click context menu -->
+	{#if ctxMenu}
+		<div
+			class="ctx-backdrop"
+			role="presentation"
+			onclick={closeCtxMenu}
+			oncontextmenu={(e) => {
+				e.preventDefault();
+				closeCtxMenu();
+			}}
+		>
+			<div
+				class="ctx"
+				role="menu"
+				tabindex="-1"
+				style="left: {Math.min(ctxMenu.x, window.innerWidth - 220)}px; top: {Math.min(
+					ctxMenu.y,
+					window.innerHeight - 240,
+				)}px"
+				onclick={(e) => e.stopPropagation()}
+			>
+				<button class="ctx-item" onclick={onBump} disabled={!channelId}> ↻ 再接続 (Bump) </button>
+				<button class="ctx-item" onclick={onStop} disabled={!channelId}> ■ 切断 (Stop) </button>
+				<div class="ctx-sep"></div>
+				<button class="ctx-item" onclick={ctxToggleFullscreen}>⛶ 全画面切替</button>
+				<button class="ctx-item" onclick={ctxOpenContactUrl} disabled={!channelInfo?.url}>
+					🔗 コンタクト URL を開く
+				</button>
+				<button class="ctx-item" onclick={ctxCopyChannelUrl}>📋 チャンネル URL をコピー</button>
+				<div class="ctx-sep"></div>
+				<button class="ctx-item" onclick={onOpenSettings}>⚙ 設定...</button>
+				<button class="ctx-item" onclick={onOpenThreadList} disabled={!channelInfo?.url}>
+					≡ スレ一覧を開く
+				</button>
+			</div>
+		</div>
+	{/if}
 
 	<!-- Anchor / ID popup overlay -->
 	{#if popup}
@@ -1068,6 +1147,46 @@
 	}
 	.popup :global(.posts.in-popup) {
 		font-size: 0.8rem;
+	}
+
+	/* Right-click context menu */
+	.ctx-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 200;
+	}
+	.ctx {
+		position: absolute;
+		min-width: 200px;
+		background: var(--bg-elev);
+		border: 1px solid var(--border-strong);
+		border-radius: 6px;
+		padding: 0.25rem 0;
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+	}
+	.ctx-item {
+		display: block;
+		width: 100%;
+		text-align: left;
+		background: transparent;
+		color: var(--fg);
+		border: none;
+		padding: 0.45rem 0.85rem;
+		font-family: inherit;
+		font-size: 0.88rem;
+		cursor: pointer;
+	}
+	.ctx-item:hover:not(:disabled) {
+		background: var(--border);
+	}
+	.ctx-item:disabled {
+		opacity: 0.45;
+		cursor: default;
+	}
+	.ctx-sep {
+		height: 1px;
+		background: var(--border);
+		margin: 0.25rem 0;
 	}
 
 	.filter-bar {
