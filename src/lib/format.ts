@@ -32,6 +32,14 @@ export function renderBodyHtml(body: string): string {
 	return withUrls.replace(/\n/g, '<br>');
 }
 
+/** Render the post's ID field as a clickable link if it looks like
+ * an `ID:xxxxxxxx` token. Returns HTML safe for `{@html}`. */
+export function renderIdHtml(id: string): string {
+	const safe = escapeHtml(id);
+	if (!safe) return '';
+	return `<a class="id-link" data-id-link="${safe}">ID:${safe}</a>`;
+}
+
 function escapeHtml(s: string): string {
 	return s
 		.replace(/&/g, '&amp;')

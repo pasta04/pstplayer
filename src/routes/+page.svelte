@@ -19,7 +19,7 @@
 		type Post,
 		type SubjectEntry,
 	} from '$lib/api';
-	import { formatUptime, renderBodyHtml } from '$lib/format';
+	import { formatUptime, renderBodyHtml, renderIdHtml } from '$lib/format';
 	import { openSettings, openThreadList } from '$lib/windows';
 	import { installShortcuts, setAlwaysOnTop, setDecorations } from '$lib/shortcuts';
 	import { notify } from '$lib/notifications';
@@ -53,6 +53,10 @@
 	let writeMail = $state('sage');
 	let writeBody = $state('');
 	let writeSending = $state(false);
+
+	// Anchor / ID popup
+	type Popup = { posts: Post[]; label: string; x: number; y: number } | null;
+	let popup = $state<Popup>(null);
 
 	// Polling handles
 	let infoTimer: ReturnType<typeof setInterval> | null = null;
@@ -306,6 +310,40 @@
 		}
 	}
 
+	function onPostsClick(e: MouseEvent) {
+		const t = e.target;
+		if (!(t instanceof HTMLElement)) return;
+		const from = t.dataset.anchorFrom;
+		const to = t.dataset.anchorTo;
+		const id = t.dataset.idLink;
+		if (from) {
+			const fromN = Number(from);
+			const toN = to ? Number(to) : fromN;
+			const matched = posts.filter((p) => p.number >= fromN && p.number <= toN);
+			showPopup(matched, `>>${from}${to ? `-${to}` : ''}`, e);
+			e.preventDefault();
+			return;
+		}
+		if (id) {
+			const matched = posts.filter((p) => p.id === id);
+			showPopup(matched, `ID:${id} (${matched.length})`, e);
+			e.preventDefault();
+		}
+	}
+
+	function showPopup(matched: Post[], label: string, e: MouseEvent) {
+		if (matched.length === 0) return;
+		popup = { posts: matched, label, x: e.clientX, y: e.clientY };
+	}
+
+	function closePopup() {
+		popup = null;
+	}
+
+	function onPopupKey(e: KeyboardEvent) {
+		if (e.key === 'Escape') closePopup();
+	}
+
 	function errorMessage(e: unknown): string {
 		if (e instanceof CommandError) return `${e.code}: ${e.message}`;
 		return String(e);
@@ -385,7 +423,7 @@
 					{/if}
 				</div>
 			{:else}
-				<ol class="posts">
+				<ol class="posts" onclick={onPostsClick}>
 					{#each posts as p (p.number)}
 						<li class="post">
 							<div class="head">
@@ -393,7 +431,7 @@
 								<span class="name">{p.name}</span>
 								{#if p.mail}<span class="mail">[{p.mail}]</span>{/if}
 								<span class="date">{p.date}</span>
-								{#if p.id}<span class="id">ID:{p.id}</span>{/if}
+								{#if p.id}<span class="id">{@html renderIdHtml(p.id)}</span>{/if}
 							</div>
 							<div class="body">{@html renderBodyHtml(p.body)}</div>
 						</li>
@@ -444,6 +482,47 @@
 			✎
 		</button>
 	</div>
+
+	<!-- Anchor / ID popup overlay -->
+	{#if popup}
+		<div
+			class="popup-backdrop"
+			role="dialog"
+			tabindex="-1"
+			onclick={closePopup}
+			onkeydown={onPopupKey}
+		>
+			<div
+				class="popup"
+				role="document"
+				tabindex="0"
+				onclick={(e) => e.stopPropagation()}
+				onkeydown={onPopupKey}
+				style="left: {Math.min(popup.x, window.innerWidth - 380)}px; top: {Math.min(
+					popup.y,
+					window.innerHeight - 320,
+				)}px"
+			>
+				<div class="popup-head">
+					<span>{popup.label} — {popup.posts.length} 件</span>
+					<button class="popup-close" onclick={closePopup}>×</button>
+				</div>
+				<ol class="posts in-popup" onclick={onPostsClick}>
+					{#each popup.posts as p (p.number)}
+						<li class="post">
+							<div class="head">
+								<span class="num">{p.number}</span>
+								<span class="name">{p.name}</span>
+								<span class="date">{p.date}</span>
+								{#if p.id}<span class="id">{@html renderIdHtml(p.id)}</span>{/if}
+							</div>
+							<div class="body">{@html renderBodyHtml(p.body)}</div>
+						</li>
+					{/each}
+				</ol>
+			</div>
+		</div>
+	{/if}
 
 	<!-- Status bar (緑) -->
 	<div class="status-bar">
@@ -799,5 +878,70 @@
 	.err {
 		color: #f08c8c;
 		margin-left: auto;
+	}
+
+	/* Linked anchors / IDs inside post bodies and header. */
+	:global(.posts a.anchor),
+	:global(.posts a.id-link) {
+		color: #88c4ff;
+		text-decoration: none;
+		cursor: pointer;
+	}
+	:global(.posts a.anchor:hover),
+	:global(.posts a.id-link:hover) {
+		text-decoration: underline;
+	}
+	:global(.posts a.external) {
+		color: #cfa84d;
+		text-decoration: none;
+		word-break: break-all;
+	}
+	:global(.posts a.external:hover) {
+		text-decoration: underline;
+	}
+
+	/* Anchor/ID popup */
+	.popup-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.25);
+		z-index: 100;
+	}
+	.popup {
+		position: absolute;
+		width: 360px;
+		max-height: 300px;
+		overflow-y: auto;
+		background: #25282d;
+		border: 1px solid #4a4d54;
+		border-radius: 6px;
+		box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+	}
+	.popup-head {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.35rem 0.6rem;
+		background: #1d1f23;
+		border-bottom: 1px solid #34373d;
+		font-size: 0.78rem;
+		color: #c6c9d0;
+		position: sticky;
+		top: 0;
+	}
+	.popup-head span {
+		flex: 1;
+	}
+	.popup-close {
+		background: transparent;
+		color: #c6c9d0;
+		border: none;
+		font-size: 1.1rem;
+		cursor: pointer;
+		line-height: 1;
+		padding: 0 0.3rem;
+	}
+	.popup :global(.posts.in-popup) {
+		font-size: 0.8rem;
 	}
 </style>
