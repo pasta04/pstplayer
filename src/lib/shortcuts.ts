@@ -14,6 +14,7 @@ export interface ShortcutActions {
 	pasteUrl: () => void;
 	openSettings: () => void;
 	openThreadList: () => void;
+	focusSearch: () => void;
 }
 
 /**
@@ -96,6 +97,11 @@ export function installShortcuts(actions: ShortcutActions): () => void {
 		}
 		if (ctrl && e.key === 'l') {
 			actions.openThreadList();
+			e.preventDefault();
+			return;
+		}
+		if (ctrl && e.key === 'f') {
+			actions.focusSearch();
 			e.preventDefault();
 			return;
 		}

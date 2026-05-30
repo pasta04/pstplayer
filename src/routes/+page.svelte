@@ -59,6 +59,10 @@
 	type Popup = { posts: Post[]; label: string; x: number; y: number } | null;
 	let popup = $state<Popup>(null);
 
+	// In-thread filter (Ctrl+F to focus, empty string = show all)
+	let filter = $state('');
+	let filterInput: HTMLInputElement | null = $state(null);
+
 	// Polling handles
 	let infoTimer: ReturnType<typeof setInterval> | null = null;
 	let threadTimer: ReturnType<typeof setInterval> | null = null;
@@ -109,6 +113,7 @@
 			},
 			openSettings: onOpenSettings,
 			openThreadList: onOpenThreadList,
+			focusSearch: () => filterInput?.focus(),
 		});
 	});
 
@@ -121,6 +126,18 @@
 	});
 
 	// ── Derived ──────────────────────────────────────────────────────
+
+	const visiblePosts = $derived.by(() => {
+		const q = filter.trim().toLowerCase();
+		if (!q) return posts;
+		return posts.filter(
+			(p) =>
+				p.body.toLowerCase().includes(q) ||
+				p.name.toLowerCase().includes(q) ||
+				p.id.toLowerCase().includes(q) ||
+				String(p.number) === q,
+		);
+	});
 
 	const statusLine = $derived.by(() => {
 		if (!channelInfo) return null;
@@ -428,8 +445,20 @@
 					{/if}
 				</div>
 			{:else}
+				<div class="filter-bar">
+					<input
+						bind:this={filterInput}
+						bind:value={filter}
+						type="search"
+						placeholder="スレ内検索 (本文/名前/ID/番号)"
+					/>
+					{#if filter}
+						<span class="filter-stat">{visiblePosts.length} / {posts.length}</span>
+						<button class="filter-clear" onclick={() => (filter = '')}>×</button>
+					{/if}
+				</div>
 				<ol class="posts" onclick={onPostsClick}>
-					{#each posts as p (p.number)}
+					{#each visiblePosts as p (p.number)}
 						<li class="post">
 							<div class="head">
 								<span class="num">{p.number}</span>
@@ -948,5 +977,44 @@
 	}
 	.popup :global(.posts.in-popup) {
 		font-size: 0.8rem;
+	}
+
+	.filter-bar {
+		display: flex;
+		gap: 0.3rem;
+		padding: 0.3rem 0.5rem;
+		border-bottom: 1px solid var(--border);
+		background: var(--bg);
+		position: sticky;
+		top: 0;
+		z-index: 5;
+		align-items: center;
+	}
+	.filter-bar input[type='search'] {
+		flex: 1;
+		background: var(--bg-input);
+		color: inherit;
+		border: 1px solid var(--border);
+		border-radius: 3px;
+		padding: 0.25rem 0.45rem;
+		font-family: inherit;
+		font-size: 0.8rem;
+	}
+	.filter-bar input[type='search']:focus {
+		outline: 2px solid var(--accent);
+		border-color: transparent;
+	}
+	.filter-stat {
+		font-size: 0.72rem;
+		color: var(--fg-muted);
+	}
+	.filter-clear {
+		background: transparent;
+		color: var(--fg-dim);
+		border: none;
+		cursor: pointer;
+		font-size: 0.9rem;
+		line-height: 1;
+		padding: 0 0.3rem;
 	}
 </style>
