@@ -68,17 +68,17 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          # Pull a pre-built mpv-dev distribution that contains
-          # libmpv-2.dll / mpv.def / mpv.lib so libmpv2-sys can link
-          # against it. Point MPV_SOURCE at the unpacked directory.
-          $url = 'https://sourceforge.net/projects/mpv-player-windows/files/libmpv/mpv-dev-x86_64-20240602-git-d36344b.7z/download'
-          $dest = "$env:TEMP\mpv-dev.7z"
-          $out  = "$env:GITHUB_WORKSPACE\mpv-dev"
-          Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $dest
-          choco install -y 7zip
-          & "C:\Program Files\7-Zip\7z.exe" x $dest -o"$out" -y
-          "MPV_SOURCE=$out" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          "RUSTFLAGS=-L $out" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          # libmpv2 v5 (with the build_libmpv feature) expects
+          # MPV_SOURCE/64/{mpv.lib,libmpv.dll.a,libmpv-2.dll}.
+          # shinchiro/mpv-winbuild-cmake's dev tarball provides those.
+          $url  = 'https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20250323/mpv-dev-x86_64-v3-20250323-git-acec74b.7z'
+          $tmp  = "$env:TEMP\mpv-dev.7z"
+          $base = "$env:GITHUB_WORKSPACE\mpv-dev"
+          $sub  = Join-Path $base '64'
+          Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $tmp
+          New-Item -ItemType Directory -Force -Path $sub | Out-Null
+          & 'C:\Program Files\7-Zip\7z.exe' x $tmp -o"$sub" -y
+          "MPV_SOURCE=$base" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       # ── Toolchains ───────────────────────────────────────────────────
 
