@@ -40,6 +40,29 @@ export function renderIdHtml(id: string): string {
 	return `<a class="id-link" data-id-link="${safe}">ID:${safe}</a>`;
 }
 
+/** Linkify >>N and bare URLs inside an already-trusted HTML fragment.
+ * Used in HTML display mode after the body has been sanitised by
+ * ammonia in the Rust backend. We only touch raw text nodes, leaving
+ * existing <a>/<b>/<i>/etc. alone. */
+export function linkifySanitized(html: string): string {
+	// Process only text outside of tags by alternating split.
+	const parts = html.split(/(<[^>]+>)/g);
+	for (let i = 0; i < parts.length; i++) {
+		if (i % 2 === 1) continue; // tag
+		let s = parts[i];
+		s = s.replace(/(?:&gt;|>){2}(\d+)(?:-(\d+))?/g, (_m, a, b) => {
+			const to = b ? `data-anchor-to="${b}"` : '';
+			return `<a class="anchor" data-anchor-from="${a}" ${to}>&gt;&gt;${a}${b ? `-${b}` : ''}</a>`;
+		});
+		s = s.replace(
+			/(https?:\/\/[\w\-.~:/?#[\]@!$&'()*+,;=%]+)/g,
+			'<a class="external" href="$1" target="_blank" rel="noopener noreferrer">$1</a>',
+		);
+		parts[i] = s;
+	}
+	return parts.join('');
+}
+
 function escapeHtml(s: string): string {
 	return s
 		.replace(/&/g, '&amp;')

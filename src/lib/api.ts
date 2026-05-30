@@ -174,6 +174,7 @@ export interface BbsConfig {
 	defaultName: string;
 	defaultMail: string;
 	autoRefreshSec: number;
+	displayMode: 'plain' | 'html';
 }
 
 export interface Config {

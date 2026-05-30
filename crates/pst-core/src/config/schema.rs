@@ -69,10 +69,18 @@ pub struct BbsConfig {
     pub default_mail: String,
     #[serde(default = "default_refresh_sec")]
     pub auto_refresh_sec: u32,
+    /// "plain" (default) or "html". HTML mode pipes post bodies
+    /// through the ammonia whitelist sanitiser.
+    #[serde(default = "default_display_mode")]
+    pub display_mode: String,
 }
 
 fn default_refresh_sec() -> u32 {
     5
+}
+
+fn default_display_mode() -> String {
+    "plain".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -134,6 +134,17 @@
 					自動更新間隔 (秒)
 					<input type="number" min="1" max="120" bind:value={cfg.bbs.autoRefreshSec} />
 				</label>
+				<label>
+					表示モード
+					<select bind:value={cfg.bbs.displayMode}>
+						<option value="plain">プレーン (タグはエスケープ)</option>
+						<option value="html">HTML (ammonia で whitelist サニタイズ)</option>
+					</select>
+				</label>
+				<p class="hint small muted">
+					HTML モードは &lt;b&gt; &lt;i&gt; &lt;font color&gt; などの装飾を反映します。 script / img
+					/ on*属性などは除去されます。次回起動から有効。
+				</p>
 			{:else if tab === 'player'}
 				<p class="hint small">
 					プレイヤー設定はまだ最小限です。スナップショット保存先などは順次実装。

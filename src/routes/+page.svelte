@@ -8,10 +8,12 @@
 		fetchChannelInfo,
 		fetchChannelStatus,
 		fetchThread,
+		getConfig,
 		listThreads,
 		postToThread,
 		pushHistory,
 		resolveStreamUrl,
+		sanitizeHtml,
 		stopChannel,
 		type ChannelInfo,
 		type ChannelStatus,
@@ -20,7 +22,7 @@
 		type Post,
 		type SubjectEntry,
 	} from '$lib/api';
-	import { formatUptime, renderBodyHtml, renderIdHtml } from '$lib/format';
+	import { formatUptime, linkifySanitized, renderBodyHtml, renderIdHtml } from '$lib/format';
 	import { openSettings, openThreadList } from '$lib/windows';
 	import { installShortcuts, setAlwaysOnTop, setDecorations } from '$lib/shortcuts';
 	import { notify } from '$lib/notifications';
@@ -64,6 +66,13 @@
 	let filter = $state('');
 	let filterInput: HTMLInputElement | null = $state(null);
 
+	// Display mode (plain text vs HTML rendering). Sourced from config
+	// on mount and cached. Defaults to plain.
+	let displayMode = $state<'plain' | 'html'>('plain');
+	// Cache of sanitised HTML per post number to avoid re-fetching on
+	// every render.
+	let sanitizedCache = $state<Map<number, string>>(new Map());
+
 	// Polling handles
 	let infoTimer: ReturnType<typeof setInterval> | null = null;
 	let threadTimer: ReturnType<typeof setInterval> | null = null;
@@ -74,6 +83,14 @@
 
 	onMount(async () => {
 		themeUnlisten = initTheme();
+
+		// Load BBS display mode from config (best-effort).
+		try {
+			const cfg = await getConfig();
+			if (cfg?.bbs?.displayMode === 'html') displayMode = 'html';
+		} catch {
+			/* default to plain */
+		}
 
 		threadSelectedUnlisten = await listen<{
 			boardUrl: string;
@@ -224,6 +241,7 @@
 			const [newPosts, newState] = await fetchThread(currentThreadUrl, prev);
 			if (forceReset || !fetchState) {
 				posts = newPosts;
+				if (forceReset) sanitizedCache = new Map();
 			} else if (newPosts.length > 0) {
 				posts = [...posts, ...newPosts];
 				const preview = newPosts[0].body.replace(/\s+/g, ' ').slice(0, 80);
@@ -231,6 +249,20 @@
 				notify(title, preview);
 			}
 			fetchState = newState;
+
+			// Pre-fetch sanitised HTML for the new posts in HTML mode.
+			if (displayMode === 'html') {
+				for (const p of newPosts) {
+					if (sanitizedCache.has(p.number)) continue;
+					sanitizeHtml(p.body)
+						.then((sanitized) => {
+							const next = new Map(sanitizedCache);
+							next.set(p.number, linkifySanitized(sanitized));
+							sanitizedCache = next;
+						})
+						.catch(() => undefined);
+				}
+			}
 		} catch (e) {
 			lastError = errorMessage(e);
 		} finally {
@@ -470,7 +502,13 @@
 								<span class="date">{p.date}</span>
 								{#if p.id}<span class="id">{@html renderIdHtml(p.id)}</span>{/if}
 							</div>
-							<div class="body">{@html renderBodyHtml(p.body)}</div>
+							<div class="body">
+								{#if displayMode === 'html' && sanitizedCache.has(p.number)}
+									{@html sanitizedCache.get(p.number) ?? ''}
+								{:else}
+									{@html renderBodyHtml(p.body)}
+								{/if}
+							</div>
 						</li>
 					{/each}
 				</ol>
@@ -553,7 +591,13 @@
 								<span class="date">{p.date}</span>
 								{#if p.id}<span class="id">{@html renderIdHtml(p.id)}</span>{/if}
 							</div>
-							<div class="body">{@html renderBodyHtml(p.body)}</div>
+							<div class="body">
+								{#if displayMode === 'html' && sanitizedCache.has(p.number)}
+									{@html sanitizedCache.get(p.number) ?? ''}
+								{:else}
+									{@html renderBodyHtml(p.body)}
+								{/if}
+							</div>
 						</li>
 					{/each}
 				</ol>
