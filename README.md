@@ -26,6 +26,7 @@ MIT License。PCRPlayer (GPL v3) のコードは参照せず、公開プロト�
 
 - [`docs/architecture.md`](docs/architecture.md) — システムアーキテクチャ
 - [`docs/features.md`](docs/features.md) — 機能仕様
+- [`docs/ui-design.md`](docs/ui-design.md) — UI レイアウト・インタラクション
 - [`docs/roadmap.md`](docs/roadmap.md) — 開発ロードマップ (フェーズ計画)
 - [`docs/protocols/peercast.md`](docs/protocols/peercast.md) — PeerCast プロトコル参考メモ
 - [`docs/protocols/bbs.md`](docs/protocols/bbs.md) — BBS プロトコル参考メモ
