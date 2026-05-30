@@ -69,8 +69,8 @@
 		font-family:
 			-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, 'Noto Sans CJK JP',
 			sans-serif;
-		background: #1d1f23;
-		color: #e8eaed;
+		background: var(--bg);
+		color: var(--fg);
 	}
 
 	main {
@@ -84,22 +84,22 @@
 		align-items: center;
 		gap: 0.5rem;
 		padding: 0.5rem 0.7rem;
-		border-bottom: 1px solid #2c2f34;
+		border-bottom: 1px solid var(--border);
 	}
 
 	.board {
 		flex: 1;
 		font-size: 0.78rem;
-		color: #8a8d94;
+		color: var(--fg-muted);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
 
 	header button {
-		background: #3a3d44;
+		background: var(--bg-elev);
 		color: inherit;
-		border: 1px solid #4a4d54;
+		border: 1px solid var(--border-strong);
 		border-radius: 3px;
 		padding: 0.3rem 0.7rem;
 		cursor: pointer;
@@ -134,7 +134,7 @@
 	}
 
 	.row:hover {
-		background: #2c2f34;
+		background: var(--border);
 	}
 
 	.title {
@@ -146,19 +146,19 @@
 	}
 
 	.count {
-		color: #8a8d94;
+		color: var(--fg-muted);
 		font-size: 0.78rem;
 		margin-left: 0.5rem;
 	}
 
 	.err {
-		color: #f08c8c;
+		color: var(--err);
 		padding: 0.5rem 0.7rem;
 		font-size: 0.85rem;
 	}
 
 	.muted {
-		color: #8a8d94;
+		color: var(--fg-muted);
 	}
 
 	.small {

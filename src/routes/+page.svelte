@@ -23,6 +23,7 @@
 	import { openSettings, openThreadList } from '$lib/windows';
 	import { installShortcuts, setAlwaysOnTop, setDecorations } from '$lib/shortcuts';
 	import { notify } from '$lib/notifications';
+	import { initTheme } from '$lib/theme';
 
 	// ── State ────────────────────────────────────────────────────────
 
@@ -64,8 +65,11 @@
 	let threadSelectedUnlisten: UnlistenFn | null = null;
 
 	let shortcutsUnlisten: (() => void) | null = null;
+	let themeUnlisten: (() => void) | null = null;
 
 	onMount(async () => {
+		themeUnlisten = initTheme();
+
 		threadSelectedUnlisten = await listen<{
 			boardUrl: string;
 			key: string;
@@ -113,6 +117,7 @@
 		if (threadTimer) clearInterval(threadTimer);
 		threadSelectedUnlisten?.();
 		shortcutsUnlisten?.();
+		themeUnlisten?.();
 	});
 
 	// ── Derived ──────────────────────────────────────────────────────
@@ -551,8 +556,8 @@
 		font-family:
 			-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, 'Noto Sans CJK JP',
 			sans-serif;
-		background: #1d1f23;
-		color: #e8eaed;
+		background: var(--bg);
+		color: var(--fg);
 	}
 
 	.app {
@@ -607,7 +612,7 @@
 		margin-top: 0.5rem;
 		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 		font-size: 0.8rem;
-		background: #14161a;
+		background: var(--bg-input);
 		padding: 0.3rem 0.5rem;
 		border-radius: 3px;
 		max-width: 80%;
@@ -618,7 +623,7 @@
 		display: block;
 		margin-bottom: 0.5rem;
 		font-size: 0.9rem;
-		color: #c6c9d0;
+		color: var(--fg-dim);
 	}
 
 	.row {
@@ -629,8 +634,8 @@
 	.player-empty input {
 		flex: 1;
 		min-width: 320px;
-		background: #1d1f23;
-		border: 1px solid #3a3d44;
+		background: var(--bg);
+		border: 1px solid var(--border);
 		color: inherit;
 		padding: 0.4rem 0.6rem;
 		border-radius: 3px;
@@ -644,9 +649,9 @@
 	}
 
 	.player-empty button {
-		background: #3a3d44;
+		background: var(--bg-elev);
 		color: inherit;
-		border: 1px solid #4a4d54;
+		border: 1px solid var(--border-strong);
 		padding: 0.4rem 1rem;
 		border-radius: 3px;
 		cursor: pointer;
@@ -654,8 +659,8 @@
 	}
 
 	.bbs {
-		background: #1d1f23;
-		border-left: 1px solid #2c2f34;
+		background: var(--bg);
+		border-left: 1px solid var(--border);
 		overflow-y: auto;
 		min-height: 0;
 		font-size: 0.85rem;
@@ -684,15 +689,15 @@
 	}
 
 	.thread-item:hover {
-		background: #2c2f34;
+		background: var(--border);
 	}
 
 	.t-title {
-		color: #cfd2d9;
+		color: var(--fg-dim);
 	}
 
 	.t-count {
-		color: #8a8d94;
+		color: var(--fg-muted);
 		font-size: 0.8rem;
 		margin-left: 0.4rem;
 	}
@@ -705,12 +710,12 @@
 
 	.post {
 		padding: 0.5rem 0.6rem;
-		border-bottom: 1px solid #25282d;
+		border-bottom: 1px solid var(--border);
 	}
 
 	.head {
 		font-size: 0.75rem;
-		color: #8a8d94;
+		color: var(--fg-muted);
 		margin-bottom: 0.2rem;
 		display: flex;
 		flex-wrap: wrap;
@@ -718,12 +723,12 @@
 	}
 
 	.num {
-		color: #5b8def;
+		color: var(--accent-num);
 		font-weight: 600;
 	}
 
 	.name {
-		color: #97e09e;
+		color: var(--accent-name);
 	}
 
 	.body {
@@ -734,7 +739,7 @@
 	}
 
 	.thread-bar {
-		background: #c87a2e;
+		background: var(--bar-thread);
 		color: #fff;
 		display: flex;
 		align-items: stretch;
@@ -787,7 +792,7 @@
 	}
 
 	.write-box {
-		background: #0c0d10;
+		background: var(--bar-write);
 		display: grid;
 		grid-template-columns: 1fr 32px;
 		align-items: stretch;
@@ -796,7 +801,7 @@
 
 	.write-box textarea {
 		background: transparent;
-		color: #e8eaed;
+		color: var(--fg);
 		border: none;
 		padding: 0.3rem 0.6rem;
 		font-family: inherit;
@@ -808,7 +813,7 @@
 
 	.write-box .send {
 		background: transparent;
-		color: #c6c9d0;
+		color: var(--fg-dim);
 		border: none;
 		cursor: pointer;
 		font-size: 1.1rem;
@@ -820,8 +825,8 @@
 	}
 
 	.status-bar {
-		background: #2d6b3b;
-		color: #e8eaed;
+		background: var(--bar-status);
+		color: var(--fg);
 		display: flex;
 		align-items: center;
 		padding: 0 0.7rem;
@@ -862,7 +867,7 @@
 	}
 
 	.muted {
-		color: #8a8d94;
+		color: var(--fg-muted);
 	}
 
 	.small {
@@ -871,12 +876,12 @@
 	}
 
 	.hint {
-		color: #c6c9d0;
+		color: var(--fg-dim);
 		margin: 0 0 0.4rem;
 	}
 
 	.err {
-		color: #f08c8c;
+		color: var(--err);
 		margin-left: auto;
 	}
 
@@ -912,8 +917,8 @@
 		width: 360px;
 		max-height: 300px;
 		overflow-y: auto;
-		background: #25282d;
-		border: 1px solid #4a4d54;
+		background: var(--bg-elev);
+		border: 1px solid var(--border-strong);
 		border-radius: 6px;
 		box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
 	}
@@ -922,10 +927,10 @@
 		align-items: center;
 		gap: 0.4rem;
 		padding: 0.35rem 0.6rem;
-		background: #1d1f23;
-		border-bottom: 1px solid #34373d;
+		background: var(--bg);
+		border-bottom: 1px solid var(--border);
 		font-size: 0.78rem;
-		color: #c6c9d0;
+		color: var(--fg-dim);
 		position: sticky;
 		top: 0;
 	}
@@ -934,7 +939,7 @@
 	}
 	.popup-close {
 		background: transparent;
-		color: #c6c9d0;
+		color: var(--fg-dim);
 		border: none;
 		font-size: 1.1rem;
 		cursor: pointer;

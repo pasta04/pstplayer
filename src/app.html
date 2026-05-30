@@ -5,6 +5,47 @@
 		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>PSTPlayer</title>
+		<style>
+			/* Theme tokens. data-theme="light" overrides the dark defaults. */
+			:root {
+				--bg: #1d1f23;
+				--bg-elev: #25282d;
+				--bg-input: #14161a;
+				--border: #34373d;
+				--border-strong: #4a4d54;
+				--fg: #e8eaed;
+				--fg-dim: #c6c9d0;
+				--fg-muted: #8a8d94;
+				--accent: #5b8def;
+				--accent-link: #88c4ff;
+				--accent-external: #cfa84d;
+				--accent-name: #97e09e;
+				--accent-num: #5b8def;
+				--err: #f08c8c;
+				--bar-thread: #c87a2e;
+				--bar-status: #2d6b3b;
+				--bar-write: #0c0d10;
+			}
+			:root[data-theme='light'] {
+				--bg: #f5f6f8;
+				--bg-elev: #ffffff;
+				--bg-input: #ffffff;
+				--border: #d0d4dc;
+				--border-strong: #aab0bb;
+				--fg: #1d1f23;
+				--fg-dim: #404448;
+				--fg-muted: #6b7079;
+				--accent: #2a64d9;
+				--accent-link: #1659c4;
+				--accent-external: #8a6a1f;
+				--accent-name: #1f7d3a;
+				--accent-num: #2a64d9;
+				--err: #c43d3d;
+				--bar-thread: #d2864a;
+				--bar-status: #3e8a55;
+				--bar-write: #e6e8ec;
+			}
+		</style>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

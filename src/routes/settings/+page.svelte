@@ -1,14 +1,18 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { CommandError, configFilePath, getConfig, setConfig, type Config } from '$lib/api';
+	import { applyTheme, getTheme, setTheme, type Theme } from '$lib/theme';
 
 	let cfg = $state<Config | null>(null);
-	let tab = $state<'general' | 'peercast' | 'bbs' | 'player'>('peercast');
+	let tab = $state<'general' | 'peercast' | 'bbs' | 'player'>('general');
 	let saving = $state(false);
 	let message = $state<string | null>(null);
 	let configPath = $state<string>('');
+	let theme = $state<Theme>('system');
 
 	onMount(async () => {
+		applyTheme(getTheme()); // settings window also reflects the chosen theme
+		theme = getTheme();
 		try {
 			cfg = await getConfig();
 			configPath = await configFilePath();
@@ -16,6 +20,12 @@
 			message = errMsg(e);
 		}
 	});
+
+	function onThemeChange(e: Event) {
+		const v = (e.target as HTMLSelectElement).value as Theme;
+		theme = v;
+		setTheme(v);
+	}
 
 	async function save() {
 		if (!cfg) return;
@@ -52,7 +62,16 @@
 
 		<section class="tab">
 			{#if tab === 'general'}
-				<p class="hint">設定ファイル:</p>
+				<label>
+					テーマ
+					<select bind:value={theme} onchange={onThemeChange}>
+						<option value="system">システムに合わせる</option>
+						<option value="dark">ダーク</option>
+						<option value="light">ライト</option>
+					</select>
+				</label>
+				<p class="hint small muted">テーマは即時反映、ブラウザ localStorage に保存されます。</p>
+				<p class="hint">設定ファイル (TOML):</p>
 				<code class="path">{configPath}</code>
 				<p class="hint small">直接編集も可能です。</p>
 			{:else if tab === 'peercast'}
@@ -118,8 +137,8 @@
 		font-family:
 			-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, 'Noto Sans CJK JP',
 			sans-serif;
-		background: #1d1f23;
-		color: #e8eaed;
+		background: var(--bg);
+		color: var(--fg);
 	}
 
 	main {
@@ -133,14 +152,14 @@
 	nav {
 		display: flex;
 		gap: 0.3rem;
-		border-bottom: 1px solid #2c2f34;
+		border-bottom: 1px solid var(--border);
 		padding-bottom: 0.5rem;
 		margin-bottom: 0.8rem;
 	}
 
 	nav button {
 		background: transparent;
-		color: #c6c9d0;
+		color: var(--fg-dim);
 		border: 1px solid transparent;
 		padding: 0.3rem 0.7rem;
 		border-radius: 4px;
@@ -150,9 +169,9 @@
 	}
 
 	nav button.active {
-		background: #2c2f34;
+		background: var(--border);
 		border-color: #3a3d44;
-		color: #fff;
+		color: var(--fg);
 	}
 
 	.tab {
@@ -170,23 +189,25 @@
 		font-size: 0.9rem;
 	}
 
-	input {
-		background: #14161a;
+	input,
+	select {
+		background: var(--bg-input);
 		color: inherit;
-		border: 1px solid #3a3d44;
+		border: 1px solid var(--border);
 		border-radius: 3px;
 		padding: 0.35rem 0.5rem;
 		font-family: inherit;
 		font-size: 0.9rem;
 	}
 
-	input:focus {
-		outline: 2px solid #5b8def;
+	input:focus,
+	select:focus {
+		outline: 2px solid var(--accent);
 		border-color: transparent;
 	}
 
 	fieldset {
-		border: 1px solid #2c2f34;
+		border: 1px solid var(--border);
 		border-radius: 4px;
 		padding: 0.5rem 0.7rem;
 		display: grid;
@@ -196,7 +217,7 @@
 
 	legend {
 		font-size: 0.85rem;
-		color: #8a8d94;
+		color: var(--fg-muted);
 		padding: 0 0.3rem;
 	}
 
@@ -205,14 +226,14 @@
 		align-items: center;
 		gap: 0.6rem;
 		padding-top: 0.8rem;
-		border-top: 1px solid #2c2f34;
+		border-top: 1px solid var(--border);
 		font-size: 0.85rem;
 	}
 
 	footer button {
-		background: #3a3d44;
+		background: var(--bg-elev);
 		color: inherit;
-		border: 1px solid #4a4d54;
+		border: 1px solid var(--border-strong);
 		border-radius: 3px;
 		padding: 0.4rem 1rem;
 		cursor: pointer;
@@ -229,11 +250,11 @@
 	}
 
 	.err {
-		color: #f08c8c;
+		color: var(--err);
 	}
 
 	.muted {
-		color: #8a8d94;
+		color: var(--fg-muted);
 	}
 
 	.small {
@@ -241,14 +262,14 @@
 	}
 
 	.hint {
-		color: #c6c9d0;
+		color: var(--fg-dim);
 		margin: 0 0 0.3rem;
 	}
 
 	.path {
 		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 		font-size: 0.8rem;
-		background: #14161a;
+		background: var(--bg-input);
 		padding: 0.3rem 0.5rem;
 		border-radius: 3px;
 		display: inline-block;
