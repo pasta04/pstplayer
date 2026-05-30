@@ -33,6 +33,9 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
 - [ ] 旧 `/admin?cmd=viewxml` フォールバック (XML パース)
 - [ ] 単体テスト (モックレスポンス)
 - [ ] **CLI 引数からの URL 受け取りで再生開始 (外部ツール連携の基本)**
+- [ ] **PeerCast 接続先 (host/port) を設定 UI で指定可能に** (localhost 以外: LAN 内別マシン対応)
+- [ ] **Basic 認証情報の受け渡し** (config から取得して JSON-RPC リクエストに付加)
+- [ ] **接続先の優先順位解決ロジック** (CLI 引数 > config > default)
 
 ### 1.3 動画再生 (最小)
 

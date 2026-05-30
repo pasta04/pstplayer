@@ -173,9 +173,21 @@ async fn peercast_play(url: String, state: State<'_, AppState>) -> Result<(), St
 
 ## 状態管理
 
-- **永続化が必要**: 設定 (window 配置、ホットキー、最後のチャンネル等) → ファイル (`config.toml`)
-- **セッション内のみ**: 現在のチャンネル情報、スレ DAT、再生位置 → Rust 側 `AppState` (`Arc<Mutex<…>>`)
+- **永続化が必要**: 設定 (window 配置、ホットキー、PeerCast デフォルト host:port、認証情報、最後のチャンネル等) → ファイル (`config.toml`)
+- **セッション内のみ**: 現在のチャンネル情報、現在の PeerCast 接続先 (CLI 引数由来かもしれない)、スレ DAT、再生位置 → Rust 側 `AppState` (`Arc<Mutex<…>>`)
 - **フロント側ローカル**: UI 状態 (タブ選択等)
+
+### PeerCast 接続先の解決ロジック
+
+`AppState` 内に `current_peercast: PeerCastEndpoint` を持ち、起動時/CLI 受信時に以下の優先順位で解決:
+
+```
+1. CLI 引数 URL に含まれる host:port → セッション限定で採用、config に書かない
+2. config.toml の [peercast] host/port → 通常時はこれ
+3. ハードコード default = localhost:7144
+```
+
+これにより、外部ツールから渡された URL のホストが LAN 内別マシンを指していても、現在のセッションでは設定値ではなくその URL のホストを使う動作になる。
 
 ## エラー処理方針
 
