@@ -91,10 +91,17 @@ fn map_err(e: libmpv2::Error) -> AppError {
 mod tests {
     use super::*;
 
-    /// Initialising libmpv requires libmpv.so to be present at link
+    /// Initialising libmpv requires libmpv to be present at link
     /// time and to load at run time. We treat init failures as a
     /// soft skip so that environments without libmpv installed (some
     /// minimal CI containers) don't break the rest of the suite.
+    ///
+    /// Skipped on Windows CI: shinchiro's libmpv-2.dll appears to
+    /// pull in a delay-loaded DLL that's not present on
+    /// windows-latest, so `Mpv::new()` aborts the process with
+    /// STATUS_DLL_NOT_FOUND before our `match` can soft-fail. Local
+    /// Windows runs with a full mpv install work fine.
+    #[cfg_attr(target_os = "windows", ignore = "libmpv DLL not loadable on windows CI runner")]
     #[test]
     fn engine_initialises() {
         match PlayerEngine::new() {
