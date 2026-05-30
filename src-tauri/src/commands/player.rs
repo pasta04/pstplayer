@@ -88,6 +88,12 @@ pub fn player_snapshot(
     Ok(full_str)
 }
 
+/// Set the video aspect override. 0.0 = auto, -1.0 = stretch.
+#[tauri::command]
+pub fn player_set_aspect(aspect: f64, engine: State<'_, PlayerEngine>) -> Result<(), IpcError> {
+    engine.set_aspect(aspect).map_err(IpcError::from)
+}
+
 /// Where libmpv will write snapshots by default, given the current
 /// config. Returned for previewing in the settings UI.
 #[tauri::command]

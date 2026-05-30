@@ -264,3 +264,7 @@ export async function playerSnapshot(channelName?: string): Promise<string> {
 export async function snapshotTargetDir(): Promise<string> {
 	return call<string>('snapshot_target_dir');
 }
+
+export async function playerSetAspect(aspect: number): Promise<void> {
+	return call<void>('player_set_aspect', { aspect });
+}

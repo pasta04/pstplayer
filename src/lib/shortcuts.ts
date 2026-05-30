@@ -18,6 +18,10 @@ export interface ShortcutActions {
 	reloadThread: () => void;
 	reloadThreadFull: () => void;
 	snapshot: () => void;
+	/** index 1-9; caller maps to a concrete percent. */
+	setSizePreset: (idx: number) => void;
+	/** index 1-7; caller maps to a concrete aspect-ratio override. */
+	setAspectPreset: (idx: number) => void;
 }
 
 /**
@@ -121,6 +125,20 @@ export function installShortcuts(actions: ShortcutActions): () => void {
 		// F2: snapshot (mirrors VLC/most players)
 		if (!ctrl && !e.altKey && !e.shiftKey && e.key === 'F2') {
 			actions.snapshot();
+			e.preventDefault();
+			return;
+		}
+
+		// Ctrl+1..9: window size preset (PCRPlayer compatible)
+		if (ctrl && !e.altKey && !e.shiftKey && /^[1-9]$/.test(e.key)) {
+			actions.setSizePreset(Number(e.key));
+			e.preventDefault();
+			return;
+		}
+
+		// Alt+1..7: aspect ratio preset
+		if (!ctrl && e.altKey && !e.shiftKey && /^[1-7]$/.test(e.key)) {
+			actions.setAspectPreset(Number(e.key));
 			e.preventDefault();
 		}
 		if (ctrl && e.key === ',') {

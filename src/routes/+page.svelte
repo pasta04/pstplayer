@@ -10,6 +10,7 @@
 		fetchThread,
 		getConfig,
 		listThreads,
+		playerSetAspect,
 		playerSetVolume,
 		playerSnapshot,
 		playerStatus,
@@ -168,6 +169,8 @@
 				}
 			},
 			snapshot: doSnapshot,
+			setSizePreset: applySizePreset,
+			setAspectPreset: applyAspectPreset,
 		});
 	});
 
@@ -445,6 +448,43 @@
 		} catch (e) {
 			lastError = errorMessage(e);
 		}
+	}
+
+	const SIZE_PERCENTS = [50, 75, 100, 125, 150, 175, 200, 250, 300];
+	const ASPECT_PRESETS: { ratio: number; label: string }[] = [
+		{ ratio: 0, label: '自動' },
+		{ ratio: 16 / 9, label: '16:9' },
+		{ ratio: 4 / 3, label: '4:3' },
+		{ ratio: 16 / 10, label: '16:10' },
+		{ ratio: 5 / 4, label: '5:4' },
+		{ ratio: 2.35, label: '2.35:1' },
+		{ ratio: -1, label: 'ストレッチ' },
+	];
+
+	async function applySizePreset(idx: number) {
+		const pct = SIZE_PERCENTS[idx - 1];
+		if (!pct) return;
+		const baseW = playerStat?.width ?? 1280;
+		const baseH = playerStat?.height ?? 720;
+		const videoW = Math.round((baseW * pct) / 100);
+		const videoH = Math.round((baseH * pct) / 100);
+		// Add up the auxiliary UI strips: thread-title (24) + write-box
+		// (~24, can grow) + status-bar (24). BBS pane only adds width
+		// when it's currently shown.
+		const totalW = videoW + (showBbsPane ? 320 : 0);
+		const totalH = videoH + 24 + 24 + 24;
+		try {
+			const { getCurrentWindow, LogicalSize } = await import('@tauri-apps/api/window');
+			await getCurrentWindow().setSize(new LogicalSize(totalW, totalH));
+		} catch {
+			/* tauri unavailable (dev preview) */
+		}
+	}
+
+	function applyAspectPreset(idx: number) {
+		const p = ASPECT_PRESETS[idx - 1];
+		if (!p) return;
+		playerSetAspect(p.ratio).catch(() => undefined);
 	}
 
 	async function onOpenSettings() {

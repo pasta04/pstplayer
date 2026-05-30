@@ -54,6 +54,7 @@ pub fn run() {
             commands::player::player_attach,
             commands::player::player_snapshot,
             commands::player::snapshot_target_dir,
+            commands::player::player_set_aspect,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

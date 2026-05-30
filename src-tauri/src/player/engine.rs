@@ -84,6 +84,17 @@ impl PlayerEngine {
         self.mpv.command("screenshot-to-file", &[path, flag]).map_err(map_err)
     }
 
+    /// Override the displayed aspect ratio.
+    ///   0.0 → "no override" (use the video's own DAR)
+    ///  -1.0 → stretch to fill the window
+    /// positive → use that ratio (e.g. 16.0/9.0)
+    pub fn set_aspect(&self, ratio: f64) -> AppResult<()> {
+        // Use a string here because libmpv2 doesn't expose a Double
+        // setter for free-form floats and "0" / "-1" are accepted.
+        let v = format!("{ratio}");
+        self.mpv.set_property("video-aspect-override", v.as_str()).map_err(map_err)
+    }
+
     /// Borrow the underlying handle for OS-specific window attachment
     /// (see `window.rs`). The returned Arc keeps the same instance.
     pub fn handle(&self) -> Arc<Mpv> {
