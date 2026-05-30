@@ -21,12 +21,20 @@
 	} from '$lib/api';
 	import { formatUptime, renderBodyHtml } from '$lib/format';
 	import { openSettings, openThreadList } from '$lib/windows';
+	import { installShortcuts, setAlwaysOnTop, setDecorations } from '$lib/shortcuts';
 
 	// ── State ────────────────────────────────────────────────────────
 
 	let pasteUrl = $state('');
 	let busy = $state(false);
 	let lastError = $state<string | null>(null);
+
+	// ── Display toggles (T/Z/X/B/C shortcuts + 表示 menu) ────────────
+	let showBbsPane = $state(true);
+	let showStatusBar = $state(true);
+	let showTitleBar = $state(true); // titlebar text visibility (decorations stay)
+	let showFrame = $state(true); // window decorations
+	let alwaysOnTop = $state(false);
 
 	let streamUrl = $state<string | null>(null);
 	let endpoint = $state<PeerCastEndpoint | null>(null);
@@ -50,9 +58,9 @@
 	let threadTimer: ReturnType<typeof setInterval> | null = null;
 	let threadSelectedUnlisten: UnlistenFn | null = null;
 
+	let shortcutsUnlisten: (() => void) | null = null;
+
 	onMount(async () => {
-		// Sub-window (threads/+page.svelte) emits this when the user
-		// picks a thread row. We update the main BBS pane accordingly.
 		threadSelectedUnlisten = await listen<{
 			boardUrl: string;
 			key: string;
@@ -64,12 +72,42 @@
 			posts = [];
 			await loadCurrentThread(true);
 		});
+
+		shortcutsUnlisten = installShortcuts({
+			toggleBbsPane: () => (showBbsPane = !showBbsPane),
+			toggleStatusBar: () => (showStatusBar = !showStatusBar),
+			toggleTitleBar: () => (showTitleBar = !showTitleBar),
+			toggleFrame: async () => {
+				showFrame = !showFrame;
+				await setDecorations(showFrame);
+			},
+			toggleAlwaysOnTop: async () => {
+				alwaysOnTop = !alwaysOnTop;
+				await setAlwaysOnTop(alwaysOnTop);
+			},
+			bump: onBump,
+			stop: onStop,
+			pasteUrl: async () => {
+				try {
+					const text = await navigator.clipboard.readText();
+					if (text.trim().startsWith('http')) {
+						pasteUrl = text.trim();
+						await onPaste();
+					}
+				} catch {
+					/* clipboard permission denied — ignore */
+				}
+			},
+			openSettings: onOpenSettings,
+			openThreadList: onOpenThreadList,
+		});
 	});
 
 	onDestroy(() => {
 		if (infoTimer) clearInterval(infoTimer);
 		if (threadTimer) clearInterval(threadTimer);
 		threadSelectedUnlisten?.();
+		shortcutsUnlisten?.();
 	});
 
 	// ── Derived ──────────────────────────────────────────────────────
@@ -274,7 +312,12 @@
 	<title>PSTPlayer</title>
 </svelte:head>
 
-<div class="app">
+<div
+	class="app"
+	class:hide-bbs={!showBbsPane}
+	class:hide-status={!showStatusBar}
+	class:hide-title={!showTitleBar}
+>
 	<!-- Player + BBS panes -->
 	<div class="panes">
 		<div class="player">
@@ -434,6 +477,20 @@
 		grid-template-rows: 1fr 24px auto 24px;
 		height: 100vh;
 		overflow: hidden;
+	}
+
+	/* Display toggles (shortcuts.md §1 表示要素 ON/OFF) */
+	.app.hide-status .status-bar {
+		display: none;
+	}
+	.app.hide-title .thread-bar {
+		display: none;
+	}
+	.app.hide-bbs .bbs {
+		display: none;
+	}
+	.app.hide-bbs .panes {
+		grid-template-columns: 1fr;
 	}
 
 	.panes {
