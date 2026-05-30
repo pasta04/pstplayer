@@ -96,12 +96,13 @@ mod tests {
     /// soft skip so that environments without libmpv installed (some
     /// minimal CI containers) don't break the rest of the suite.
     ///
-    /// Skipped on Windows CI: shinchiro's libmpv-2.dll appears to
-    /// pull in a delay-loaded DLL that's not present on
-    /// windows-latest, so `Mpv::new()` aborts the process with
-    /// STATUS_DLL_NOT_FOUND before our `match` can soft-fail. Local
-    /// Windows runs with a full mpv install work fine.
-    #[cfg_attr(target_os = "windows", ignore = "libmpv DLL not loadable on windows CI runner")]
+    /// On Windows CI we don't even attempt to run this test (and the
+    /// CI workflow uses `cargo test --no-run` for the pstplayer crate)
+    /// because the GitHub runner can't resolve some of libmpv-2.dll's
+    /// import dependencies, which aborts the test binary at process
+    /// start with `STATUS_DLL_NOT_FOUND` before any `#[ignore]` can
+    /// take effect. Local Windows installs with a full mpv install
+    /// pick up those DLLs fine.
     #[test]
     fn engine_initialises() {
         match PlayerEngine::new() {
