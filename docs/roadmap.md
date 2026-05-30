@@ -49,12 +49,15 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
 
 ### 1.4 BBS 連携 (最小: したらば のみ)
 
-- [ ] HTTP クライアント (Cookie 対応)
-- [ ] EUC-JP / Shift_JIS / UTF-8 変換 (`encoding_rs`)
-- [ ] したらば `subject.txt` 取得・パース
-- [ ] したらば `rawmode.cgi` でレス取得・パース (`<>` 6 フィールド)
+- [x] EUC-JP / Shift_JIS / UTF-8 変換 (`encoding_rs`) + HTML エンティティ復号
+- [x] したらば `subject.txt` パース (カンマ区切り、6 フィールド dat 対応)
+- [x] 2ch 互換 `subject.txt` パース (`<>` 区切り、7 フィールド dat 対応)
+- [x] アンカー (`>>N`, `>>N-M`, 全角 `＞＞`) 抽出
+- [x] URL → BoardKind ルータ (router.rs)
+- [ ] HTTP クライアント (Cookie 対応、cookie_store 永続化)
+- [ ] したらば `rawmode.cgi` での実取得
 - [ ] したらば `write.cgi` への POST (確認ダイアログ付き)
-- [ ] アンカー (`>>N`) / ID 抽出のテスト
+- [ ] ammonia による HTML サニタイズ (HTML 表示モード用)
 
 ### 1.5 UI (最小)
 
