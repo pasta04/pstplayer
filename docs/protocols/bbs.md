@@ -265,7 +265,44 @@ dat から取得した本文は HTML エンティティでエスケープされ�
 - 復号対象: `&lt;` `&gt;` `&amp;` `&quot;` `&#NNNN;` `&#xHHHH;`
 - 改行: `<br>` → `\n`
 
-## 7. PSTPlayer 実装ファイル構成 (再掲)
+## 7. Cookie 永続化方針
+
+2ch 互換系の Cookie (PON / HAP / FCM 等) と したらば の `NAME` / `MAIL` Cookie をどう保存するか:
+
+### 方針
+
+- **永続化する**: 起動のたびに投稿確認フローを最初からやり直すと UX が悪い (5ch 系は 2 段階確認あり)
+- **対象**: BBS サーバから `Set-Cookie` で返された全 Cookie。ハードコード (PON/HAP のみ抜き取り等) しない
+- **保存先**: OS 標準のデータディレクトリ配下
+  - Windows: `%LOCALAPPDATA%\PSTPlayer\cookies\`
+  - macOS: `~/Library/Application Support/PSTPlayer/cookies/`
+  - Linux: `~/.local/share/PSTPlayer/cookies/`
+- **ファイル分割**: ホストごとに 1 ファイル (`{host}.json`)。ホスト単位での削除を容易にする
+- **フォーマット**: JSON 配列
+  ```json
+  [
+    { "name": "PON", "value": "xxx", "expires": "2027-01-01T00:00:00Z",
+      "secure": true, "http_only": true, "domain": ".5ch.net", "path": "/" }
+  ]
+  ```
+- **パーミッション**: Unix 系では `0600` (所有者のみ読み書き)
+- **暗号化**: しない (掲示板 Cookie は機密度低。OS のユーザ分離に依存)
+- **期限切れの扱い**: 読み込み時に `expires` を見て破棄
+- **UI からの削除**: 設定 → BBS → 「保存された Cookie をクリア」(全消去 / ホスト指定 / 期限切れのみ から選択)
+
+### スコープ外 (永続化しない)
+
+- 掲示板アカウントのログイン情報 (PSTPlayer はログイン機能を持たない)
+- セッション ID 系で短期失効するもの (毎回再取得で問題ない)
+- 投稿時の確認画面で出る一時 token (応答内のフォーム値、Cookie ではない)
+
+### Rust 実装方針
+
+- `reqwest` の `cookie_store` 機能を使い、ファイルベースの `CookieStore` を実装
+- `cookie_store` crate (BSD-3-Clause) を採用検討。JSON シリアライズ対応あり
+- メインプロセスから `Arc<Mutex<CookieJar>>` で共有 (全 BBS リクエストで同一 jar を再利用)
+
+## 8. PSTPlayer 実装ファイル構成 (再掲)
 
 ```
 bbs/
@@ -279,7 +316,7 @@ bbs/
 └── types.rs         # ThreadSummary, Post, FetchState, PostRequest 等
 ```
 
-## 8. 法的・運用上の注意
+## 9. 法的・運用上の注意
 
 - **書き込みは必ずユーザ確認ダイアログを通す**: 誤投稿防止
 - **User-Agent には PSTPlayer の名前を明記する**: BBS 運営からの規制対象になった時、巻き添えを避けるため
@@ -288,7 +325,7 @@ bbs/
 - **dat ファイルの保存はユーザのローカルのみ**: 二次公開しない
 - **Yahoo!カテゴリ廃止後のしたらばの位置づけ**: 現在は LIVEDOOR が運営。利用規約準拠
 
-## 9. 既知の落とし穴
+## 10. 既知の落とし穴
 
 - **したらばの subject.txt はカンマ区切り、2ch は `<>` 区切り**: 同じ「subject.txt」だが互換ではない
 - **dat の最終行が改行で終わっていない場合がある**: 行分割時の処理に注意

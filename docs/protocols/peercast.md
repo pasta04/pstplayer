@@ -154,46 +154,14 @@ XML の主要要素 (root `<peercast>` 配下):
 
 - 制限チャンネル: ID が全て `0`、TIP は `127.0.0.1`
 
-## 5. PCP プロトコル (参考、当面実装しない)
+## 5. PCP プロトコル (スコープ外)
 
-リレー間通信に使う独自バイナリプロトコル。PSTPlayer は視聴クライアントなので不要だが、将来 P2P 直接接続を実装する場合の参考メモ。
+PCP はリレー間通信用のバイナリプロトコル。PSTPlayer はクライアント (視聴側) として PeerCast 本体経由でストリームを取得するため、PCP の自前実装は不要。
 
-### ハンドシェイク (HTTP 風)
+将来 P2P 直接接続を実装することになった場合は以下を参照:
 
-```
-GET /channel/{channelId} HTTP/1.0
-x-peercast-pcp: 1
-x-peercast-pos: 0
-Connection: close
-```
-
-| レスポンス | 意味                                          |
-| ---------- | --------------------------------------------- |
-| 200        | 接続確立、Atom ストリーム開始                 |
-| 404        | チャンネル不在                                |
-| 503        | リダイレクト (PCP_HOST atom が ≤8 個流れる) |
-
-### Atom 構造
-
-```
-[4 bytes name][4 bytes length][payload...]
-```
-
-- 数値はリトルエンディアン
-- name は 4 文字、不足は NUL 埋め
-- length の MSB が 1 のとき: payload は子 Atom (再帰)、MSB が 0 のとき: 生バイト列
-
-### 主要 Atom
-
-| 名前      | 役割                              |
-| --------- | --------------------------------- |
-| `pcp\n`   | ヘッダ (バージョン 1)             |
-| `helo`    | ハンドシェイク (クライアント情報) |
-| `oleh`    | helo への応答                     |
-| `chan`    | ストリーム本体 (HEAD/DATA/META)   |
-| `host`    | 隣接ノード情報                    |
-| `bcst`    | ブロードキャストラッパ            |
-| `quit`    | 切断通知                          |
+- [PeerCastStation Wiki — PCP プロトコルメモ](https://github.com/kumaryu/peercaststation/wiki/PCP%E3%83%97%E3%83%AD%E3%83%88%E3%82%B3%E3%83%AB%E3%83%A1%E3%83%A2) — HTTP ハンドシェイク (`x-peercast-pcp: 1`)、PCP_HELO/OLEH/HOST/BCST/CHAN/QUIT などの Atom フロー
+- [PeerCastStation Wiki — PCP パケットの構造](https://github.com/kumaryu/peercaststation/wiki/PCP%E3%83%91%E3%82%B1%E3%83%83%E3%83%88%E3%81%AE%E6%A7%8B%E9%80%A0) — Atom (`[4 bytes name][4 bytes length][payload]`、リトルエンディアン) のフォーマット
 
 ## 6. PSTPlayer 実装で必要なモジュール
 
