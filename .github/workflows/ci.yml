@@ -93,8 +93,13 @@ jobs:
           }
           if ($names.Count -eq 0) { throw "failed to extract exports from $dll" }
 
-          'EXPORTS' | Out-File -FilePath $def -Encoding ascii
-          $names    | Out-File -FilePath $def -Encoding ascii -Append
+          # LIBRARY ディレクティブで import-name を libmpv-2.dll に固定。
+          # これを書かないと lib.exe は .def のファイル名 (mpv) から
+          # mpv.dll を import-name にしてしまい、起動時に「mpv.dll が
+          # 見つからない」と言われる。
+          'LIBRARY libmpv-2.dll' | Out-File -FilePath $def -Encoding ascii
+          'EXPORTS'              | Out-File -FilePath $def -Encoding ascii -Append
+          $names                  | Out-File -FilePath $def -Encoding ascii -Append
 
           & lib.exe /def:$def /out:$lib /machine:x64
           if (-not (Test-Path $lib)) { throw "lib.exe did not produce $lib" }
