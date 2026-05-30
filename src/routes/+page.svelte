@@ -90,10 +90,15 @@
 	// Volume (0-100). Wheel over the player area changes it.
 	let volume = $state(80);
 
+	// Seconds until the next BBS auto-refresh tick (5s cycle).
+	const REFRESH_SEC = 5;
+	let refreshCountdown = $state(REFRESH_SEC);
+
 	// Polling handles
 	let infoTimer: ReturnType<typeof setInterval> | null = null;
 	let threadTimer: ReturnType<typeof setInterval> | null = null;
 	let playerTimer: ReturnType<typeof setInterval> | null = null;
+	let countdownTimer: ReturnType<typeof setInterval> | null = null;
 	let threadSelectedUnlisten: UnlistenFn | null = null;
 
 	let shortcutsUnlisten: (() => void) | null = null;
@@ -157,6 +162,7 @@
 		if (infoTimer) clearInterval(infoTimer);
 		if (threadTimer) clearInterval(threadTimer);
 		if (playerTimer) clearInterval(playerTimer);
+		if (countdownTimer) clearInterval(countdownTimer);
 		threadSelectedUnlisten?.();
 		shortcutsUnlisten?.();
 		themeUnlisten?.();
@@ -301,7 +307,11 @@
 		}, 5_000);
 		threadTimer = setInterval(() => {
 			if (currentThreadUrl && !threadLoading) loadCurrentThread(false);
-		}, 5_000);
+			refreshCountdown = REFRESH_SEC;
+		}, REFRESH_SEC * 1_000);
+		countdownTimer = setInterval(() => {
+			if (refreshCountdown > 0) refreshCountdown -= 1;
+		}, 1_000);
 		playerTimer = setInterval(() => {
 			playerStatus().then(
 				(s) => (playerStat = s),
@@ -630,6 +640,9 @@
 				<span class="muted">— スレッド未選択 —</span>
 			{/if}
 			<span class="t-grow"></span>
+			{#if currentThreadUrl}
+				<span class="t-refresh" title="次の自動更新までの秒">↻ {refreshCountdown}s</span>
+			{/if}
 			<span class="t-list">≡</span>
 		</button>
 	</div>
@@ -1008,6 +1021,12 @@
 
 	.t-list {
 		color: rgba(255, 255, 255, 0.85);
+	}
+	.t-refresh {
+		color: rgba(255, 255, 255, 0.75);
+		font-size: 0.72rem;
+		min-width: 2.5rem;
+		text-align: right;
 	}
 
 	.write-box {
