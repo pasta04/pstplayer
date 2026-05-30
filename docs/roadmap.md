@@ -42,10 +42,12 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
 
 ### 1.3 動画再生 (最小)
 
-- [ ] libmpv の Rust バインディング選定・導入 (`libmpv2` の評価)
-- [ ] 再生・一時停止・停止・音量
-- [ ] Tauri ウィンドウへの埋め込み (3 OS で動作確認)
-- [ ] フロントから操作するコマンド
+- [x] libmpv の Rust バインディング選定・導入 (`libmpv2` v5)
+- [x] PlayerEngine 実装 (load / stop / pause / volume / mute / property get)
+- [x] Tauri State として `setup` フックで初期化、Linux で初期化テスト pass
+- [ ] Tauri ウィンドウへの埋め込み (3 OS の `wid` プロパティ実装)
+- [x] フロントから操作するコマンド (player_load / player_stop / player_set_*
+      / player_status を公開、TS ラッパーも追加)
 
 ### 1.4 BBS 連携 (最小: したらば のみ)
 

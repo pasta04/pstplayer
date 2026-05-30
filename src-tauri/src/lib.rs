@@ -4,10 +4,27 @@
 pub mod commands;
 pub mod player;
 
+use player::engine::PlayerEngine;
+use tauri::Manager;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            // Initialise libmpv once at startup. If this fails (e.g.
+            // libmpv.so missing) we report and continue without the
+            // player rather than aborting the whole app.
+            match PlayerEngine::new() {
+                Ok(engine) => {
+                    app.handle().manage(engine);
+                }
+                Err(e) => {
+                    eprintln!("warning: failed to initialise libmpv: {e}");
+                }
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::ping,
             commands::peercast::resolve_stream_url,
@@ -24,6 +41,12 @@ pub fn run() {
             commands::bbs::post_to_thread,
             commands::bbs::classify_board,
             commands::bbs::sanitize_html,
+            commands::player::player_load,
+            commands::player::player_stop,
+            commands::player::player_set_pause,
+            commands::player::player_set_volume,
+            commands::player::player_set_mute,
+            commands::player::player_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

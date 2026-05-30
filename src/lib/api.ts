@@ -194,3 +194,37 @@ export async function setConfig(config: Config): Promise<void> {
 export async function configFilePath(): Promise<string> {
 	return call<string>('config_file_path');
 }
+
+// ── Player (libmpv) ─────────────────────────────────────────────────
+
+export interface PlayerStatus {
+	fps: number | null;
+	width: number | null;
+	height: number | null;
+	timePos: number | null;
+	paused: boolean | null;
+}
+
+export async function playerLoad(url: string): Promise<void> {
+	return call<void>('player_load', { url });
+}
+
+export async function playerStop(): Promise<void> {
+	return call<void>('player_stop');
+}
+
+export async function playerSetPause(pause: boolean): Promise<void> {
+	return call<void>('player_set_pause', { pause });
+}
+
+export async function playerSetVolume(percent: number): Promise<void> {
+	return call<void>('player_set_volume', { percent });
+}
+
+export async function playerSetMute(mute: boolean): Promise<void> {
+	return call<void>('player_set_mute', { mute });
+}
+
+export async function playerStatus(): Promise<PlayerStatus> {
+	return call<PlayerStatus>('player_status');
+}

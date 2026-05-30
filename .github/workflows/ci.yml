@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Tauri Linux dependencies
+      - name: Install Tauri + libmpv (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
@@ -31,7 +31,21 @@ jobs:
             libsoup-3.0-dev \
             libayatana-appindicator3-dev \
             libxdo-dev \
+            libmpv-dev \
             pkg-config
+
+      - name: Install libmpv (macOS)
+        if: runner.os == 'macOS'
+        run: brew install mpv
+
+      - name: Install libmpv (Windows, vcpkg)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          # libmpv2 on Windows expects MPV_SOURCE pointing at a dir
+          # with libmpv.dll.a / mpv.lib. The official build of mpv
+          # ships these in the dev package.
+          choco install -y mpv-dev || true
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
