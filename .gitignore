@@ -10,7 +10,10 @@ node_modules
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-# Rust / Tauri build output is ignored via src-tauri/.gitignore.
+# Rust / Cargo build output (workspace root).
+/target/
+
+# Tauri-specific generated files are handled in src-tauri/.gitignore.
 
 # Editor / OS
 .idea/

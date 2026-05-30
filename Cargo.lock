@@ -2886,7 +2886,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33cb294fe86a74cbcf50d4445b37da762029549ebeea341421c7c70370f86cac"
 
 [[package]]
-name = "pstplayer"
+name = "pst-core"
 version = "0.0.1"
 dependencies = [
  "ammonia",
@@ -2898,13 +2898,22 @@ dependencies = [
  "reqwest 0.12.28",
  "serde",
  "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-opener",
  "thiserror 2.0.18",
  "tokio",
  "toml 0.8.2",
  "url",
+]
+
+[[package]]
+name = "pstplayer"
+version = "0.0.1"
+dependencies = [
+ "pst-core",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-opener",
 ]
 
 [[package]]

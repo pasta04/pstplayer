@@ -42,7 +42,10 @@ impl From<AppError> for IpcError {
             AppError::Decode(_) => "decode",
             AppError::NotImplemented(_) => "not_implemented",
         };
-        IpcError { code, message: e.to_string() }
+        IpcError {
+            code,
+            message: e.to_string(),
+        }
     }
 }
 

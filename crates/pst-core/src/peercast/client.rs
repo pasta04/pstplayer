@@ -28,13 +28,20 @@ pub async fn resolve_stream_url(url: &str) -> AppResult<String> {
         UrlKind::Stream => return Ok(url.to_string()),
         UrlKind::Playlist => url.to_string(),
         UrlKind::PlayHtml => {
-            format!("{}/pls/{}", parsed.endpoint.base_url(), parsed.channel_id.as_str())
+            format!(
+                "{}/pls/{}",
+                parsed.endpoint.base_url(),
+                parsed.channel_id.as_str()
+            )
         }
     };
 
     let resp = CLIENT.get(&direct_url).send().await?;
     if !resp.status().is_success() {
-        return Err(AppError::Network(format!("playlist fetch returned {}", resp.status())));
+        return Err(AppError::Network(format!(
+            "playlist fetch returned {}",
+            resp.status()
+        )));
     }
     let body = resp.text().await?;
     playlist::first_stream_url(&body)
@@ -110,12 +117,19 @@ pub fn resolve_endpoint(cli: &CliArgs, cfg: &PeerCastConfig) -> PeerCastEndpoint
         }
     }
 
-    PeerCastEndpoint { host: cfg.host.clone(), port: cfg.port, auth: auth_from_cfg(cfg) }
+    PeerCastEndpoint {
+        host: cfg.host.clone(),
+        port: cfg.port,
+        auth: auth_from_cfg(cfg),
+    }
 }
 
 fn auth_from_cfg(cfg: &PeerCastConfig) -> Option<BasicAuth> {
     match (&cfg.auth_user, &cfg.auth_pass) {
-        (Some(u), Some(p)) if !u.is_empty() => Some(BasicAuth { user: u.clone(), pass: p.clone() }),
+        (Some(u), Some(p)) if !u.is_empty() => Some(BasicAuth {
+            user: u.clone(),
+            pass: p.clone(),
+        }),
         _ => None,
     }
 }
@@ -147,7 +161,11 @@ mod tests {
             url: Some("http://192.0.2.99:7150/pls/0123456789ABCDEF0123456789ABCDEF".into()),
             ..Default::default()
         };
-        let cfg = PeerCastConfig { host: "localhost".into(), port: 7144, ..Default::default() };
+        let cfg = PeerCastConfig {
+            host: "localhost".into(),
+            port: 7144,
+            ..Default::default()
+        };
         let ep = resolve_endpoint(&cli, &cfg);
         assert_eq!(ep.host, "192.0.2.99");
         assert_eq!(ep.port, 7150);
@@ -155,8 +173,15 @@ mod tests {
 
     #[test]
     fn invalid_cli_url_falls_back_to_config() {
-        let cli = CliArgs { url: Some("not a url".into()), ..Default::default() };
-        let cfg = PeerCastConfig { host: "h".into(), port: 1234, ..Default::default() };
+        let cli = CliArgs {
+            url: Some("not a url".into()),
+            ..Default::default()
+        };
+        let cfg = PeerCastConfig {
+            host: "h".into(),
+            port: 1234,
+            ..Default::default()
+        };
         let ep = resolve_endpoint(&cli, &cfg);
         assert_eq!(ep.host, "h");
         assert_eq!(ep.port, 1234);

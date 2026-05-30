@@ -56,6 +56,9 @@ mod tests {
         let p = config_path().unwrap();
         let s = p.to_string_lossy().to_ascii_lowercase();
         assert!(s.contains("pstplayer"), "expected pstplayer in {s}");
-        assert!(s.ends_with("config.toml"), "expected config.toml suffix in {s}");
+        assert!(
+            s.ends_with("config.toml"),
+            "expected config.toml suffix in {s}"
+        );
     }
 }

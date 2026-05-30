@@ -21,17 +21,24 @@ async fn admin(endpoint: &PeerCastEndpoint, query: &str) -> AppResult<String> {
     }
     let resp = builder.send().await?;
     if !resp.status().is_success() {
-        return Err(AppError::Network(format!("admin returned {}", resp.status())));
+        return Err(AppError::Network(format!(
+            "admin returned {}",
+            resp.status()
+        )));
     }
     Ok(resp.text().await?)
 }
 
 pub async fn stop(endpoint: &PeerCastEndpoint, channel_id: &str) -> AppResult<()> {
-    admin(endpoint, &format!("cmd=stop&id={channel_id}")).await.map(drop)
+    admin(endpoint, &format!("cmd=stop&id={channel_id}"))
+        .await
+        .map(drop)
 }
 
 pub async fn bump(endpoint: &PeerCastEndpoint, channel_id: &str) -> AppResult<()> {
-    admin(endpoint, &format!("cmd=bump&id={channel_id}")).await.map(drop)
+    admin(endpoint, &format!("cmd=bump&id={channel_id}"))
+        .await
+        .map(drop)
 }
 
 pub async fn view_xml(endpoint: &PeerCastEndpoint) -> AppResult<Vec<ChannelRecord>> {
@@ -58,8 +65,10 @@ pub fn parse_view_xml(body: &str) -> AppResult<Vec<ChannelRecord>> {
                         let mut id = String::new();
                         for attr in e.attributes().flatten() {
                             let key = String::from_utf8_lossy(attr.key.as_ref()).into_owned();
-                            let val =
-                                attr.unescape_value().map(|c| c.into_owned()).unwrap_or_default();
+                            let val = attr
+                                .unescape_value()
+                                .map(|c| c.into_owned())
+                                .unwrap_or_default();
                             match key.as_str() {
                                 "name" => info.name = val,
                                 "id" => id = val,
@@ -72,8 +81,11 @@ pub fn parse_view_xml(body: &str) -> AppResult<Vec<ChannelRecord>> {
                                 _ => {}
                             }
                         }
-                        current =
-                            Some(ChannelRecord { channel_id: id, info, ..Default::default() });
+                        current = Some(ChannelRecord {
+                            channel_id: id,
+                            info,
+                            ..Default::default()
+                        });
                     }
                     "track" => {
                         if let Some(rec) = current.as_mut() {

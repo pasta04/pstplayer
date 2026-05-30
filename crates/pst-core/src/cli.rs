@@ -107,13 +107,19 @@ mod tests {
     #[test]
     fn url_only() {
         let a = parse(&argv(&["http://example.invalid:7144/pls/abc"]));
-        assert_eq!(a.url.as_deref(), Some("http://example.invalid:7144/pls/abc"));
+        assert_eq!(
+            a.url.as_deref(),
+            Some("http://example.invalid:7144/pls/abc")
+        );
         assert_eq!(a.channel_name, None);
     }
 
     #[test]
     fn url_and_name_pcrplayer_style() {
-        let a = parse(&argv(&["http://example.invalid:7144/pls/abc", "テスト配信"]));
+        let a = parse(&argv(&[
+            "http://example.invalid:7144/pls/abc",
+            "テスト配信",
+        ]));
         assert_eq!(a.channel_name.as_deref(), Some("テスト配信"));
     }
 

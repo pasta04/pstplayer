@@ -23,7 +23,9 @@ impl Default for Ch2Client {
 
 impl Ch2Client {
     pub fn new() -> Self {
-        Self { http: cookie_client() }
+        Self {
+            http: cookie_client(),
+        }
     }
 
     fn subject_url(host: &str, board: &str) -> String {
@@ -46,7 +48,14 @@ impl Ch2Client {
         let u = parse_ch2(board_url)
             .ok_or_else(|| AppError::InvalidUrl(format!("not a 2ch URL: {board_url}")))?;
         let url = Self::subject_url(&u.host, &u.board);
-        let bytes = self.http.get(&url).send().await?.error_for_status()?.bytes().await?;
+        let bytes = self
+            .http
+            .get(&url)
+            .send()
+            .await?
+            .error_for_status()?
+            .bytes()
+            .await?;
         let body = BoardEncoding::ShiftJis.decode(&bytes)?;
         Ok(parse_ch2_subject(&body))
     }
@@ -116,10 +125,21 @@ impl Ch2Client {
             raw_posts
         };
 
-        let last_count =
-            if is_partial { prev_count + posts.len() as u32 } else { posts.len() as u32 };
-        let last_byte = if is_partial { prev_byte + added_bytes } else { added_bytes };
-        let state = FetchState { last_modified: lm, last_byte, last_count };
+        let last_count = if is_partial {
+            prev_count + posts.len() as u32
+        } else {
+            posts.len() as u32
+        };
+        let last_byte = if is_partial {
+            prev_byte + added_bytes
+        } else {
+            added_bytes
+        };
+        let state = FetchState {
+            last_modified: lm,
+            last_byte,
+            last_count,
+        };
         Ok((posts, state))
     }
 
@@ -161,7 +181,9 @@ impl Ch2Client {
             .send()
             .await?;
         let bytes1 = resp1.bytes().await?;
-        let text1 = BoardEncoding::ShiftJis.decode(&bytes1).unwrap_or_else(|_| String::new());
+        let text1 = BoardEncoding::ShiftJis
+            .decode(&bytes1)
+            .unwrap_or_else(|_| String::new());
         if text1.contains("<!-- 2ch_X:true -->") {
             return Ok(());
         }
@@ -176,7 +198,9 @@ impl Ch2Client {
                 .send()
                 .await?;
             let bytes2 = resp2.bytes().await?;
-            let text2 = BoardEncoding::ShiftJis.decode(&bytes2).unwrap_or_else(|_| String::new());
+            let text2 = BoardEncoding::ShiftJis
+                .decode(&bytes2)
+                .unwrap_or_else(|_| String::new());
             if text2.contains("<!-- 2ch_X:true -->") {
                 return Ok(());
             }
@@ -206,6 +230,9 @@ mod tests {
             Ch2Client::dat_url("example.invalid", "news4vip", "1234567890"),
             "https://example.invalid/news4vip/dat/1234567890.dat"
         );
-        assert_eq!(Ch2Client::write_url("example.invalid"), "https://example.invalid/test/bbs.cgi");
+        assert_eq!(
+            Ch2Client::write_url("example.invalid"),
+            "https://example.invalid/test/bbs.cgi"
+        );
     }
 }

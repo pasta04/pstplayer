@@ -1,15 +1,8 @@
-// PSTPlayer backend entry point.
-//
-// Module layout follows docs/architecture.md.
+// PSTPlayer Tauri shell. Pure logic lives in the `pst-core` crate
+// (see crates/pst-core/) so it can be reused by future server / web builds.
 
-pub mod bbs;
-pub mod cli;
 pub mod commands;
-pub mod config;
-pub mod peercast;
 pub mod player;
-pub mod single_instance;
-pub mod util;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

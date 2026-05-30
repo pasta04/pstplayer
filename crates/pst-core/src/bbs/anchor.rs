@@ -22,7 +22,10 @@ pub fn find_anchors(text: &str) -> Vec<AnchorRange> {
         .captures_iter(text)
         .filter_map(|cap| {
             let from = cap.get(1)?.as_str().parse::<u32>().ok()?;
-            let to = cap.get(2).and_then(|m| m.as_str().parse::<u32>().ok()).unwrap_or(from);
+            let to = cap
+                .get(2)
+                .and_then(|m| m.as_str().parse::<u32>().ok())
+                .unwrap_or(from);
             Some(AnchorRange { from, to })
         })
         .collect()
@@ -34,18 +37,30 @@ mod tests {
 
     #[test]
     fn single_anchor() {
-        assert_eq!(find_anchors(">>42 hi"), vec![AnchorRange { from: 42, to: 42 }]);
+        assert_eq!(
+            find_anchors(">>42 hi"),
+            vec![AnchorRange { from: 42, to: 42 }]
+        );
     }
 
     #[test]
     fn range_anchor() {
-        assert_eq!(find_anchors("see >>10-15"), vec![AnchorRange { from: 10, to: 15 }]);
+        assert_eq!(
+            find_anchors("see >>10-15"),
+            vec![AnchorRange { from: 10, to: 15 }]
+        );
     }
 
     #[test]
     fn multiple_anchors() {
         let v = find_anchors(">>1 >>3-4");
-        assert_eq!(v, vec![AnchorRange { from: 1, to: 1 }, AnchorRange { from: 3, to: 4 },]);
+        assert_eq!(
+            v,
+            vec![
+                AnchorRange { from: 1, to: 1 },
+                AnchorRange { from: 3, to: 4 },
+            ]
+        );
     }
 
     #[test]

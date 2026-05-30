@@ -4,7 +4,7 @@
 //! roadmap §1.3. For now we expose the API surface so the IPC layer
 //! can compile.
 
-use crate::util::errors::{AppError, AppResult};
+use pst_core::util::errors::{AppError, AppResult};
 
 pub struct PlayerEngine;
 

@@ -32,17 +32,26 @@ impl Default for ShitarabaClient {
 
 impl ShitarabaClient {
     pub fn new() -> Self {
-        Self { http: cookie_client() }
+        Self {
+            http: cookie_client(),
+        }
     }
 
     fn parse_loc(url: &str) -> AppResult<BoardLocation> {
         let u = parse_shitaraba(url)
             .ok_or_else(|| AppError::InvalidUrl(format!("not a shitaraba URL: {url}")))?;
-        Ok(BoardLocation { category: u.category, board_id: u.board_id, key: u.key })
+        Ok(BoardLocation {
+            category: u.category,
+            board_id: u.board_id,
+            key: u.key,
+        })
     }
 
     fn subject_url(loc: &BoardLocation) -> String {
-        format!("https://jbbs.shitaraba.net/{}/{}/subject.txt", loc.category, loc.board_id)
+        format!(
+            "https://jbbs.shitaraba.net/{}/{}/subject.txt",
+            loc.category, loc.board_id
+        )
     }
 
     fn rawmode_url(loc: &BoardLocation, key: &str) -> String {
@@ -53,7 +62,10 @@ impl ShitarabaClient {
     }
 
     fn write_url(loc: &BoardLocation) -> String {
-        format!("https://jbbs.shitaraba.net/bbs/write.cgi/{}/{}/", loc.category, loc.board_id)
+        format!(
+            "https://jbbs.shitaraba.net/bbs/write.cgi/{}/{}/",
+            loc.category, loc.board_id
+        )
     }
 
     /// Fetch and parse `subject.txt`. Decodes EUC-JP.
@@ -63,7 +75,14 @@ impl ShitarabaClient {
     ) -> AppResult<Vec<super::parse::SubjectEntry>> {
         let loc = Self::parse_loc(board_url)?;
         let url = Self::subject_url(&loc);
-        let bytes = self.http.get(&url).send().await?.error_for_status()?.bytes().await?;
+        let bytes = self
+            .http
+            .get(&url)
+            .send()
+            .await?
+            .error_for_status()?
+            .bytes()
+            .await?;
         let body = BoardEncoding::EucJp.decode(&bytes)?;
         Ok(parse_shitaraba_subject(&body))
     }
@@ -102,7 +121,10 @@ impl ShitarabaClient {
             return Ok((Vec::new(), prev.cloned().unwrap_or_default()));
         }
         if !resp.status().is_success() {
-            return Err(AppError::Network(format!("rawmode returned {}", resp.status())));
+            return Err(AppError::Network(format!(
+                "rawmode returned {}",
+                resp.status()
+            )));
         }
         let lm = resp
             .headers()
@@ -114,7 +136,11 @@ impl ShitarabaClient {
         let posts = parse_shitaraba_dat(&body);
 
         let last_count = posts.last().map(|p| p.number).unwrap_or(last_n);
-        let state = FetchState { last_modified: lm, last_byte: 0, last_count };
+        let state = FetchState {
+            last_modified: lm,
+            last_byte: 0,
+            last_count,
+        };
         Ok((posts, state))
     }
 
@@ -128,7 +154,10 @@ impl ShitarabaClient {
             .ok_or_else(|| AppError::InvalidUrl(format!("missing thread key in: {thread_url}")))?;
 
         let url = Self::write_url(&loc);
-        let referer = format!("https://jbbs.shitaraba.net/{}/{}/", loc.category, loc.board_id);
+        let referer = format!(
+            "https://jbbs.shitaraba.net/{}/{}/",
+            loc.category, loc.board_id
+        );
         let time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
@@ -157,15 +186,21 @@ impl ShitarabaClient {
             .send()
             .await?;
         let text_bytes = resp.bytes().await?;
-        let text = BoardEncoding::EucJp.decode(&text_bytes).unwrap_or_else(|_| String::new());
+        let text = BoardEncoding::EucJp
+            .decode(&text_bytes)
+            .unwrap_or_else(|_| String::new());
         if text.contains("書きこみました") || text.contains("RESULT::CHECK") {
             Ok(())
         } else if text.contains("RESULT::ERROR") || text.contains("投稿できません") {
-            Err(AppError::Network("BBS rejected the post (regulated or invalid)".into()))
+            Err(AppError::Network(
+                "BBS rejected the post (regulated or invalid)".into(),
+            ))
         } else {
             // Unknown response — surface a short excerpt for debugging.
             let excerpt: String = text.chars().take(200).collect();
-            Err(AppError::Network(format!("unknown BBS response: {excerpt}")))
+            Err(AppError::Network(format!(
+                "unknown BBS response: {excerpt}"
+            )))
         }
     }
 }
@@ -176,7 +211,11 @@ mod tests {
 
     #[test]
     fn url_builders() {
-        let loc = BoardLocation { category: "computer".into(), board_id: "4567".into(), key: None };
+        let loc = BoardLocation {
+            category: "computer".into(),
+            board_id: "4567".into(),
+            key: None,
+        };
         assert_eq!(
             ShitarabaClient::subject_url(&loc),
             "https://jbbs.shitaraba.net/computer/4567/subject.txt"

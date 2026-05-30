@@ -95,7 +95,11 @@ pub struct BasicAuth {
 
 impl Default for PeerCastEndpoint {
     fn default() -> Self {
-        Self { host: "localhost".to_string(), port: 7144, auth: None }
+        Self {
+            host: "localhost".to_string(),
+            port: 7144,
+            auth: None,
+        }
     }
 }
 

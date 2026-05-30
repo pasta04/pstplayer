@@ -40,20 +40,15 @@ jobs:
 
       - name: Cache cargo registry / target
         uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
 
-      - name: cargo fmt
-        working-directory: src-tauri
+      - name: cargo fmt (workspace)
         run: cargo fmt --all -- --check
 
-      - name: cargo clippy
-        working-directory: src-tauri
-        run: cargo clippy --all-targets -- -D warnings
+      - name: cargo clippy (workspace)
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
-      - name: cargo test
-        working-directory: src-tauri
-        run: cargo test --lib
+      - name: cargo test (workspace)
+        run: cargo test --workspace
 
   frontend:
     name: Frontend

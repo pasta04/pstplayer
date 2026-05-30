@@ -24,7 +24,10 @@ impl BoardEncoding {
     pub fn decode(self, bytes: &[u8]) -> AppResult<String> {
         let (cow, _, had_errors) = self.to_encoding().decode(bytes);
         if had_errors {
-            return Err(AppError::Decode(format!("failed to decode bytes as {:?}", self)));
+            return Err(AppError::Decode(format!(
+                "failed to decode bytes as {:?}",
+                self
+            )));
         }
         Ok(cow.into_owned())
     }

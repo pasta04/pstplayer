@@ -17,7 +17,10 @@ pub fn first_stream_url(body: &str) -> AppResult<String> {
     let trimmed = body.trim_start_matches('\u{feff}');
 
     // PLS format: contains `[playlist]` header.
-    if trimmed.lines().any(|l| l.trim().eq_ignore_ascii_case("[playlist]")) {
+    if trimmed
+        .lines()
+        .any(|l| l.trim().eq_ignore_ascii_case("[playlist]"))
+    {
         for line in trimmed.lines() {
             let line = line.trim();
             // Match "FileN=" (N is digits), case-insensitive on the key.
@@ -62,13 +65,19 @@ File1=http://example.invalid:7144/stream/abc.flv
 Length1=-1
 Version=2
 ";
-        assert_eq!(first_stream_url(body).unwrap(), "http://example.invalid:7144/stream/abc.flv");
+        assert_eq!(
+            first_stream_url(body).unwrap(),
+            "http://example.invalid:7144/stream/abc.flv"
+        );
     }
 
     #[test]
     fn pls_with_bom() {
         let body = "\u{feff}[playlist]\nFile1=http://example.invalid/stream\n";
-        assert_eq!(first_stream_url(body).unwrap(), "http://example.invalid/stream");
+        assert_eq!(
+            first_stream_url(body).unwrap(),
+            "http://example.invalid/stream"
+        );
     }
 
     #[test]
@@ -81,7 +90,10 @@ Version=2
     #[test]
     fn m3u_basic() {
         let body = "#EXTM3U\n#EXTINF:-1,Test\nhttp://example.invalid/stream\n";
-        assert_eq!(first_stream_url(body).unwrap(), "http://example.invalid/stream");
+        assert_eq!(
+            first_stream_url(body).unwrap(),
+            "http://example.invalid/stream"
+        );
     }
 
     #[test]

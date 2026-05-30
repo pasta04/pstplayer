@@ -39,7 +39,12 @@ struct JsonRpcError {
 /// Returns the raw JSON `result` field.
 pub async fn call(endpoint: &PeerCastEndpoint, method: &str, params: Value) -> AppResult<Value> {
     let url = format!("{}/api/1", endpoint.base_url());
-    let req = JsonRpcRequest { jsonrpc: "2.0", id: 1, method, params };
+    let req = JsonRpcRequest {
+        jsonrpc: "2.0",
+        id: 1,
+        method,
+        params,
+    };
 
     let mut builder = CLIENT
         .post(&url)
@@ -58,7 +63,10 @@ pub async fn call(endpoint: &PeerCastEndpoint, method: &str, params: Value) -> A
         .map_err(|e| AppError::Decode(format!("non-JSON response (status {status}): {e}")))?;
 
     if let Some(err) = body.error {
-        return Err(AppError::Network(format!("JSON-RPC error {}: {}", err.code, err.message)));
+        return Err(AppError::Network(format!(
+            "JSON-RPC error {}: {}",
+            err.code, err.message
+        )));
     }
     body.result
         .ok_or_else(|| AppError::Decode("JSON-RPC response had neither result nor error".into()))

@@ -1,11 +1,11 @@
-use crate::bbs::{
+use pst_core::bbs::{
     ch2::Ch2Client,
     parse::SubjectEntry,
     router::{self},
     shitaraba::ShitarabaClient,
     types::{BoardKind, FetchState, Post, PostRequest},
 };
-use crate::util::errors::{AppError, IpcError};
+use pst_core::util::errors::{AppError, IpcError};
 
 fn classify(url: &str) -> Result<BoardKind, IpcError> {
     router::classify(url)
@@ -56,5 +56,5 @@ pub fn classify_board(url: String) -> Result<BoardKind, IpcError> {
 
 #[tauri::command]
 pub fn sanitize_html(html: String) -> String {
-    crate::bbs::sanitize::sanitize_post_html(&html)
+    pst_core::bbs::sanitize::sanitize_post_html(&html)
 }

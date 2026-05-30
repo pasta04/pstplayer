@@ -117,8 +117,11 @@ pub fn parse_ch2_dat(body: &str) -> Vec<Post> {
 
 fn clean_text(raw: &str) -> String {
     // Names commonly contain </b>...<b> trip wrappers; strip them but keep contents.
-    let stripped =
-        raw.replace("</b>", "").replace("<b>", "").replace("</B>", "").replace("<B>", "");
+    let stripped = raw
+        .replace("</b>", "")
+        .replace("<b>", "")
+        .replace("</B>", "")
+        .replace("<B>", "");
     unescape_html(stripped.trim())
 }
 

@@ -1,5 +1,5 @@
-use crate::config::{self, Config};
-use crate::util::errors::IpcError;
+use pst_core::config::{self, Config};
+use pst_core::util::errors::IpcError;
 
 #[tauri::command]
 pub fn get_config() -> Result<Config, IpcError> {

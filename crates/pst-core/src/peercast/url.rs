@@ -81,7 +81,11 @@ pub fn parse(url: &str) -> AppResult<ParsedUrl> {
 
         return Ok(ParsedUrl {
             kind,
-            endpoint: PeerCastEndpoint { host, port, auth: None },
+            endpoint: PeerCastEndpoint {
+                host,
+                port,
+                auth: None,
+            },
             channel_id,
             ext,
             tip,
@@ -102,14 +106,20 @@ pub fn parse(url: &str) -> AppResult<ParsedUrl> {
 
         return Ok(ParsedUrl {
             kind: UrlKind::PlayHtml,
-            endpoint: PeerCastEndpoint { host, port, auth: None },
+            endpoint: PeerCastEndpoint {
+                host,
+                port,
+                auth: None,
+            },
             channel_id,
             ext: None,
             tip: None,
         });
     }
 
-    Err(AppError::InvalidUrl(format!("not a recognised PeerCast URL: {url}")))
+    Err(AppError::InvalidUrl(format!(
+        "not a recognised PeerCast URL: {url}"
+    )))
 }
 
 #[cfg(test)]
@@ -132,7 +142,10 @@ mod tests {
 
     #[test]
     fn pls_with_ext_and_tip() {
-        let p = parse(&format!("http://192.0.2.10:7144/pls/{ID}.flv?tip=192.0.2.99:7144")).unwrap();
+        let p = parse(&format!(
+            "http://192.0.2.10:7144/pls/{ID}.flv?tip=192.0.2.99:7144"
+        ))
+        .unwrap();
         assert_eq!(p.kind, UrlKind::Playlist);
         assert_eq!(p.endpoint.host, "192.0.2.10");
         assert_eq!(p.endpoint.port, 7144);

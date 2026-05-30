@@ -1,8 +1,8 @@
-use crate::peercast::{
+use pst_core::peercast::{
     client,
     types::{ChannelInfo, ChannelStatus, PeerCastEndpoint},
 };
-use crate::util::errors::IpcError;
+use pst_core::util::errors::IpcError;
 
 /// Resolve a user-supplied PeerCast URL into the concrete stream URL
 /// that the embedded media player should load.

@@ -1,11 +1,11 @@
 [package]
 name = "pstplayer"
-version = "0.0.1"
-description = "Cross-platform PeerCast viewer with integrated BBS support"
-authors = ["pasta04"]
-edition = "2021"
-license = "MIT"
-repository = "https://github.com/pasta04/pstplayer"
+description = "PSTPlayer desktop app (Tauri)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
 
 [lib]
 name = "pstplayer_lib"
@@ -15,28 +15,8 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+pst-core = { path = "../crates/pst-core" }
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-thiserror = "2"
-tokio = { version = "1", features = ["sync", "macros", "rt-multi-thread", "time"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "gzip", "cookies"] }
-url = "2"
-encoding_rs = "0.8"
-regex = "1"
-once_cell = "1"
-toml = "0.8"
-directories = "5"
-quick-xml = { version = "0.36", features = ["serialize"] }
-ammonia = "4"
-
-[dev-dependencies]
-tokio = { version = "1", features = ["full"] }
-
-[profile.release]
-panic = "abort"
-codegen-units = 1
-lto = true
-opt-level = "s"
-strip = true
+serde.workspace = true
+serde_json.workspace = true
