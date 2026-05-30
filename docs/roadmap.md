@@ -57,7 +57,7 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
 - [ ] HTTP クライアント (Cookie 対応、cookie_store 永続化)
 - [ ] したらば `rawmode.cgi` での実取得
 - [ ] したらば `write.cgi` への POST (確認ダイアログ付き)
-- [ ] ammonia による HTML サニタイズ (HTML 表示モード用)
+- [x] ammonia による HTML サニタイズ (HTML 表示モード用)
 
 ### 1.5 UI (最小)
 

@@ -2,6 +2,7 @@ pub mod anchor;
 pub mod encoding;
 pub mod parse;
 pub mod router;
+pub mod sanitize;
 pub mod traits;
 pub mod types;
 
