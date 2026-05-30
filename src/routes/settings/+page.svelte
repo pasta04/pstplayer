@@ -1,14 +1,24 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { CommandError, configFilePath, getConfig, setConfig, type Config } from '$lib/api';
+	import {
+		CommandError,
+		clearHistory,
+		configFilePath,
+		getConfig,
+		getHistory,
+		setConfig,
+		type Config,
+		type HistoryEntry,
+	} from '$lib/api';
 	import { applyTheme, getTheme, setTheme, type Theme } from '$lib/theme';
 
 	let cfg = $state<Config | null>(null);
-	let tab = $state<'general' | 'peercast' | 'bbs' | 'player'>('general');
+	let tab = $state<'general' | 'peercast' | 'bbs' | 'player' | 'history'>('general');
 	let saving = $state(false);
 	let message = $state<string | null>(null);
 	let configPath = $state<string>('');
 	let theme = $state<Theme>('system');
+	let history = $state<HistoryEntry[]>([]);
 
 	onMount(async () => {
 		applyTheme(getTheme()); // settings window also reflects the chosen theme
@@ -16,10 +26,22 @@
 		try {
 			cfg = await getConfig();
 			configPath = await configFilePath();
+			history = await getHistory();
 		} catch (e) {
 			message = errMsg(e);
 		}
 	});
+
+	async function onClearHistory() {
+		if (!confirm('視聴履歴をすべて削除します。よろしいですか?')) return;
+		await clearHistory();
+		history = [];
+	}
+
+	function fmtDate(unix: number): string {
+		if (!unix) return '';
+		return new Date(unix * 1000).toLocaleString();
+	}
 
 	function onThemeChange(e: Event) {
 		const v = (e.target as HTMLSelectElement).value as Theme;
@@ -58,6 +80,7 @@
 			<button class:active={tab === 'peercast'} onclick={() => (tab = 'peercast')}>PeerCast</button>
 			<button class:active={tab === 'bbs'} onclick={() => (tab = 'bbs')}>BBS</button>
 			<button class:active={tab === 'player'} onclick={() => (tab = 'player')}>プレイヤー</button>
+			<button class:active={tab === 'history'} onclick={() => (tab = 'history')}>履歴</button>
 		</nav>
 
 		<section class="tab">
@@ -115,6 +138,28 @@
 				<p class="hint small">
 					プレイヤー設定はまだ最小限です。スナップショット保存先などは順次実装。
 				</p>
+			{:else if tab === 'history'}
+				<div class="hist-head">
+					<span class="hint">最近開いたチャンネル ({history.length})</span>
+					<button class="danger" onclick={onClearHistory} disabled={history.length === 0}>
+						すべて削除
+					</button>
+				</div>
+				{#if history.length === 0}
+					<p class="muted small">履歴はまだありません。</p>
+				{:else}
+					<ul class="hist-list">
+						{#each history as h}
+							<li class="hist-item">
+								<div class="hist-name">{h.channelName || '(no name)'}</div>
+								<div class="hist-meta">
+									<span class="hist-date">{fmtDate(h.lastOpenedAt)}</span>
+								</div>
+								<code class="hist-url">{h.url}</code>
+							</li>
+						{/each}
+					</ul>
+				{/if}
 			{/if}
 		</section>
 
@@ -274,5 +319,59 @@
 		border-radius: 3px;
 		display: inline-block;
 		word-break: break-all;
+	}
+
+	.hist-head {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.hist-head .hint {
+		flex: 1;
+	}
+	.hist-head .danger {
+		background: var(--bg-elev);
+		color: var(--err);
+		border: 1px solid var(--border-strong);
+		border-radius: 3px;
+		padding: 0.25rem 0.6rem;
+		cursor: pointer;
+		font-size: 0.8rem;
+		font-family: inherit;
+	}
+	.hist-head .danger:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
+	.hist-list {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+	}
+	.hist-item {
+		background: var(--bg-input);
+		border: 1px solid var(--border);
+		border-radius: 3px;
+		padding: 0.4rem 0.6rem;
+		font-size: 0.82rem;
+	}
+	.hist-name {
+		font-weight: 600;
+	}
+	.hist-meta {
+		color: var(--fg-muted);
+		font-size: 0.72rem;
+		margin-top: 0.15rem;
+	}
+	.hist-url {
+		display: block;
+		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+		font-size: 0.72rem;
+		color: var(--fg-dim);
+		word-break: break-all;
+		margin-top: 0.2rem;
 	}
 </style>

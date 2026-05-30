@@ -10,6 +10,7 @@
 		fetchThread,
 		listThreads,
 		postToThread,
+		pushHistory,
 		resolveStreamUrl,
 		stopChannel,
 		type ChannelInfo,
@@ -169,6 +170,8 @@
 			if (channelId && endpoint) {
 				await reloadInfoAndBbs();
 				startPolling();
+				// Record after channelInfo fetch so we have a name.
+				pushHistory(url, channelInfo?.name || '').catch(() => undefined);
 			}
 		} catch (e) {
 			lastError = errorMessage(e);

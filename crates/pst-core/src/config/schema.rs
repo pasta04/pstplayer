@@ -16,7 +16,26 @@ pub struct Config {
     pub window: WindowConfig,
     #[serde(default)]
     pub display: DisplayConfig,
+    #[serde(default)]
+    pub history: HistoryConfig,
 }
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct HistoryConfig {
+    /// Recently opened channel URLs (newest first). Capped at MAX_HISTORY.
+    #[serde(default)]
+    pub recent: Vec<HistoryEntry>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct HistoryEntry {
+    pub url: String,
+    pub channel_name: String,
+    /// UNIX seconds when last opened.
+    pub last_opened_at: u64,
+}
+
+pub const MAX_HISTORY: usize = 30;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PeerCastConfig {

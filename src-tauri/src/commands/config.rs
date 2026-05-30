@@ -1,5 +1,7 @@
+use pst_core::config::schema::{HistoryEntry, MAX_HISTORY};
 use pst_core::config::{self, Config};
 use pst_core::util::errors::IpcError;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[tauri::command]
 pub fn get_config() -> Result<Config, IpcError> {
@@ -14,4 +16,29 @@ pub fn set_config(config: Config) -> Result<(), IpcError> {
 #[tauri::command]
 pub fn config_file_path() -> Result<String, IpcError> {
     config::config_path().map(|p| p.to_string_lossy().into_owned()).map_err(Into::into)
+}
+
+/// Append a viewing-history entry: deduplicate by URL, push to the
+/// front (most recent), and cap the list at MAX_HISTORY.
+#[tauri::command]
+pub fn push_history(url: String, channel_name: String) -> Result<(), IpcError> {
+    let mut cfg = config::load().map_err(IpcError::from)?;
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    cfg.history.recent.retain(|e| e.url != url);
+    cfg.history.recent.insert(0, HistoryEntry { url, channel_name, last_opened_at: now });
+    cfg.history.recent.truncate(MAX_HISTORY);
+    config::save(&cfg).map_err(Into::into)
+}
+
+#[tauri::command]
+pub fn get_history() -> Result<Vec<HistoryEntry>, IpcError> {
+    let cfg = config::load().map_err(IpcError::from)?;
+    Ok(cfg.history.recent)
+}
+
+#[tauri::command]
+pub fn clear_history() -> Result<(), IpcError> {
+    let mut cfg = config::load().map_err(IpcError::from)?;
+    cfg.history.recent.clear();
+    config::save(&cfg).map_err(Into::into)
 }
