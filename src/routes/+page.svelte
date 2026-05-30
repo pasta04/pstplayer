@@ -10,6 +10,7 @@
 		fetchThread,
 		getConfig,
 		listThreads,
+		playerSetVolume,
 		playerStatus,
 		postToThread,
 		pushHistory,
@@ -85,6 +86,9 @@
 
 	// Right-click context menu over the player area.
 	let ctxMenu = $state<{ x: number; y: number } | null>(null);
+
+	// Volume (0-100). Wheel over the player area changes it.
+	let volume = $state(80);
 
 	// Polling handles
 	let infoTimer: ReturnType<typeof setInterval> | null = null;
@@ -367,6 +371,17 @@
 		ctxMenu = { x: e.clientX, y: e.clientY };
 	}
 
+	function onPlayerWheel(e: WheelEvent) {
+		// Wheel up increases volume, wheel down decreases.
+		e.preventDefault();
+		const step = 5;
+		const delta = e.deltaY < 0 ? step : -step;
+		const next = Math.max(0, Math.min(150, volume + delta));
+		if (next === volume) return;
+		volume = next;
+		playerSetVolume(volume).catch(() => undefined);
+	}
+
 	function closeCtxMenu() {
 		ctxMenu = null;
 	}
@@ -488,7 +503,12 @@
 >
 	<!-- Player + BBS panes -->
 	<div class="panes">
-		<div class="player" oncontextmenu={onPlayerContextMenu} role="presentation">
+		<div
+			class="player"
+			oncontextmenu={onPlayerContextMenu}
+			onwheel={onPlayerWheel}
+			role="presentation"
+		>
 			{#if streamUrl}
 				<div class="player-placeholder">
 					<div>
@@ -729,6 +749,7 @@
 			</span>
 			{#if statusLine.size}<span class="s-size">{statusLine.size}</span>{/if}
 			<span class="s-up">{statusLine.up}</span>
+			<span class="s-vol" title="マウスホイールで音量調整">♪ {volume}</span>
 			<span class="s-actions">
 				<button onclick={onBump} title="再接続 (Bump)">↻</button>
 				<button onclick={onStop} title="切断 (Stop)">■</button>
@@ -1040,8 +1061,13 @@
 
 	.s-info,
 	.s-up,
-	.s-size {
+	.s-size,
+	.s-vol {
 		color: rgba(255, 255, 255, 0.85);
+	}
+	.s-vol {
+		min-width: 3rem;
+		text-align: right;
 	}
 
 	.s-actions {
