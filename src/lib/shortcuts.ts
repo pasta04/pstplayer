@@ -15,6 +15,8 @@ export interface ShortcutActions {
 	openSettings: () => void;
 	openThreadList: () => void;
 	focusSearch: () => void;
+	reloadThread: () => void;
+	reloadThreadFull: () => void;
 }
 
 /**
@@ -102,6 +104,16 @@ export function installShortcuts(actions: ShortcutActions): () => void {
 		}
 		if (ctrl && e.key === 'f') {
 			actions.focusSearch();
+			e.preventDefault();
+			return;
+		}
+		// Ctrl+Shift+R: full reload (discard cached state)
+		// Ctrl+R     : incremental refresh
+		// Browser default for these is page reload; we always preventDefault
+		// so the Tauri webview stays put.
+		if (ctrl && (e.key === 'r' || e.key === 'R')) {
+			if (e.shiftKey) actions.reloadThreadFull();
+			else actions.reloadThread();
 			e.preventDefault();
 			return;
 		}

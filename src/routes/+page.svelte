@@ -155,6 +155,17 @@
 			openSettings: onOpenSettings,
 			openThreadList: onOpenThreadList,
 			focusSearch: () => filterInput?.focus(),
+			reloadThread: () => {
+				if (currentThreadUrl && !threadLoading) loadCurrentThread(false);
+			},
+			reloadThreadFull: () => {
+				if (currentThreadUrl && !threadLoading) {
+					fetchState = null;
+					posts = [];
+					sanitizedCache = new Map();
+					loadCurrentThread(true);
+				}
+			},
 		});
 	});
 
