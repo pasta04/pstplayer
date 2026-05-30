@@ -60,11 +60,19 @@ PeerCastStation も GPL v3 だが、その **wiki ドキュメント** (`JSON RP
 
 ## unacast のコード参照について
 
-unacast はリポジトリオーナーと同じ作者 (pasta04) による実装。同一作者の MIT 想定コードについては問題ないが、念のため:
+unacast はリポジトリオーナーと同じ作者 (pasta04) による実装。
+
+**ライセンス確認結果 (2026-05-30)**:
+
+- `package.json` の `license` フィールド: **`ISC`**
+- ルートに独立した `LICENSE` ファイルは未設置 (任意確認)
+- ISC ライセンスは MIT 互換 (機能的に同等、文言が短い)。PSTPlayer (MIT) との両立可能
+
+**取り扱い**:
 
 - unacast の `Read5ch.ts` / `ReadSitaraba.ts` は **プロトコル仕様の抽出元** として参照する
 - 直接コピーするのではなく、Rust で独立に書き起こす (言語が違うので自然と書き直しになる)
-- unacast のライセンス表記がない場合、明示的に確認する
+- もし unacast から実質的なコード断片を取り込むことになった場合は、ISC の著作権表示と permission notice を `NOTICE` ファイルに追加
 
 ## 例外
 

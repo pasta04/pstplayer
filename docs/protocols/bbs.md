@@ -258,12 +258,74 @@ Body (Shift_JIS で URL encode):
 - **URL リンク**: `https?://...` を検出して anchor 化 (HTML 出力モード時)
 - **トリップ**: `名前◆xxxxxxxx` の `◆` 以降を別色で
 
-## 6. HTML エスケープ / 復号 (共通)
+## 6. HTML エスケープ / 復号 / サニタイズ
+
+### 復号 (共通)
 
 dat から取得した本文は HTML エンティティでエスケープされている (`<br>` を除く):
 
 - 復号対象: `&lt;` `&gt;` `&amp;` `&quot;` `&#NNNN;` `&#xHHHH;`
 - 改行: `<br>` → `\n`
+
+### 表示モード別の安全戦略
+
+PSTPlayer は 2 つの表示モードを持つ。両方とも **BBS 本文を信頼できないテキストとして扱う**。
+
+#### モード A: プレーンテキスト (デフォルト)
+
+- HTML タグはすべてエスケープして可視テキストとして表示 (`<script>` → `&lt;script&gt;` のように)
+- 改行 `<br>` のみ `\n` に変換
+- URL (`https?://...`) は正規表現で検出してアンカー化 (フロント側で安全に `<a>` 構築)
+- アンカー `>>N`、トリップ `◆xxx`、ID も同様にフロント側で構築
+
+このモードでは XSS リスクはほぼゼロ (フロントが信頼するのはバックエンドから来た構造化データのみ)。
+
+#### モード B: HTML レンダリング (任意 ON)
+
+スキン適用や装飾用。Rust 側で **whitelist サニタイズ** をかけてからフロントに渡す。
+
+**採用クレート**: [`ammonia`](https://crates.io/crates/ammonia) (MIT)
+
+- whitelist 方式
+- HTML5 パーサ (`html5ever`) ベースで実装
+- 推奨設定:
+
+```rust
+let cleaner = ammonia::Builder::default()
+    .tags(hashset!["br", "a", "b", "i", "u", "s", "font", "small", "big"])
+    .tag_attributes(hashmap![
+        "a"    => hashset!["href"],
+        "font" => hashset!["color", "size"],
+    ])
+    .url_schemes(hashset!["http", "https", "ftp", "mailto"])
+    .link_rel(Some("noopener noreferrer"));
+```
+
+**禁止項目**:
+
+| 項目                                 | 理由                                          |
+| ------------------------------------ | --------------------------------------------- |
+| `<script>` / `<iframe>` / `<embed>`  | コード実行                                    |
+| `<style>` / `<link rel=stylesheet>`  | スタイル汚染 + データ URI で間接実行          |
+| `<img src>`                          | 外部画像で IP 漏洩、データ URI で間接実行     |
+| `<form>` / `<input>` / `<button>`    | UI 偽装、ユーザの操作を意図しない POST へ誘導 |
+| インラインスタイル `style="..."`     | `background: url(javascript:...)` 等          |
+| `on*` イベントハンドラ               | `onclick="..."` などの直接実行                |
+| `javascript:` / `data:` / `vbscript:` URI | スクリプト実行                            |
+
+**フロント側の追加防御**:
+
+- Tauri の **CSP (Content-Security-Policy)** を `tauri.conf.json` で厳格化
+  - `script-src 'self'` (インラインスクリプト禁止)
+  - `style-src 'self' 'unsafe-inline'` (アプリ自身の CSS のみ、本文 HTML には影響しない)
+  - `img-src 'self'` (BBS 本文中の画像は表示しない)
+  - `frame-src 'none'`
+- React/Svelte 等の **テンプレートエンジンの安全 API** を使う (`v-html` 相当を避け、`DOMPurify` 等の二重防御も検討)
+- レンダリング先 DOM は **shadow DOM** で隔離し、メインの DOM とスタイル/イベント空間を分ける
+
+### 関連実装ファイル
+
+`bbs/sanitize.rs` を新設し、`ammonia::Builder` の設定を一元管理。表示モードに応じて呼び分け。
 
 ## 7. Cookie 永続化方針
 
@@ -313,6 +375,8 @@ bbs/
 ├── parse.rs         # dat パーサ (共通ロジック切り出し)
 ├── encoding.rs      # EUC-JP/Shift_JIS/UTF-8 + HTML エンティティ
 ├── anchor.rs        # アンカー / ID / URL 抽出
+├── sanitize.rs      # ammonia による HTML サニタイズ (モード B 用)
+├── cookie_store.rs  # Cookie 永続化 (§7)
 └── types.rs         # ThreadSummary, Post, FetchState, PostRequest 等
 ```
 

@@ -133,6 +133,33 @@ PCRPlayer の起動側が展開できる変数 (`$0` 〜 `$L`) のうち、PSTPl
 | `--help` / `-h`      | 使い方を表示して終了                                            |
 | `--version` / `-V`   | バージョン表示して終了                                          |
 
+#### シェル / クォートの注意
+
+URL には `?` `&` `=` `:` などのシェルメタ文字が含まれるため、**起動側ツールは必ず引数をクォートで囲む**。これは起動側 (PCRPlayer 互換ツール / バッチファイル / スクリプト) の責務であり、PSTPlayer 受け取り側では特別な処理は不要 (Rust の `std::env::args()` が OS の引数配列を正しく返してくれる)。
+
+OS シェル別の渡し方:
+
+| シェル               | 例                                                                 | 補足                                |
+| -------------------- | ------------------------------------------------------------------ | ----------------------------------- |
+| Windows cmd.exe      | `pstplayer.exe "http://h:p/pls/ID?tip=t" "name"`                  | `"…"` 内なら `&` `<` `>` も安全     |
+| Windows PowerShell   | `& pstplayer.exe "http://h:p/pls/ID?tip=t" "name"`                | `&` (呼び出し演算子) と URL の `&` を区別。クォート必須 |
+| bash / zsh           | `pstplayer 'http://h:p/pls/ID?tip=t' 'name'`                      | シングルクォート推奨。展開を抑制    |
+| sh (POSIX 互換)      | `pstplayer "http://h:p/pls/ID?tip=t" "name"`                      |                                     |
+
+PCRPlayer の起動側設定の典型は `"$X" "$0"` のように既にクォート済み。**PCRPlayer の設定をそのまま PSTPlayer に向ければ動作する**。
+
+#### カスタム URL スキーマ (将来検討)
+
+将来 `pstplayer://` スキーマを OS に登録すれば、ブラウザのリンクから直接起動できる:
+
+```
+pstplayer://launch?url=http%3A%2F%2Fh%3Ap%2Fpls%2FID%3Ftip%3Dt&name=name
+```
+
+- URL 全体をパーセントエンコード → シェルクォート問題が完全に消える
+- Tauri の `bundle.windows.fileAssociations` / `bundle.macOS.associations` で登録可
+- v1.0 以降の検討事項として [roadmap.md](roadmap.md) のフェーズ 4 に追加予定
+
 ## 3. 掲示板 (BBS)
 
 ### 3.1 共通
