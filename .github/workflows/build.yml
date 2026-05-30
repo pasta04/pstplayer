@@ -32,7 +32,7 @@ jobs:
             experimental: false
           - os: windows-latest
             artifact: windows
-            experimental: true # mpv-dev linkage on Windows is brittle
+            experimental: false
 
     steps:
       - uses: actions/checkout@v4
@@ -126,8 +126,51 @@ jobs:
 
       # ── Build ────────────────────────────────────────────────────────
 
-      - name: Tauri build (release)
+      - name: Tauri build (release, non-Windows)
+        if: runner.os != 'Windows'
         run: npm run tauri build
+
+      # On Windows we skip the Tauri bundler (NSIS/MSI signing & the
+      # bundler's own DLL probing tend to trip on the libmpv linkage
+      # issue) and just produce a portable .exe + libmpv-2.dll zip
+      # that the user can run directly.
+      - name: Build pstplayer.exe (Windows, no bundler)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          npm run build                       # produces build/ for Tauri to embed
+          cargo build --release -p pstplayer
+
+      - name: Stage Windows portable bundle
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $out = "$env:GITHUB_WORKSPACE\portable-windows"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          Copy-Item "src-tauri\target\release\pstplayer.exe" $out -Force
+          Copy-Item "$env:MPV_SOURCE\64\libmpv-2.dll" $out -Force
+          $readme = @"
+PSTPlayer (Windows portable)
+
+使い方:
+  1. このフォルダ内の pstplayer.exe をダブルクリック
+  2. アプリが起動したら PeerCast の URL を貼り付けて Open
+
+同梱物:
+  pstplayer.exe   ... 本体
+  libmpv-2.dll    ... 動画再生エンジン (削除/移動しないでください)
+
+事前準備:
+  Microsoft Edge WebView2 Runtime
+    Windows 11 は標準で入っています。Windows 10 で入っていない場合は
+    https://developer.microsoft.com/microsoft-edge/webview2/ から入手。
+
+ライセンス:
+  PSTPlayer は MIT。libmpv-2.dll は LGPL 由来 (GPL ビルドの場合は GPL)。
+  詳細は https://github.com/pasta04/pstplayer
+"@
+          Set-Content -Path "$out\README.txt" -Encoding UTF8 -Value $readme
+          Get-ChildItem $out | Format-List Name, Length
 
       # ── Upload ───────────────────────────────────────────────────────
 
@@ -154,13 +197,11 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Upload Windows artifacts
+      - name: Upload Windows portable
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
-          name: pstplayer-${{ matrix.artifact }}
-          path: |
-            src-tauri/target/release/bundle/msi/*.msi
-            src-tauri/target/release/bundle/nsis/*.exe
-          if-no-files-found: warn
+          name: pstplayer-windows-portable
+          path: portable-windows/
+          if-no-files-found: error
           retention-days: 14

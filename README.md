@@ -92,10 +92,13 @@ main への push 時、または手動起動時に GitHub Actions が走り、�
 
 1. リポジトリの **Actions タブ** → 該当の `Build artifacts` ワークフロー実行を開く
 2. 画面下の **Artifacts** から OS 別にダウンロード:
-   - `pstplayer-linux` — `.deb`, `.AppImage`, `.rpm`
-   - `pstplayer-macos` — `.dmg`, `.app`
-   - `pstplayer-windows` — `.msi`, `.exe` (NSIS インストーラ)
-3. 手元で実行 (macOS/Linux は実行権限付与が必要な場合あり)
+   - `pstplayer-linux` — `.deb` / `.AppImage` / `.rpm`
+   - `pstplayer-macos` — `.dmg` / `.app`
+   - `pstplayer-windows-portable` — `pstplayer.exe` + `libmpv-2.dll` + `README.txt` の ZIP (即実行可能、インストール不要)
+3. 手元で実行
+   - **Linux**: AppImage は `chmod +x ./PSTPlayer*.AppImage && ./PSTPlayer*.AppImage` または .deb を `sudo dpkg -i`
+   - **macOS**: .dmg をマウントして .app を Applications に
+   - **Windows**: ZIP を解凍してフォルダ内の `pstplayer.exe` をダブルクリック (libmpv-2.dll が同じディレクトリにある必要あり)
 
 **PR ブランチで artifact が欲しい場合**: Actions タブ → `Build artifacts` → **Run workflow** → 対象ブランチを選択 → 実行 (手動起動)
 
