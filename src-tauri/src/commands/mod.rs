@@ -1,3 +1,4 @@
+pub mod config;
 pub mod peercast;
 
 /// Cheap health-check command used during early UI development.

@@ -23,6 +23,9 @@ pub fn run() {
             commands::peercast::fetch_channel_status,
             commands::peercast::bump_channel,
             commands::peercast::stop_channel,
+            commands::config::get_config,
+            commands::config::set_config,
+            commands::config::config_file_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
