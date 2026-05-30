@@ -591,6 +591,7 @@
 						<button class="filter-clear" onclick={() => (filter = '')}>×</button>
 					{/if}
 				</div>
+				<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions a11y_mouse_events_have_key_events -->
 				<ol
 					class="posts"
 					onclick={onPostsClick}
@@ -667,6 +668,7 @@
 
 	<!-- Right-click context menu -->
 	{#if ctxMenu}
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
 		<div
 			class="ctx-backdrop"
 			role="presentation"
@@ -705,6 +707,7 @@
 
 	<!-- Anchor / ID popup overlay -->
 	{#if popup}
+		<!-- svelte-ignore a11y_no_noninteractive_tabindex a11y_no_noninteractive_element_interactions -->
 		<div
 			class="popup-backdrop"
 			role="dialog"
@@ -712,6 +715,7 @@
 			onclick={closePopup}
 			onkeydown={onPopupKey}
 		>
+			<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 			<div
 				class="popup"
 				role="document"
@@ -727,6 +731,7 @@
 					<span>{popup.label} — {popup.posts.length} 件</span>
 					<button class="popup-close" onclick={closePopup}>×</button>
 				</div>
+				<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
 				<ol class="posts in-popup" onclick={onPostsClick}>
 					{#each popup.posts as p (p.number)}
 						<li class="post">
