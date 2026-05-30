@@ -1,0 +1,130 @@
+//! Character encoding and HTML entity helpers for the BBS layer.
+//!
+//! See `docs/protocols/bbs.md` §1 and §6.
+
+use crate::util::errors::{AppError, AppResult};
+use encoding_rs::{EUC_JP, SHIFT_JIS, UTF_8};
+
+#[derive(Debug, Clone, Copy)]
+pub enum BoardEncoding {
+    ShiftJis,
+    EucJp,
+    Utf8,
+}
+
+impl BoardEncoding {
+    fn to_encoding(self) -> &'static encoding_rs::Encoding {
+        match self {
+            BoardEncoding::ShiftJis => SHIFT_JIS,
+            BoardEncoding::EucJp => EUC_JP,
+            BoardEncoding::Utf8 => UTF_8,
+        }
+    }
+
+    pub fn decode(self, bytes: &[u8]) -> AppResult<String> {
+        let (cow, _, had_errors) = self.to_encoding().decode(bytes);
+        if had_errors {
+            return Err(AppError::Decode(format!("failed to decode bytes as {:?}", self)));
+        }
+        Ok(cow.into_owned())
+    }
+
+    pub fn encode(self, text: &str) -> Vec<u8> {
+        let (cow, _, _) = self.to_encoding().encode(text);
+        cow.into_owned()
+    }
+}
+
+/// Decode HTML entities found in 2ch/shitaraba dat bodies.
+/// Restricted to the common subset (`&lt;` `&gt;` `&amp;` `&quot;`
+/// `&#NNN;` `&#xHHH;`) plus the shitaraba-specific `&#65374;` → `～`.
+pub fn unescape_html(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut rest = input;
+
+    while let Some(amp) = rest.find('&') {
+        out.push_str(&rest[..amp]);
+        let after = &rest[amp + 1..];
+        let semi = match after.find(';') {
+            Some(p) if p <= 8 => p,
+            _ => {
+                out.push('&');
+                rest = after;
+                continue;
+            }
+        };
+        let entity = &after[..semi];
+        let replacement = match entity {
+            "lt" => Some('<'.to_string()),
+            "gt" => Some('>'.to_string()),
+            "amp" => Some('&'.to_string()),
+            "quot" => Some('"'.to_string()),
+            _ if entity.starts_with('#') => {
+                let num = &entity[1..];
+                let code =
+                    if let Some(hex) = num.strip_prefix('x').or_else(|| num.strip_prefix('X')) {
+                        u32::from_str_radix(hex, 16).ok()
+                    } else {
+                        num.parse::<u32>().ok()
+                    };
+                code.and_then(char::from_u32).map(|c| c.to_string())
+            }
+            _ => None,
+        };
+        match replacement {
+            Some(s) => {
+                out.push_str(&s);
+                rest = &after[semi + 1..];
+            }
+            None => {
+                out.push('&');
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn encode_decode_shift_jis_roundtrip() {
+        let text = "テスト 123";
+        let bytes = BoardEncoding::ShiftJis.encode(text);
+        let back = BoardEncoding::ShiftJis.decode(&bytes).unwrap();
+        assert_eq!(back, text);
+    }
+
+    #[test]
+    fn encode_decode_euc_jp_roundtrip() {
+        let text = "したらば";
+        let bytes = BoardEncoding::EucJp.encode(text);
+        let back = BoardEncoding::EucJp.decode(&bytes).unwrap();
+        assert_eq!(back, text);
+    }
+
+    #[test]
+    fn html_entities_basic() {
+        assert_eq!(unescape_html("a&lt;b&gt;c"), "a<b>c");
+        assert_eq!(unescape_html("&amp;&quot;"), "&\"");
+    }
+
+    #[test]
+    fn numeric_entities() {
+        assert_eq!(unescape_html("&#65;&#x42;"), "AB");
+    }
+
+    #[test]
+    fn shitaraba_tilde() {
+        // U+FF5E ＝ &#65374;
+        assert_eq!(unescape_html("&#65374;"), "～");
+    }
+
+    #[test]
+    fn passes_through_bare_ampersand() {
+        assert_eq!(unescape_html("at & t"), "at & t");
+    }
+}
