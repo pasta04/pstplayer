@@ -10,11 +10,13 @@
 		fetchThread,
 		getConfig,
 		listThreads,
+		playerStatus,
 		postToThread,
 		pushHistory,
 		resolveStreamUrl,
 		sanitizeHtml,
 		stopChannel,
+		type PlayerStatus,
 		type ChannelInfo,
 		type ChannelStatus,
 		type FetchState,
@@ -77,9 +79,14 @@
 	// post header highlights every post that shares the same ID.
 	let hoveredId = $state<string | null>(null);
 
+	// Polled from the libmpv engine (player_status). null until first
+	// successful sample.
+	let playerStat = $state<PlayerStatus | null>(null);
+
 	// Polling handles
 	let infoTimer: ReturnType<typeof setInterval> | null = null;
 	let threadTimer: ReturnType<typeof setInterval> | null = null;
+	let playerTimer: ReturnType<typeof setInterval> | null = null;
 	let threadSelectedUnlisten: UnlistenFn | null = null;
 
 	let shortcutsUnlisten: (() => void) | null = null;
@@ -142,6 +149,7 @@
 	onDestroy(() => {
 		if (infoTimer) clearInterval(infoTimer);
 		if (threadTimer) clearInterval(threadTimer);
+		if (playerTimer) clearInterval(playerTimer);
 		threadSelectedUnlisten?.();
 		shortcutsUnlisten?.();
 		themeUnlisten?.();
@@ -164,16 +172,14 @@
 	const statusLine = $derived.by(() => {
 		if (!channelInfo) return null;
 		const name = channelInfo.name || '(unnamed)';
-		const br =
-			channelStatus && channelInfo.bitrate
-				? `${channelInfo.bitrate} kbps`
-				: channelInfo.bitrate
-					? `${channelInfo.bitrate} kbps`
-					: '-';
+		const br = channelInfo.bitrate ? `${channelInfo.bitrate} kbps` : '-';
 		const up = channelStatus ? formatUptime(channelStatus.uptime) : '-';
 		const ldir = channelStatus ? `L:${channelStatus.localDirects}` : '';
 		const lrel = channelStatus ? `R:${channelStatus.localRelays}` : '';
-		return { name, br, up, ldir, lrel };
+		const fps = playerStat?.fps && playerStat.fps > 0 ? `${playerStat.fps.toFixed(1)}fps` : '';
+		const size =
+			playerStat?.width && playerStat?.height ? `${playerStat.width}×${playerStat.height}` : '';
+		return { name, br, up, ldir, lrel, fps, size };
 	});
 
 	// ── URL paste / load channel ─────────────────────────────────────
@@ -277,6 +283,7 @@
 	function startPolling() {
 		if (infoTimer) clearInterval(infoTimer);
 		if (threadTimer) clearInterval(threadTimer);
+		if (playerTimer) clearInterval(playerTimer);
 		infoTimer = setInterval(() => {
 			if (endpoint && channelId) {
 				fetchChannelStatus(endpoint, channelId).then(
@@ -288,6 +295,12 @@
 		threadTimer = setInterval(() => {
 			if (currentThreadUrl && !threadLoading) loadCurrentThread(false);
 		}, 5_000);
+		playerTimer = setInterval(() => {
+			playerStatus().then(
+				(s) => (playerStat = s),
+				() => undefined,
+			);
+		}, 1_000);
 	}
 
 	// ── Channel actions ──────────────────────────────────────────────
@@ -629,7 +642,13 @@
 	<div class="status-bar">
 		{#if statusLine}
 			<span class="s-name">{statusLine.name}</span>
-			<span class="s-info">{statusLine.br} {statusLine.ldir} {statusLine.lrel}</span>
+			<span class="s-info">
+				{statusLine.br}
+				{#if statusLine.fps}({statusLine.fps}){/if}
+				{statusLine.ldir}
+				{statusLine.lrel}
+			</span>
+			{#if statusLine.size}<span class="s-size">{statusLine.size}</span>{/if}
 			<span class="s-up">{statusLine.up}</span>
 			<span class="s-actions">
 				<button onclick={onBump} title="再接続 (Bump)">↻</button>
@@ -941,7 +960,8 @@
 	}
 
 	.s-info,
-	.s-up {
+	.s-up,
+	.s-size {
 		color: rgba(255, 255, 255, 0.85);
 	}
 
