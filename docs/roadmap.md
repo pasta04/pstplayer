@@ -18,22 +18,22 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
 
 ### 1.1 プロジェクトスケルトン
 
-- [ ] `cargo tauri init` でプロジェクト作成
-- [ ] Tauri 2.x の設定
-- [ ] フロントエンドフレームワーク (TypeScript) 導入
-- [ ] CI セットアップ (GitHub Actions の matrix で 3 OS ビルド)
-- [ ] ESLint / Prettier / rustfmt / clippy 設定
-- [ ] テスト実行の枠 (`cargo test`, `vitest` 等)
+- [x] `cargo create-tauri-app` でプロジェクト生成 (svelte-ts テンプレート)
+- [x] Tauri 2.x の設定 (CSP 厳格化、ウィンドウ最小サイズ、identifier)
+- [x] フロントエンドフレームワーク (Svelte 5 + SvelteKit + TypeScript)
+- [x] CI セットアップ (GitHub Actions matrix: Ubuntu/macOS/Windows + frontend)
+- [x] ESLint / Prettier / rustfmt / clippy 設定 (リリースプロファイル最適化含む)
+- [x] テスト実行の枠 (`cargo test` で 31 件 pass。vitest はフロント追加時に検討)
 
 ### 1.2 PeerCast 連携 (最小)
 
-- [ ] `peercast` モジュール骨組み (`reqwest` ベース)
-- [ ] URL パーサ (`pls`/`stream` 両形式 + `?tip=` パラメータ対応)
-- [ ] `/pls/{id}` から実ストリーム URL を取得 (playlist パーサ)
-- [ ] `/api/1` JSON-RPC クライアント (`getChannelInfo`, `getChannelStatus`, `stopChannel`, `bumpChannel`)
-- [ ] 旧 `/admin?cmd=viewxml` フォールバック (XML パース)
-- [ ] 単体テスト (モックレスポンス)
-- [ ] **CLI 引数からの URL 受け取りで再生開始 (外部ツール連携の基本)**
+- [x] `peercast` モジュール骨組み (`reqwest` ベース、`util::http` 共通クライアント)
+- [x] URL パーサ (`pls`/`stream`/`play.html` 三形式 + `?tip=` パラメータ対応、IPv6 host も)
+- [x] `/pls/{id}` から実ストリーム URL を取得 (PLS/M3U 両対応 + BOM 対応)
+- [ ] `/api/1` JSON-RPC クライアント (リクエスト/レスポンス型は完成。具体メソッドは TODO)
+- [ ] 旧 `/admin?cmd=viewxml` フォールバック (XML パース) - 骨組みのみ
+- [x] 単体テスト (URL 6 件、playlist 6 件、YP 2 件、encoding 5 件、anchor 5 件、cli 4 件、config 1 件)
+- [x] **CLI 引数からの URL 受け取りで再生開始 (外部ツール連携の基本)** - 引数パース完了
 - [ ] **PeerCast 接続先 (host/port) を設定 UI で指定可能に** (localhost 以外: LAN 内別マシン対応)
 - [ ] **Basic 認証情報の受け渡し** (config から取得して JSON-RPC リクエストに付加)
 - [ ] **接続先の優先順位解決ロジック** (CLI 引数 > config > default)

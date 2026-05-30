@@ -1,156 +1,210 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
+	import { ping, resolveStreamUrl, CommandError } from '$lib/api';
 
-  let name = $state("");
-  let greetMsg = $state("");
+	let url = $state('');
+	let resolved = $state<string | null>(null);
+	let error = $state<string | null>(null);
+	let pingResult = $state<string | null>(null);
+	let busy = $state(false);
 
-  async function greet(event: Event) {
-    event.preventDefault();
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    greetMsg = await invoke("greet", { name });
-  }
+	async function onResolve() {
+		busy = true;
+		error = null;
+		resolved = null;
+		try {
+			resolved = await resolveStreamUrl(url);
+		} catch (e) {
+			if (e instanceof CommandError) {
+				error = `${e.code}: ${e.message}`;
+			} else {
+				error = String(e);
+			}
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function onPing() {
+		try {
+			pingResult = await ping();
+		} catch (e) {
+			pingResult = `error: ${String(e)}`;
+		}
+	}
 </script>
 
-<main class="container">
-  <h1>Welcome to Tauri + Svelte</h1>
+<svelte:head>
+	<title>PSTPlayer</title>
+</svelte:head>
 
-  <div class="row">
-    <a href="https://vite.dev" target="_blank">
-      <img src="/vite.svg" class="logo vite" alt="Vite Logo" />
-    </a>
-    <a href="https://tauri.app" target="_blank">
-      <img src="/tauri.svg" class="logo tauri" alt="Tauri Logo" />
-    </a>
-    <a href="https://svelte.dev" target="_blank">
-      <img src="/svelte.svg" class="logo svelte-kit" alt="SvelteKit Logo" />
-    </a>
-  </div>
-  <p>Click on the Tauri, Vite, and SvelteKit logos to learn more.</p>
+<main>
+	<header>
+		<h1>PSTPlayer</h1>
+		<p class="muted">phase 1 scaffold</p>
+	</header>
 
-  <form class="row" onsubmit={greet}>
-    <input id="greet-input" placeholder="Enter a name..." bind:value={name} />
-    <button type="submit">Greet</button>
-  </form>
-  <p>{greetMsg}</p>
+	<section class="panel">
+		<h2>URL resolution</h2>
+		<p class="hint">
+			PeerCast playlist or stream URL を入力して、libmpv に渡せる実 URL を取得します。
+		</p>
+		<form
+			onsubmit={(e) => {
+				e.preventDefault();
+				onResolve();
+			}}
+		>
+			<input
+				type="text"
+				placeholder="http://localhost:7144/pls/0123…"
+				bind:value={url}
+				autocomplete="off"
+				spellcheck="false"
+				disabled={busy}
+			/>
+			<button type="submit" disabled={busy || url.length === 0}>
+				{busy ? 'Resolving…' : 'Resolve'}
+			</button>
+		</form>
+
+		{#if resolved}
+			<div class="ok">
+				<strong>Stream URL:</strong>
+				<code>{resolved}</code>
+			</div>
+		{/if}
+		{#if error}
+			<div class="err">
+				<strong>Error:</strong>
+				{error}
+			</div>
+		{/if}
+	</section>
+
+	<section class="panel">
+		<h2>Backend ping</h2>
+		<button onclick={onPing}>ping</button>
+		{#if pingResult !== null}
+			<span class="ok inline">→ {pingResult}</span>
+		{/if}
+	</section>
 </main>
 
 <style>
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
-}
+	:global(body) {
+		font-family:
+			-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, 'Noto Sans CJK JP',
+			sans-serif;
+		background: #1d1f23;
+		color: #e8eaed;
+		margin: 0;
+		padding: 0;
+	}
 
-.logo.svelte-kit:hover {
-  filter: drop-shadow(0 0 2em #ff3e00);
-}
+	main {
+		max-width: 720px;
+		margin: 0 auto;
+		padding: 1.5rem 1rem;
+	}
 
-:root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 400;
+	header {
+		margin-bottom: 1.5rem;
+	}
 
-  color: #0f0f0f;
-  background-color: #f6f6f6;
+	h1 {
+		font-size: 1.5rem;
+		margin: 0;
+	}
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
-}
+	.muted {
+		color: #8a8d94;
+		margin: 0.25rem 0 0;
+		font-size: 0.85rem;
+	}
 
-.container {
-  margin: 0;
-  padding-top: 10vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  text-align: center;
-}
+	.panel {
+		background: #25282d;
+		border: 1px solid #34373d;
+		border-radius: 8px;
+		padding: 1rem 1.1rem;
+		margin-bottom: 1rem;
+	}
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
-}
+	h2 {
+		font-size: 1rem;
+		margin: 0 0 0.5rem;
+		color: #c6c9d0;
+	}
 
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
+	.hint {
+		font-size: 0.82rem;
+		color: #8a8d94;
+		margin: 0 0 0.75rem;
+	}
 
-.row {
-  display: flex;
-  justify-content: center;
-}
+	form {
+		display: flex;
+		gap: 0.5rem;
+	}
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
+	input[type='text'] {
+		flex: 1;
+		background: #1d1f23;
+		border: 1px solid #3a3d44;
+		border-radius: 4px;
+		color: inherit;
+		padding: 0.5rem 0.7rem;
+		font-family: inherit;
+		font-size: 0.9rem;
+	}
 
-a:hover {
-  color: #535bf2;
-}
+	input[type='text']:focus {
+		outline: 2px solid #5b8def;
+		border-color: transparent;
+	}
 
-h1 {
-  text-align: center;
-}
+	button {
+		background: #3a3d44;
+		color: inherit;
+		border: 1px solid #4a4d54;
+		border-radius: 4px;
+		padding: 0.5rem 0.9rem;
+		cursor: pointer;
+		font-family: inherit;
+		font-size: 0.9rem;
+	}
 
-input,
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  color: #0f0f0f;
-  background-color: #ffffff;
-  transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-}
+	button:hover:not(:disabled) {
+		background: #4a4d54;
+	}
 
-button {
-  cursor: pointer;
-}
+	button:disabled {
+		opacity: 0.6;
+		cursor: default;
+	}
 
-button:hover {
-  border-color: #396cd8;
-}
-button:active {
-  border-color: #396cd8;
-  background-color: #e8e8e8;
-}
+	.ok {
+		margin-top: 0.75rem;
+		color: #97e09e;
+		font-size: 0.85rem;
+		word-break: break-all;
+	}
 
-input,
-button {
-  outline: none;
-}
+	.ok.inline {
+		display: inline;
+		margin-left: 0.6rem;
+	}
 
-#greet-input {
-  margin-right: 5px;
-}
+	.err {
+		margin-top: 0.75rem;
+		color: #f08c8c;
+		font-size: 0.85rem;
+	}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
-  }
-
-  a:hover {
-    color: #24c8db;
-  }
-
-  input,
-  button {
-    color: #ffffff;
-    background-color: #0f0f0f98;
-  }
-  button:active {
-    background-color: #0f0f0f69;
-  }
-}
-
+	code {
+		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+		background: #1d1f23;
+		padding: 0.1rem 0.3rem;
+		border-radius: 3px;
+	}
 </style>

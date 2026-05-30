@@ -6,7 +6,47 @@
 
 ## ステータス
 
-設計段階。実装は未着手。
+設計完了、フェーズ 1 (スケルトン構築) 進行中。
+
+## 開発
+
+### 必要なツール
+
+- Rust stable (1.78+) — `rustup install stable`
+- Node.js 22 LTS
+- OS 別の Tauri 依存:
+  - **Linux (Debian/Ubuntu 24.04)**:
+    ```
+    sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev \
+      libsoup-3.0-dev libayatana-appindicator3-dev libxdo-dev pkg-config
+    ```
+  - **macOS**: Xcode CLT (`xcode-select --install`)
+  - **Windows**: WebView2 Runtime (Windows 11 は同梱)、Visual Studio Build Tools
+
+### セットアップ
+
+```sh
+npm install
+```
+
+### よく使うコマンド
+
+| コマンド                                    | 内容                              |
+| ------------------------------------------- | --------------------------------- |
+| `npm run dev`                               | フロントだけ起動 (ブラウザ閲覧用) |
+| `npm run check`                             | TypeScript / Svelte の型チェック  |
+| `npm run lint`                              | Prettier + ESLint                 |
+| `npm run format`                            | Prettier で自動整形               |
+| `npm run build`                             | フロントエンドの静的出力          |
+| `npm run tauri dev`                         | Tauri デスクトップアプリで起動    |
+| `npm run tauri build`                       | 配布バイナリ生成                  |
+| `cargo test` (`src-tauri/` 内)              | Rust のユニットテスト             |
+| `cargo clippy --all-targets -- -D warnings` | Rust のリント                     |
+| `cargo fmt --all`                           | Rust の整形                       |
+
+### CI
+
+`.github/workflows/ci.yml` で 3 OS (Ubuntu / macOS / Windows) のマトリクスビルド、Rust fmt / clippy / test、フロントの check / lint / build を実行します。
 
 ## スコープ
 
@@ -14,10 +54,10 @@
 
 ## 技術スタック
 
-- **アプリ基盤**: [Tauri](https://tauri.app/) (Rust + Web フロントエンド)
+- **アプリ基盤**: [Tauri 2](https://tauri.app/) (Rust + Web フロントエンド)
 - **バックエンド (Rust)**: PeerCast 通信、BBS スクレイピング、設定管理
-- **フロントエンド**: TypeScript + Web UI フレームワーク (未確定)
-- **動画再生**: [libmpv](https://mpv.io/) (組み込み)
+- **フロントエンド**: Svelte 5 + SvelteKit + TypeScript + Vite
+- **動画再生**: [libmpv](https://mpv.io/) (組み込み、未着手)
 - **対応プラットフォーム** (優先順): Windows → macOS → Linux
 
 詳細は [`docs/architecture.md`](docs/architecture.md) を参照。
@@ -38,7 +78,7 @@ MIT License。PCRPlayer (GPL v3) のコードは参照せず、公開プロト�
 - [`docs/decisions/`](docs/decisions/) — アーキテクチャ決定記録 (ADR)
   - [`0001-tech-stack.md`](docs/decisions/0001-tech-stack.md) — 技術スタック
   - [`0002-license-clean-room.md`](docs/decisions/0002-license-clean-room.md) — ライセンス + クリーンルーム
-  - [`0003-ui-framework.md`](docs/decisions/0003-ui-framework.md) — UI フレームワーク (未決)
+  - [`0003-ui-framework.md`](docs/decisions/0003-ui-framework.md) — UI フレームワーク (Svelte 5)
   - [`0004-scope.md`](docs/decisions/0004-scope.md) — 機能スコープ (PCRPlayer 互換 + オフライン系オミット)
 
 ## 参考プロジェクト
