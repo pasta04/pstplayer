@@ -134,6 +134,74 @@ jobs:
         if: runner.os != 'Windows'
         run: npm run tauri build
 
+      # macOS: bundle libmpv (and its transitive dylibs) into the .app
+      # so users don't need `brew install mpv`. Without this the main
+      # binary references /opt/homebrew/... directly.
+      - name: Bundle libmpv into .app (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -eu
+          APP="target/release/bundle/macos/PSTPlayer.app"
+          if [ ! -d "$APP" ]; then
+            echo "no .app produced at $APP, skipping libmpv bundling"
+            exit 0
+          fi
+          MAIN="$APP/Contents/MacOS/pstplayer"
+          FRAMEWORKS="$APP/Contents/Frameworks"
+          mkdir -p "$FRAMEWORKS"
+
+          # Recursively copy a dylib and all its non-system dependencies
+          # into Frameworks/, and rewrite each install-name to @rpath/<basename>.
+          copy_deps() {
+            local file="$1"
+            otool -L "$file" 2>/dev/null \
+              | awk 'NR>1 {print $1}' \
+              | grep -Ev '^/(usr/lib|System)/' \
+              | grep -v "^@" \
+              | while read -r dep; do
+                  [ -z "$dep" ] && continue
+                  local name
+                  name="$(basename "$dep")"
+                  if [ ! -f "$FRAMEWORKS/$name" ]; then
+                    cp -L "$dep" "$FRAMEWORKS/$name"
+                    chmod +w "$FRAMEWORKS/$name"
+                    install_name_tool -id "@rpath/$name" "$FRAMEWORKS/$name" 2>/dev/null || true
+                    copy_deps "$FRAMEWORKS/$name"
+                  fi
+                done
+            # Rewrite refs inside `file` to point at @rpath/<name>
+            otool -L "$file" 2>/dev/null \
+              | awk 'NR>1 {print $1}' \
+              | grep -Ev '^/(usr/lib|System)/' \
+              | grep -v "^@" \
+              | while read -r dep; do
+                  [ -z "$dep" ] && continue
+                  local name
+                  name="$(basename "$dep")"
+                  install_name_tool -change "$dep" "@rpath/$name" "$file" 2>/dev/null || true
+                done
+          }
+
+          # Start from libmpv that the main binary directly references.
+          LIBMPV_SRC="$(brew --prefix mpv)/lib/libmpv.2.dylib"
+          cp -L "$LIBMPV_SRC" "$FRAMEWORKS/libmpv.2.dylib"
+          chmod +w "$FRAMEWORKS/libmpv.2.dylib"
+          install_name_tool -id "@rpath/libmpv.2.dylib" "$FRAMEWORKS/libmpv.2.dylib"
+          copy_deps "$FRAMEWORKS/libmpv.2.dylib"
+
+          # Make the main binary look in Frameworks/ first.
+          install_name_tool -change \
+            "/opt/homebrew/opt/mpv/lib/libmpv.2.dylib" \
+            "@rpath/libmpv.2.dylib" \
+            "$MAIN"
+          install_name_tool -add_rpath "@executable_path/../Frameworks" "$MAIN" 2>/dev/null || true
+
+          echo "── Frameworks ──"
+          ls -la "$FRAMEWORKS"
+          echo "── otool -L main ──"
+          otool -L "$MAIN" | head -20
+
       # On Windows we skip the Tauri bundler (NSIS/MSI signing & the
       # bundler's own DLL probing tend to trip on the libmpv linkage
       # issue) and just produce a portable .exe + libmpv-2.dll zip
@@ -175,9 +243,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pstplayer-${{ matrix.artifact }}
-          path: |
-            target/release/bundle/dmg/*.dmg
-            target/release/bundle/macos/*.app
+          # .dmg は libmpv 同梱前の .app を含んでいるので含めない。
+          # 修正済み .app (Frameworks/ に libmpv.2.dylib と依存物を内包) のみ。
+          path: target/release/bundle/macos/*.app
           if-no-files-found: warn
           retention-days: 14
 
