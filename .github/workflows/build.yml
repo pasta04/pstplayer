@@ -149,27 +149,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $out | Out-Null
           Copy-Item "src-tauri\target\release\pstplayer.exe" $out -Force
           Copy-Item "$env:MPV_SOURCE\64\libmpv-2.dll" $out -Force
-          $readme = @"
-PSTPlayer (Windows portable)
-
-使い方:
-  1. このフォルダ内の pstplayer.exe をダブルクリック
-  2. アプリが起動したら PeerCast の URL を貼り付けて Open
-
-同梱物:
-  pstplayer.exe   ... 本体
-  libmpv-2.dll    ... 動画再生エンジン (削除/移動しないでください)
-
-事前準備:
-  Microsoft Edge WebView2 Runtime
-    Windows 11 は標準で入っています。Windows 10 で入っていない場合は
-    https://developer.microsoft.com/microsoft-edge/webview2/ から入手。
-
-ライセンス:
-  PSTPlayer は MIT。libmpv-2.dll は LGPL 由来 (GPL ビルドの場合は GPL)。
-  詳細は https://github.com/pasta04/pstplayer
-"@
-          Set-Content -Path "$out\README.txt" -Encoding UTF8 -Value $readme
+          Copy-Item "src-tauri\distrib\windows-portable-readme.txt" "$out\README.txt" -Force
           Get-ChildItem $out | Format-List Name, Length
 
       # ── Upload ───────────────────────────────────────────────────────
