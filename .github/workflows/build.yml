@@ -50,7 +50,14 @@ jobs:
 
       - name: Install libmpv (macOS)
         if: runner.os == 'macOS'
-        run: brew install mpv
+        shell: bash
+        run: |
+          brew install mpv pkg-config
+          MPV_PREFIX="$(brew --prefix mpv)"
+          echo "MPV_PREFIX=${MPV_PREFIX}" >> "$GITHUB_ENV"
+          echo "RUSTFLAGS=-L ${MPV_PREFIX}/lib" >> "$GITHUB_ENV"
+          echo "PKG_CONFIG_PATH=${MPV_PREFIX}/lib/pkgconfig" >> "$GITHUB_ENV"
+          echo "DYLD_FALLBACK_LIBRARY_PATH=${MPV_PREFIX}/lib" >> "$GITHUB_ENV"
 
       - name: Install libmpv (Windows)
         if: runner.os == 'Windows'
@@ -65,7 +72,8 @@ jobs:
           Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $dest
           choco install -y 7zip
           & "C:\Program Files\7-Zip\7z.exe" x $dest -o"$out" -y
-          echo "MPV_SOURCE=$out" >> $env:GITHUB_ENV
+          "MPV_SOURCE=$out" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "RUSTFLAGS=-L $out" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       # ── Toolchains ───────────────────────────────────────────────────
 

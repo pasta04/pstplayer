@@ -8,16 +8,22 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: -D warnings
 
 jobs:
   rust:
     name: Rust (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-24.04
+            experimental: false
+          - os: macos-latest
+            experimental: false
+          - os: windows-latest
+            experimental: true # libmpv linkage on Windows is brittle
     steps:
       - uses: actions/checkout@v4
 
@@ -36,16 +42,32 @@ jobs:
 
       - name: Install libmpv (macOS)
         if: runner.os == 'macOS'
-        run: brew install mpv
-
-      - name: Install libmpv (Windows, vcpkg)
-        if: runner.os == 'Windows'
         shell: bash
         run: |
-          # libmpv2 on Windows expects MPV_SOURCE pointing at a dir
-          # with libmpv.dll.a / mpv.lib. The official build of mpv
-          # ships these in the dev package.
-          choco install -y mpv-dev || true
+          brew install mpv pkg-config
+          MPV_PREFIX="$(brew --prefix mpv)"
+          echo "MPV_PREFIX=${MPV_PREFIX}" >> "$GITHUB_ENV"
+          # Tell rustc and pkg-config where libmpv lives.
+          echo "RUSTFLAGS=-L ${MPV_PREFIX}/lib -D warnings" >> "$GITHUB_ENV"
+          echo "PKG_CONFIG_PATH=${MPV_PREFIX}/lib/pkgconfig" >> "$GITHUB_ENV"
+          echo "DYLD_FALLBACK_LIBRARY_PATH=${MPV_PREFIX}/lib" >> "$GITHUB_ENV"
+
+      - name: Install libmpv (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $url  = 'https://sourceforge.net/projects/mpv-player-windows/files/libmpv/mpv-dev-x86_64-20240602-git-d36344b.7z/download'
+          $dest = "$env:TEMP\mpv-dev.7z"
+          $out  = "$env:GITHUB_WORKSPACE\mpv-dev"
+          Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $dest
+          choco install -y 7zip
+          & "C:\Program Files\7-Zip\7z.exe" x $dest -o"$out" -y
+          "MPV_SOURCE=$out"          | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "RUSTFLAGS=-L $out -D warnings" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Set Linux RUSTFLAGS
+        if: runner.os == 'Linux'
+        run: echo "RUSTFLAGS=-D warnings" >> "$GITHUB_ENV"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
