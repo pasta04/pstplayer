@@ -79,14 +79,16 @@ npm install
   - 3 OS (Ubuntu / macOS / Windows) で `cargo fmt / clippy / test`
   - フロントの `svelte-check / lint / build`
 
-- **`.github/workflows/build.yml`** — Tauri 配布バイナリのビルド (重め)
+- **`.github/workflows/build.yml`** — Tauri 配布バイナリのビルド (重め、**main push と手動起動のみ**)
   - 3 OS マトリクスで `npm run tauri build`
   - 生成された **配布バイナリを Actions の Artifacts にアップロード** (14 日間保持)
   - Windows は libmpv-dev のリンクが不安定なため `continue-on-error: true`
 
+無料枠節約のため両 workflow に `concurrency: cancel-in-progress` を入れていて、同じブランチへ連続 push すると古い実行は自動的にキャンセルされます。
+
 #### 配布バイナリの取得
 
-PR や main へのプッシュごとに GitHub Actions が走り、各 OS のインストーラが artifact として保存されます。
+main への push 時、または手動起動時に GitHub Actions が走り、各 OS のインストーラが artifact として保存されます。
 
 1. リポジトリの **Actions タブ** → 該当の `Build artifacts` ワークフロー実行を開く
 2. 画面下の **Artifacts** から OS 別にダウンロード:
@@ -95,7 +97,7 @@ PR や main へのプッシュごとに GitHub Actions が走り、各 OS のイ
    - `pstplayer-windows` — `.msi`, `.exe` (NSIS インストーラ)
 3. 手元で実行 (macOS/Linux は実行権限付与が必要な場合あり)
 
-手動でビルドジョブを起動したい場合: Actions タブ → `Build artifacts` → **Run workflow** ボタン
+**PR ブランチで artifact が欲しい場合**: Actions タブ → `Build artifacts` → **Run workflow** → 対象ブランチを選択 → 実行 (手動起動)
 
 ## スコープ
 

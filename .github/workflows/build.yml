@@ -1,11 +1,16 @@
 name: Build artifacts
 
+# 配布バイナリ生成は重い (libmpv-dev + cargo tauri build × 3 OS) ため、
+# PR では走らせず、main へのマージ後 と 手動起動 (workflow_dispatch) のみ。
+# PR で動作確認したい場合は Actions タブから "Run workflow" → ブランチ選択。
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always

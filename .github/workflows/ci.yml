@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main]
 
+# 同じブランチ / PR で連続して push されたら古い実行をキャンセル。
+# (GitHub Actions の無料枠を節約)
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
 
