@@ -467,6 +467,12 @@
 		const from = t.dataset.anchorFrom;
 		const to = t.dataset.anchorTo;
 		const id = t.dataset.idLink;
+		const num = t.dataset.postNum;
+		if (num) {
+			insertQuote(Number(num));
+			e.preventDefault();
+			return;
+		}
 		if (from) {
 			const fromN = Number(from);
 			const toN = to ? Number(to) : fromN;
@@ -480,6 +486,11 @@
 			showPopup(matched, `ID:${id} (${matched.length})`, e);
 			e.preventDefault();
 		}
+	}
+
+	function insertQuote(n: number) {
+		const prefix = writeBody.length > 0 && !writeBody.endsWith('\n') ? '\n' : '';
+		writeBody = `${writeBody}${prefix}>>${n}\n`;
 	}
 
 	function showPopup(matched: Post[], label: string, e: MouseEvent) {
@@ -513,10 +524,12 @@
 >
 	<!-- Player + BBS panes -->
 	<div class="panes">
+		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
 		<div
 			class="player"
 			oncontextmenu={onPlayerContextMenu}
 			onwheel={onPlayerWheel}
+			ondblclick={ctxToggleFullscreen}
 			role="presentation"
 		>
 			{#if streamUrl}
@@ -601,7 +614,13 @@
 					{#each visiblePosts as p (p.number)}
 						<li class="post" class:highlight-id={hoveredId && p.id === hoveredId}>
 							<div class="head">
-								<span class="num">{p.number}</span>
+								<span
+									class="num"
+									role="button"
+									tabindex="-1"
+									data-post-num={p.number}
+									title="クリックで &gt;&gt;{p.number} を書き込み欄に挿入">{p.number}</span
+								>
 								<span class="name">{p.name}</span>
 								{#if p.mail}<span class="mail">[{p.mail}]</span>{/if}
 								<span class="date">{p.date}</span>
@@ -737,7 +756,13 @@
 					{#each popup.posts as p (p.number)}
 						<li class="post">
 							<div class="head">
-								<span class="num">{p.number}</span>
+								<span
+									class="num"
+									role="button"
+									tabindex="-1"
+									data-post-num={p.number}
+									title="クリックで &gt;&gt;{p.number} を書き込み欄に挿入">{p.number}</span
+								>
 								<span class="name">{p.name}</span>
 								<span class="date">{p.date}</span>
 								{#if p.id}<span class="id">{@html renderIdHtml(p.id)}</span>{/if}
@@ -963,6 +988,11 @@
 	.num {
 		color: var(--accent-num);
 		font-weight: 600;
+		cursor: pointer;
+		text-decoration: none;
+	}
+	.num:hover {
+		text-decoration: underline;
 	}
 
 	.name {
