@@ -101,9 +101,11 @@ jobs:
 
           "MPV_SOURCE=$base"      | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "RUSTFLAGS=-D warnings" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          # cargo test launches the test binary which dynamically loads
-          # libmpv-2.dll via the OS loader. Add the DLL directory to PATH.
-          Add-Content -Path $env:GITHUB_PATH -Value $sub
+          # cargo test launches the test binary which loads libmpv-2.dll
+          # via the OS loader. GITHUB_PATH was tried and didn't seem to
+          # propagate to the test process — copy the DLL into System32
+          # so it's found regardless of cwd or PATH order.
+          Copy-Item "$sub\libmpv-2.dll" "$env:WINDIR\System32\" -Force
 
       - name: Set Linux RUSTFLAGS
         if: runner.os == 'Linux'

@@ -102,9 +102,9 @@ jobs:
           if (-not (Test-Path $lib)) { throw "lib.exe did not produce $lib" }
 
           "MPV_SOURCE=$base" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          # tauri build runs the binary briefly during bundling; make
-          # sure libmpv-2.dll is on PATH for dynamic load.
-          Add-Content -Path $env:GITHUB_PATH -Value $sub
+          # Stage the runtime DLL into System32 so the test binary and
+          # tauri-bundled exe can find it without PATH tricks.
+          Copy-Item "$sub\libmpv-2.dll" "$env:WINDIR\System32\" -Force
 
       # ── Toolchains ───────────────────────────────────────────────────
 
