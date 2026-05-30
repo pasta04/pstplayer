@@ -9,6 +9,7 @@
 		"core:webview:default",
 		"core:webview:allow-create-webview-window",
 		"core:event:default",
-		"opener:default"
+		"opener:default",
+		"notification:default"
 	]
 }

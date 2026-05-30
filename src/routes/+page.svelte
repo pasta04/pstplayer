@@ -22,6 +22,7 @@
 	import { formatUptime, renderBodyHtml } from '$lib/format';
 	import { openSettings, openThreadList } from '$lib/windows';
 	import { installShortcuts, setAlwaysOnTop, setDecorations } from '$lib/shortcuts';
+	import { notify } from '$lib/notifications';
 
 	// ── State ────────────────────────────────────────────────────────
 
@@ -194,8 +195,11 @@
 			const [newPosts, newState] = await fetchThread(currentThreadUrl, prev);
 			if (forceReset || !fetchState) {
 				posts = newPosts;
-			} else {
+			} else if (newPosts.length > 0) {
 				posts = [...posts, ...newPosts];
+				const preview = newPosts[0].body.replace(/\s+/g, ' ').slice(0, 80);
+				const title = `新着 ${newPosts.length} 件 / ${posts[0]?.threadTitle || ''}`;
+				notify(title, preview);
 			}
 			fetchState = newState;
 		} catch (e) {

@@ -5,7 +5,11 @@ name: Build artifacts
 # PR で動作確認したい場合は Actions タブから "Run workflow" → ブランチ選択。
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      # 開発ブランチでも artifact を取れるよう一時的に許可。
+      # main マージ後はこの行を削除し、main + workflow_dispatch のみに戻す。
+      - claude/focused-mendel-rvEAd
   workflow_dispatch:
 
 concurrency:
