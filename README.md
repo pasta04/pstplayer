@@ -73,7 +73,29 @@ npm install
 
 ### CI
 
-`.github/workflows/ci.yml` で 3 OS (Ubuntu / macOS / Windows) のマトリクスビルド。各 OS で libmpv をインストールしてから Rust fmt / clippy / test、フロントの check / lint / build を実行。
+ワークフローは 2 つに分かれています:
+
+- **`.github/workflows/ci.yml`** — テストとリント (軽量、PR ごとに毎回)
+  - 3 OS (Ubuntu / macOS / Windows) で `cargo fmt / clippy / test`
+  - フロントの `svelte-check / lint / build`
+
+- **`.github/workflows/build.yml`** — Tauri 配布バイナリのビルド (重め)
+  - 3 OS マトリクスで `npm run tauri build`
+  - 生成された **配布バイナリを Actions の Artifacts にアップロード** (14 日間保持)
+  - Windows は libmpv-dev のリンクが不安定なため `continue-on-error: true`
+
+#### 配布バイナリの取得
+
+PR や main へのプッシュごとに GitHub Actions が走り、各 OS のインストーラが artifact として保存されます。
+
+1. リポジトリの **Actions タブ** → 該当の `Build artifacts` ワークフロー実行を開く
+2. 画面下の **Artifacts** から OS 別にダウンロード:
+   - `pstplayer-linux` — `.deb`, `.AppImage`, `.rpm`
+   - `pstplayer-macos` — `.dmg`, `.app`
+   - `pstplayer-windows` — `.msi`, `.exe` (NSIS インストーラ)
+3. 手元で実行 (macOS/Linux は実行権限付与が必要な場合あり)
+
+手動でビルドジョブを起動したい場合: Actions タブ → `Build artifacts` → **Run workflow** ボタン
 
 ## スコープ
 

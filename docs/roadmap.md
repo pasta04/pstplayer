@@ -129,8 +129,11 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
 ### 2.5 配布
 
 - [ ] アイコン設計
-- [ ] Windows MSI / macOS DMG / Linux AppImage の生成
+- [x] Windows MSI/EXE (NSIS) / macOS DMG/APP / Linux DEB/AppImage/RPM の生成
+      (`.github/workflows/build.yml`、PR/push ごとに 3 OS で `npm run tauri build`、
+      Artifacts として 14 日間保持)
 - [ ] GitHub Releases への自動発行 (タグドリブン)
+- [ ] Windows の libmpv-dev リンク安定化 (現状 continue-on-error)
 
 **完了条件**: PCRPlayer ユーザーがそのまま乗り換えられるレベルの基本体験。
 
