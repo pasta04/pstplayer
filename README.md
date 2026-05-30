@@ -6,22 +6,49 @@
 
 ## ステータス
 
-設計完了、フェーズ 1 (スケルトン構築) 進行中。
+設計完了、フェーズ 1 (MVP) 実装中。
+
+| フェーズ          | 状況                                                                 |
+| ----------------- | -------------------------------------------------------------------- |
+| 1.1 スケルトン    | ✅ Tauri 2 + Svelte 5 + Vite + CI + lint 一式                        |
+| 1.2 PeerCast 連携 | ✅ URL/playlist パーサ、JSON-RPC、legacy admin、戦略選択、接続先解決 |
+| 1.3 動画再生      | ⚠ libmpv 統合まで完了。ウィンドウ埋め込み (`wid` プロパティ) のみ残  |
+| 1.4 BBS 連携      | ✅ したらば / 2ch 互換、subject/dat、差分取得、投稿、HTML サニタイズ |
+| 1.5 UI            | ✅ 2 ペインレイアウト、URL ペーストから視聴/書き込みまで疎通         |
+| 1.6 設定          | ✅ TOML 永続化 + コマンド (UI からの編集画面は別途)                  |
+
+Rust テスト 72 件 (うち 71 が `pst-core`、1 が libmpv 初期化テスト)、全 pass。
 
 ## 開発
 
+### リポジトリ構造
+
+```
+pstplayer/
+├── Cargo.toml                  ← workspace root
+├── crates/
+│   └── pst-core/               ← UI 非依存ロジック (PeerCast / BBS / config)
+├── src-tauri/                  ← Tauri デスクトップアプリ
+│   └── src/{commands, player}  ← Tauri command + libmpv 統合
+├── src/                        ← フロントエンド (Svelte 5)
+│   ├── routes/+page.svelte
+│   └── lib/{api.ts, format.ts}
+└── docs/                       ← 設計ドキュメント (ADR / プロトコル / UI)
+```
+
 ### 必要なツール
 
-- Rust stable (1.78+) — `rustup install stable`
-- Node.js 22 LTS
-- OS 別の Tauri 依存:
+- **Rust stable** (1.78+) — `rustup install stable`
+- **Node.js 22 LTS**
+- **OS 別の Tauri + libmpv 依存**:
   - **Linux (Debian/Ubuntu 24.04)**:
-    ```
+    ```sh
     sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev \
-      libsoup-3.0-dev libayatana-appindicator3-dev libxdo-dev pkg-config
+      libsoup-3.0-dev libayatana-appindicator3-dev libxdo-dev \
+      libmpv-dev pkg-config
     ```
-  - **macOS**: Xcode CLT (`xcode-select --install`)
-  - **Windows**: WebView2 Runtime (Windows 11 は同梱)、Visual Studio Build Tools
+  - **macOS**: Xcode CLT (`xcode-select --install`) + `brew install mpv`
+  - **Windows**: WebView2 Runtime (Windows 11 は同梱)、Visual Studio Build Tools、`mpv-dev` (vcpkg / choco)
 
 ### セットアップ
 
@@ -31,22 +58,22 @@ npm install
 
 ### よく使うコマンド
 
-| コマンド                                    | 内容                              |
-| ------------------------------------------- | --------------------------------- |
-| `npm run dev`                               | フロントだけ起動 (ブラウザ閲覧用) |
-| `npm run check`                             | TypeScript / Svelte の型チェック  |
-| `npm run lint`                              | Prettier + ESLint                 |
-| `npm run format`                            | Prettier で自動整形               |
-| `npm run build`                             | フロントエンドの静的出力          |
-| `npm run tauri dev`                         | Tauri デスクトップアプリで起動    |
-| `npm run tauri build`                       | 配布バイナリ生成                  |
-| `cargo test` (`src-tauri/` 内)              | Rust のユニットテスト             |
-| `cargo clippy --all-targets -- -D warnings` | Rust のリント                     |
-| `cargo fmt --all`                           | Rust の整形                       |
+| コマンド                                                | 内容                                         |
+| ------------------------------------------------------- | -------------------------------------------- |
+| `npm run dev`                                           | フロントだけ起動 (ブラウザ閲覧用)            |
+| `npm run check`                                         | TypeScript / Svelte の型チェック             |
+| `npm run lint`                                          | Prettier + ESLint                            |
+| `npm run format`                                        | Prettier で自動整形                          |
+| `npm run build`                                         | フロントエンドの静的出力                     |
+| `npm run tauri dev`                                     | Tauri デスクトップアプリで起動 (libmpv 必須) |
+| `npm run tauri build`                                   | 配布バイナリ生成                             |
+| `cargo test --workspace`                                | Rust ユニットテスト (workspace 全体)         |
+| `cargo clippy --workspace --all-targets -- -D warnings` | Rust リント                                  |
+| `cargo fmt --all`                                       | Rust 整形                                    |
 
 ### CI
 
-`.github/workflows/ci.yml` で 3 OS (Ubuntu / macOS / Windows) のマトリクスビルド、Rust fmt / clippy / test、フロントの check / lint / build を実行します。
+`.github/workflows/ci.yml` で 3 OS (Ubuntu / macOS / Windows) のマトリクスビルド。各 OS で libmpv をインストールしてから Rust fmt / clippy / test、フロントの check / lint / build を実行。
 
 ## スコープ
 
@@ -57,7 +84,7 @@ npm install
 - **アプリ基盤**: [Tauri 2](https://tauri.app/) (Rust + Web フロントエンド)
 - **バックエンド (Rust)**: PeerCast 通信、BBS スクレイピング、設定管理
 - **フロントエンド**: Svelte 5 + SvelteKit + TypeScript + Vite
-- **動画再生**: [libmpv](https://mpv.io/) (組み込み、未着手)
+- **動画再生**: [libmpv](https://mpv.io/) (`libmpv2` クレート、組み込み)
 - **対応プラットフォーム** (優先順): Windows → macOS → Linux
 
 詳細は [`docs/architecture.md`](docs/architecture.md) を参照。
