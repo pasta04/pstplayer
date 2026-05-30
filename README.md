@@ -8,6 +8,10 @@
 
 設計段階。実装は未着手。
 
+## スコープ
+
+**PCRPlayer のオンライン視聴機能 (PeerCast 配信 + 連動掲示板) を、ライセンス問題を回避しながら同等に提供する** ことが目的。ローカル動画再生・シークバー・DirectShow フィルタグラフ等のオフライン/Windows 固有機能はオミット。詳細は [`docs/decisions/0004-scope.md`](docs/decisions/0004-scope.md)。
+
 ## 技術スタック
 
 - **アプリ基盤**: [Tauri](https://tauri.app/) (Rust + Web フロントエンド)
@@ -31,6 +35,10 @@ MIT License。PCRPlayer (GPL v3) のコードは参照せず、公開プロト�
 - [`docs/protocols/peercast.md`](docs/protocols/peercast.md) — PeerCast プロトコル参考メモ
 - [`docs/protocols/bbs.md`](docs/protocols/bbs.md) — BBS プロトコル参考メモ
 - [`docs/decisions/`](docs/decisions/) — アーキテクチャ決定記録 (ADR)
+  - [`0001-tech-stack.md`](docs/decisions/0001-tech-stack.md) — 技術スタック
+  - [`0002-license-clean-room.md`](docs/decisions/0002-license-clean-room.md) — ライセンス + クリーンルーム
+  - [`0003-ui-framework.md`](docs/decisions/0003-ui-framework.md) — UI フレームワーク (未決)
+  - [`0004-scope.md`](docs/decisions/0004-scope.md) — 機能スコープ (PCRPlayer 互換 + オフライン系オミット)
 
 ## 参考プロジェクト
 
