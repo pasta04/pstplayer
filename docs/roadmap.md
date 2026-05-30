@@ -45,9 +45,11 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
 - [x] libmpv の Rust バインディング選定・導入 (`libmpv2` v5)
 - [x] PlayerEngine 実装 (load / stop / pause / volume / mute / property get)
 - [x] Tauri State として `setup` フックで初期化、Linux で初期化テスト pass
-- [ ] Tauri ウィンドウへの埋め込み (3 OS の `wid` プロパティ実装)
+- [x] Tauri ウィンドウへの埋め込み (`wid` プロパティ、Win32/AppKit/Xlib/Xcb
+      対応、Wayland は明示エラー、`player_attach` コマンドで window label
+      を指定して呼び出し可)
 - [x] フロントから操作するコマンド (player_load / player_stop / player_set_*
-      / player_status を公開、TS ラッパーも追加)
+      / player_status / player_attach を公開、TS ラッパーも追加)
 
 ### 1.4 BBS 連携 (最小: したらば のみ)
 
@@ -120,6 +122,9 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
 - [ ] ダーク/ライトテーマ
 - [ ] BBS サブペインの表示/非表示・位置切替
 - [ ] 視聴履歴
+- [x] **設定ダイアログ** (別ウィンドウ、PeerCast/BBS タブ最低限実装、TOML 永続化に接続)
+- [x] **スレ一覧ウィンドウ** (別ウィンドウ、subject.txt 取得 + 更新ボタン +
+      行クリックで `thread:selected` event をメインに発火)
 
 ### 2.5 配布
 

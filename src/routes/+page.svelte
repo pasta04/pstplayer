@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
+	import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 	import {
 		CommandError,
 		bumpChannel,
@@ -19,6 +20,7 @@
 		type SubjectEntry,
 	} from '$lib/api';
 	import { formatUptime, renderBodyHtml } from '$lib/format';
+	import { openSettings, openThreadList } from '$lib/windows';
 
 	// ── State ────────────────────────────────────────────────────────
 
@@ -46,10 +48,28 @@
 	// Polling handles
 	let infoTimer: ReturnType<typeof setInterval> | null = null;
 	let threadTimer: ReturnType<typeof setInterval> | null = null;
+	let threadSelectedUnlisten: UnlistenFn | null = null;
+
+	onMount(async () => {
+		// Sub-window (threads/+page.svelte) emits this when the user
+		// picks a thread row. We update the main BBS pane accordingly.
+		threadSelectedUnlisten = await listen<{
+			boardUrl: string;
+			key: string;
+			title: string;
+		}>('thread:selected', async (e) => {
+			const base = e.payload.boardUrl.replace(/\/+$/, '');
+			currentThreadUrl = `${base}/${e.payload.key}/`;
+			fetchState = null;
+			posts = [];
+			await loadCurrentThread(true);
+		});
+	});
 
 	onDestroy(() => {
 		if (infoTimer) clearInterval(infoTimer);
 		if (threadTimer) clearInterval(threadTimer);
+		threadSelectedUnlisten?.();
 	});
 
 	// ── Derived ──────────────────────────────────────────────────────
@@ -219,6 +239,23 @@
 		}
 	}
 
+	async function onOpenSettings() {
+		try {
+			await openSettings();
+		} catch (e) {
+			lastError = errorMessage(e);
+		}
+	}
+
+	async function onOpenThreadList() {
+		if (!channelInfo?.url) return;
+		try {
+			await openThreadList(channelInfo.url);
+		} catch (e) {
+			lastError = errorMessage(e);
+		}
+	}
+
 	function onWriteKey(e: KeyboardEvent) {
 		// Ctrl/Cmd + Enter to send (UI design §書き込みテキストボックス).
 		if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -324,14 +361,23 @@
 
 	<!-- Thread title bar (オレンジ) -->
 	<div class="thread-bar">
-		{#if currentThreadUrl}
-			<span class="t-title-main">
-				{posts[0]?.threadTitle || currentThreadUrl}
-			</span>
-			<span class="t-count-main">({posts.length})</span>
-		{:else}
-			<span class="muted">— スレッド未選択 —</span>
-		{/if}
+		<button
+			class="thread-bar-button"
+			title="スレッド一覧を開く"
+			onclick={onOpenThreadList}
+			disabled={!channelInfo?.url}
+		>
+			{#if currentThreadUrl}
+				<span class="t-title-main">
+					{posts[0]?.threadTitle || currentThreadUrl}
+				</span>
+				<span class="t-count-main">({posts.length})</span>
+			{:else}
+				<span class="muted">— スレッド未選択 —</span>
+			{/if}
+			<span class="t-grow"></span>
+			<span class="t-list">≡</span>
+		</button>
 	</div>
 
 	<!-- Write box (黒) -->
@@ -361,6 +407,7 @@
 			<span class="s-actions">
 				<button onclick={onBump} title="再接続 (Bump)">↻</button>
 				<button onclick={onStop} title="切断 (Stop)">■</button>
+				<button onclick={onOpenSettings} title="設定">⚙</button>
 			</span>
 		{:else}
 			<span class="muted">未接続</span>
@@ -550,22 +597,53 @@
 		background: #c87a2e;
 		color: #fff;
 		display: flex;
-		align-items: center;
-		padding: 0 0.7rem;
+		align-items: stretch;
 		font-size: 0.85rem;
+		overflow: hidden;
+	}
+
+	.thread-bar-button {
+		flex: 1;
+		display: flex;
+		align-items: center;
 		gap: 0.4rem;
+		background: transparent;
+		color: inherit;
+		border: none;
+		padding: 0 0.7rem;
+		text-align: left;
+		font-family: inherit;
+		font-size: inherit;
+		cursor: pointer;
 		overflow: hidden;
 		white-space: nowrap;
-		text-overflow: ellipsis;
+	}
+
+	.thread-bar-button:disabled {
+		cursor: default;
+	}
+
+	.thread-bar-button:hover:not(:disabled) {
+		background: rgba(0, 0, 0, 0.15);
 	}
 
 	.t-title-main {
 		font-weight: 600;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.t-count-main {
-		color: rgba(255, 255, 255, 0.8);
+		color: rgba(255, 255, 255, 0.85);
 		font-size: 0.8rem;
+	}
+
+	.t-grow {
+		flex: 1;
+	}
+
+	.t-list {
+		color: rgba(255, 255, 255, 0.85);
 	}
 
 	.write-box {

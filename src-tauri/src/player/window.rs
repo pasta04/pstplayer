@@ -1,33 +1,82 @@
-//! Native-window embedding for libmpv.
+//! Per-OS window embedding for libmpv (`wid` property strategy).
 //!
-//! libmpv supports two strategies:
-//!
-//! 1. **`wid` property** — hand mpv a native window handle
-//!    (`HWND` on Windows, `NSView*` on macOS, `Window` (XID) on
-//!    Linux/X11). mpv draws directly into that handle.
-//!
-//! 2. **Render API** — use `mpv_render_context_create` to receive
-//!    decoded frames into our own OpenGL / D3D11 / Metal context.
-//!    More flexible (we can composite under web UI), but needs much
-//!    more glue per OS.
-//!
-//! For MVP we go with strategy 1. The Tauri webview is positioned
-//! *above* the mpv-drawn area via CSS `pointer-events` and
-//! background transparency, so click handling on the surrounding UI
-//! still goes to the webview.
-//!
-//! Implementation per OS lives in the modules below. They are stubs
-//! for now; each will be filled in during the libmpv embedding PoC
-//! (roadmap §1.3).
+//! See `docs/protocols/peercast.md` & ADR-0001 for the choice of
+//! strategy. We hand mpv a native window handle and let it draw into
+//! that surface; the Tauri WebView sits on top and provides the BBS /
+//! control UI overlay.
 
 use libmpv2::Mpv;
 use pst_core::util::errors::{AppError, AppResult};
+use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
-/// Attach the player to the given Tauri window. Sets the `wid`
-/// property on libmpv to the OS-native handle and flips
-/// `force-window` to `yes` so mpv starts rendering immediately.
-pub fn attach<R: tauri::Runtime>(_mpv: &Mpv, _window: &tauri::Window<R>) -> AppResult<()> {
-    // TODO(roadmap §1.3): per-OS wid lookup using
-    //   window.raw_window_handle() and mpv.set_property("wid", ...)
-    Err(AppError::NotImplemented("player::window::attach"))
+/// Attach the player to the given Tauri WebView window.
+///
+/// Sets the `wid` property on libmpv to the OS-native handle:
+///
+/// | OS      | Handle source       | Type passed to mpv |
+/// | ------- | ------------------- | ------------------ |
+/// | Windows | `HWND`              | `isize` (pointer)  |
+/// | macOS   | `NSView*`           | `isize` (pointer)  |
+/// | Linux   | X11 `Window` (XID)  | `i64`              |
+///
+/// Wayland is not supported through `wid` — mpv would need its own
+/// Wayland surface, which Tauri does not expose. On Wayland systems
+/// the user should run their session under XWayland, or we'd have to
+/// switch to the render API (out of scope for the MVP).
+pub fn attach<R: tauri::Runtime>(mpv: &Mpv, window: &tauri::WebviewWindow<R>) -> AppResult<()> {
+    let handle =
+        window.window_handle().map_err(|e| AppError::Network(format!("window_handle: {e}")))?;
+    let raw = handle.as_raw();
+    let wid = wid_from(&raw)?;
+
+    mpv.set_property("wid", wid)
+        .map_err(|e| AppError::Network(format!("mpv set wid={wid}: {e}")))?;
+    // Once a window handle is attached, allow mpv to render even when
+    // no file is loaded yet.
+    mpv.set_property("force-window", "yes")
+        .map_err(|e| AppError::Network(format!("mpv force-window: {e}")))?;
+    Ok(())
+}
+
+fn wid_from(raw: &RawWindowHandle) -> AppResult<i64> {
+    match raw {
+        #[cfg(target_os = "windows")]
+        RawWindowHandle::Win32(h) => Ok(h.hwnd.get() as i64),
+
+        #[cfg(target_os = "macos")]
+        RawWindowHandle::AppKit(h) => Ok(h.ns_view.as_ptr() as i64),
+
+        #[cfg(any(
+            target_os = "linux",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd",
+            target_os = "dragonfly"
+        ))]
+        RawWindowHandle::Xlib(h) => Ok(h.window as i64),
+
+        #[cfg(any(
+            target_os = "linux",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd",
+            target_os = "dragonfly"
+        ))]
+        RawWindowHandle::Xcb(h) => Ok(h.window.get() as i64),
+
+        #[cfg(any(
+            target_os = "linux",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd",
+            target_os = "dragonfly"
+        ))]
+        RawWindowHandle::Wayland(_) => Err(AppError::Network(
+            "Wayland surfaces are not supported via libmpv `wid` — \
+             run the app under XWayland or switch to the render API"
+                .into(),
+        )),
+
+        other => Err(AppError::Network(format!("unsupported window handle variant: {other:?}"))),
+    }
 }
