@@ -73,6 +73,10 @@
 	// every render.
 	let sanitizedCache = $state<Map<number, string>>(new Map());
 
+	// Hovered ID for highlight, or null. Mouse over an ID link in the
+	// post header highlights every post that shares the same ID.
+	let hoveredId = $state<string | null>(null);
+
 	// Polling handles
 	let infoTimer: ReturnType<typeof setInterval> | null = null;
 	let threadTimer: ReturnType<typeof setInterval> | null = null;
@@ -367,6 +371,17 @@
 		}
 	}
 
+	function onPostsHover(e: MouseEvent) {
+		const t = e.target;
+		if (!(t instanceof HTMLElement)) return;
+		const id = t.dataset.idLink;
+		hoveredId = id ?? null;
+	}
+
+	function onPostsLeave() {
+		hoveredId = null;
+	}
+
 	function onPostsClick(e: MouseEvent) {
 		const t = e.target;
 		if (!(t instanceof HTMLElement)) return;
@@ -492,9 +507,14 @@
 						<button class="filter-clear" onclick={() => (filter = '')}>×</button>
 					{/if}
 				</div>
-				<ol class="posts" onclick={onPostsClick}>
+				<ol
+					class="posts"
+					onclick={onPostsClick}
+					onmouseover={onPostsHover}
+					onmouseleave={onPostsLeave}
+				>
 					{#each visiblePosts as p (p.number)}
-						<li class="post">
+						<li class="post" class:highlight-id={hoveredId && p.id === hoveredId}>
 							<div class="head">
 								<span class="num">{p.number}</span>
 								<span class="name">{p.name}</span>
@@ -787,6 +807,10 @@
 	.post {
 		padding: 0.5rem 0.6rem;
 		border-bottom: 1px solid var(--border);
+		transition: background-color 80ms;
+	}
+	.post.highlight-id {
+		background: color-mix(in srgb, var(--accent) 18%, transparent);
 	}
 
 	.head {
