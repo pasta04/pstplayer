@@ -89,7 +89,10 @@ pub async fn fetch_index(yp_url: &str) -> AppResult<Vec<YpEntry>> {
     }
     let resp = CLIENT.get(url).send().await?;
     if !resp.status().is_success() {
-        return Err(AppError::Network(format!("YP fetch returned {}", resp.status())));
+        return Err(AppError::Network(format!(
+            "YP fetch returned {}",
+            resp.status()
+        )));
     }
     let body = resp.text().await?;
     Ok(parse(&body))
