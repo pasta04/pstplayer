@@ -209,16 +209,20 @@ jobs:
           echo "── otool -L main ──"
           otool -L "$MAIN" | head -20
 
-      # On Windows we skip the Tauri bundler (NSIS/MSI signing & the
-      # bundler's own DLL probing tend to trip on the libmpv linkage
-      # issue) and just produce a portable .exe + libmpv-2.dll zip
-      # that the user can run directly.
-      - name: Build pstplayer.exe (Windows, no bundler)
+      # On Windows we skip the NSIS/MSI bundler (its libmpv-related DLL
+      # probing is flaky) and just produce a portable .exe + libmpv-2.dll
+      # zip that the user can run directly.
+      #
+      # NOTE: `cargo build --release` alone is NOT enough here. It
+      # bypasses Tauri's asset-embedding pipeline so the produced exe
+      # falls back to `devUrl` (http://localhost:1420) at runtime and
+      # the WebView shows ERR_CONNECTION_REFUSED. `tauri build
+      # --no-bundle` is the correct Tauri 2 way: it embeds the built
+      # frontend into the exe and only skips the platform installer.
+      - name: Tauri build (Windows, --no-bundle)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: |
-          npm run build                       # produces build/ for Tauri to embed
-          cargo build --release -p pstplayer
+        run: npm run tauri build -- --no-bundle
 
       - name: Stage Windows portable bundle
         if: runner.os == 'Windows'
