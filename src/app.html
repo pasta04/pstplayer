@@ -6,7 +6,10 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>PSTPlayer</title>
 		<style>
-			/* Theme tokens. data-theme="light" overrides the dark defaults. */
+			/* Theme tokens. data-theme="light" overrides the dark defaults.
+			   コンテナ系 (タイトル帯 / ステータスバー / 書き込み欄まわり /
+			   BBS ペイン外側) は両テーマとも黒で固定する。レス一覧と
+			   入力 textarea だけがテーマ依存の明色になる。 */
 			:root {
 				--bg: #1d1f23;
 				--bg-elev: #25282d;
@@ -22,9 +25,10 @@
 				--accent-name: #97e09e;
 				--accent-num: #5b8def;
 				--err: #f08c8c;
-				--bar-thread: #c87a2e;
-				--bar-status: #2d6b3b;
-				--bar-write: #0c0d10;
+				--bar-thread: #000;
+				--bar-status: #000;
+				--bar-write: #000;
+				--bbs-bg: #000;
 			}
 			:root[data-theme='light'] {
 				--bg: #f5f6f8;
@@ -41,9 +45,10 @@
 				--accent-name: #1f7d3a;
 				--accent-num: #2a64d9;
 				--err: #c43d3d;
-				--bar-thread: #d2864a;
-				--bar-status: #3e8a55;
-				--bar-write: #e6e8ec;
+				--bar-thread: #000;
+				--bar-status: #000;
+				--bar-write: #000;
+				--bbs-bg: #000;
 			}
 		</style>
 		%sveltekit.head%

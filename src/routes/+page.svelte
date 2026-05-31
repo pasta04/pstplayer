@@ -1128,11 +1128,12 @@
 	}
 
 	.bbs {
-		background: var(--bg);
+		background: var(--bbs-bg);
 		border-left: 1px solid var(--border);
 		overflow-y: auto;
 		min-height: 0;
 		font-size: 0.85rem;
+		color: var(--fg-dim);
 	}
 
 	.bbs-empty {
@@ -1175,6 +1176,9 @@
 		list-style: none;
 		padding: 0;
 		margin: 0;
+		/* 白系の島 (周囲は黒)。テーマに追従。 */
+		background: var(--bg-elev);
+		color: var(--fg);
 	}
 
 	.post {
@@ -1284,7 +1288,7 @@
 	}
 
 	.write-box textarea {
-		background: transparent;
+		background: var(--bg-input);
 		color: var(--fg);
 		border: none;
 		padding: 0.3rem 0.6rem;
@@ -1310,7 +1314,7 @@
 
 	.status-bar {
 		background: var(--bar-status);
-		color: var(--fg);
+		color: #fff;
 		display: flex;
 		align-items: center;
 		padding: 0 0.7rem;
@@ -1485,7 +1489,9 @@
 		gap: 0.3rem;
 		padding: 0.3rem 0.5rem;
 		border-bottom: 1px solid var(--border);
-		background: var(--bg);
+		/* レス一覧の島の上に sticky で乗るので、posts と同じ背景に合わせる */
+		background: var(--bg-elev);
+		color: var(--fg);
 		position: sticky;
 		top: 0;
 		z-index: 5;
