@@ -111,11 +111,19 @@ dir = ""
 
 ## ブラウザ対応
 
-| ブラウザ                                       | 再生方式                      |
-| ---------------------------------------------- | ----------------------------- |
-| iPad / iPhone Safari                           | `<video>` のネイティブ HLS    |
-| macOS Safari                                   | 同上                          |
-| Android Chrome / デスクトップ Chrome / Firefox | 同梱の **hls.js** 経由        |
+| ブラウザ                                                      | 再生方式                   |
+| ------------------------------------------------------------- | -------------------------- |
+| iPad / iPhone Safari                                          | `<video>` のネイティブ HLS |
+| macOS Safari                                                  | 同上                       |
+| **Windows Edge / Windows Chrome**                             | 同梱の **hls.js** 経由     |
+| **Android Chrome**                                            | 同上                       |
+| デスクトップ Chrome (Linux/macOS) / Firefox / Chromium 系全般 | 同上                       |
+
+ネイティブ HLS を持っているのは Safari (iOS/macOS) のみで、Chromium /
+Firefox 系は MSE (Media Source Extensions) ベースの `hls.js` で再生
+します。`canPlayType('application/vnd.apple.mpegurl')` が空 (= 非対応)
+の場合は自動的に hls.js 経路に切り替わるため、ユーザー側の設定や
+プラグインインストールは不要です。
 
 `hls.js` (Apache-2.0) を `crates/pst-server/web/vendor/hls.min.js` に
 バンドル。ライセンス本文は同ディレクトリの `LICENSE-hls.js.txt`。差し
