@@ -64,6 +64,9 @@
 	let posts = $state<Post[]>([]);
 	let fetchState = $state<FetchState | null>(null);
 	let threadLoading = $state(false);
+	// dat / rawmode が 404 / 410 / DAT_NOT_FOUND 系を返したら、スレが
+	// 落ちた (削除 or 過去ログ送り) と判定し以降の自動更新を止める。
+	let threadDead = $state(false);
 
 	let writeName = $state('');
 	let writeMail = $state('sage');
@@ -364,8 +367,19 @@
 		}
 	}
 
+	function isThreadGoneError(msg: string): boolean {
+		// pst-core 側のエラー文言 (`dat returned 404 Not Found` /
+		// `rawmode returned 404 Not Found` / `... 410 Gone`) に該当する
+		// パターンを拾う。
+		return /\b(404|410)\b/.test(msg) || /not found/i.test(msg) || /gone/i.test(msg);
+	}
+
 	async function loadCurrentThread(forceReset: boolean) {
 		if (!currentThreadUrl) return;
+		// 一度スレ落ち判定したら自動更新をスキップ (手動 reloadThreadFull
+		// が呼ばれた場合のみ再試行: forceReset=true で死亡フラグを解除)。
+		if (threadDead && !forceReset) return;
+		if (forceReset) threadDead = false;
 		threadLoading = true;
 		try {
 			const prev = forceReset ? null : fetchState;
@@ -407,7 +421,11 @@
 				}
 			}
 		} catch (e) {
-			lastError = errorMessage(e);
+			const msg = errorMessage(e);
+			lastError = msg;
+			if (isThreadGoneError(msg)) {
+				threadDead = true;
+			}
 		} finally {
 			threadLoading = false;
 		}
@@ -557,10 +575,28 @@
 		await setAlwaysOnTop(alwaysOnTop);
 	}
 
+	// 連発抑止: 1 秒以内に複数回撮ったらトーストは「最後の 1 件」だけ
+	// 出す (features.md §1.1 の挙動)。保存自体は毎回行う。
+	let snapshotToastTimer: ReturnType<typeof setTimeout> | null = null;
+	let snapshotLastPath = '';
+	let snapshotBurstCount = 0;
+
 	async function doSnapshot() {
 		try {
 			const path = await playerSnapshot(channelInfo?.name);
-			notify('スナップショット保存', path);
+			snapshotLastPath = path;
+			snapshotBurstCount += 1;
+			if (snapshotToastTimer) clearTimeout(snapshotToastTimer);
+			snapshotToastTimer = setTimeout(() => {
+				const title =
+					snapshotBurstCount > 1
+						? `スナップショット保存 (${snapshotBurstCount} 枚)`
+						: 'スナップショット保存';
+				notify(title, snapshotLastPath);
+				snapshotToastTimer = null;
+				snapshotBurstCount = 0;
+				snapshotLastPath = '';
+			}, 1000);
 		} catch (e) {
 			lastError = errorMessage(e);
 		}
@@ -878,11 +914,19 @@
 					{posts[0]?.threadTitle || currentThreadUrl}
 				</span>
 				<span class="t-count-main">({posts.length})</span>
+				{#if threadDead}
+					<span
+						class="t-dead"
+						title="スレッドが見つかりません。Ctrl+Shift+R で再取得を試行できます。"
+					>
+						💀 落ち
+					</span>
+				{/if}
 			{:else}
 				<span class="muted">— スレッド未選択 —</span>
 			{/if}
 			<span class="t-grow"></span>
-			{#if currentThreadUrl}
+			{#if currentThreadUrl && !threadDead}
 				<span class="t-refresh" title="次の自動更新までの秒">↻ {refreshCountdown}s</span>
 			{/if}
 			<span class="t-list">≡</span>
@@ -1341,6 +1385,12 @@
 		font-size: 0.72rem;
 		min-width: 2.5rem;
 		text-align: right;
+	}
+	.t-dead {
+		color: #ffb3a2;
+		font-size: 0.78rem;
+		font-weight: 600;
+		margin-left: 0.4rem;
 	}
 
 	.write-box {
