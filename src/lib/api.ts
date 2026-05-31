@@ -274,6 +274,10 @@ export async function saveWindowGeometry(
 	return call<void>('save_window_geometry', { x, y, width, height });
 }
 
+export async function pushRecentHost(host: string, port: number): Promise<void> {
+	return call<void>('push_recent_host', { host, port });
+}
+
 // ── Player (libmpv) ─────────────────────────────────────────────────
 
 export interface PlayerStatus {

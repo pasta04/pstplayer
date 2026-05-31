@@ -7,6 +7,7 @@
 		configFilePath,
 		getConfig,
 		getHistory,
+		pushRecentHost,
 		setConfig,
 		snapshotTargetDir,
 		type Config,
@@ -67,6 +68,12 @@
 		message = null;
 		try {
 			await setConfig(cfg);
+			// MRU: 直前に入力された host:port を最近使ったホストに push。
+			// (host=空 / port 不正は backend 側で no-op)
+			if (cfg.peercast.host) {
+				await pushRecentHost(cfg.peercast.host, cfg.peercast.port).catch(() => undefined);
+				cfg = await getConfig();
+			}
 			await emit('config:saved');
 			message = '保存しました。';
 		} catch (e) {
@@ -74,6 +81,19 @@
 		} finally {
 			saving = false;
 		}
+	}
+
+	function applyRecentHost(entry: string) {
+		if (!cfg) return;
+		// entry は "host:port" 形式。IPv6 は host:port 表記が曖昧なので
+		// 最後の : で分割する。
+		const idx = entry.lastIndexOf(':');
+		if (idx < 0) return;
+		const host = entry.slice(0, idx);
+		const port = Number(entry.slice(idx + 1));
+		if (!host || !Number.isFinite(port) || port < 1 || port > 65535) return;
+		cfg.peercast.host = host;
+		cfg.peercast.port = port;
 	}
 
 	function errMsg(e: unknown): string {
@@ -134,6 +154,28 @@
 					接続タイムアウト (秒)
 					<input type="number" min="1" max="60" bind:value={cfg.peercast.timeoutSec} />
 				</label>
+				{#if cfg.peercast.recentHosts && cfg.peercast.recentHosts.length > 0}
+					<fieldset>
+						<legend>最近使ったホスト</legend>
+						<ul class="recent-hosts">
+							{#each cfg.peercast.recentHosts as entry (entry)}
+								<li>
+									<button
+										type="button"
+										class="recent-host"
+										onclick={() => applyRecentHost(entry)}
+										title="このホストに切り替え (保存して反映)"
+									>
+										{entry}
+									</button>
+								</li>
+							{/each}
+						</ul>
+						<p class="hint small muted">
+							クリックで上記のホスト / ポート欄に反映されます。保存ボタンで確定。
+						</p>
+					</fieldset>
+				{/if}
 			{:else if tab === 'bbs'}
 				<label>
 					デフォルト名前
@@ -441,5 +483,30 @@
 		color: var(--fg-dim);
 		word-break: break-all;
 		margin-top: 0.2rem;
+	}
+
+	.recent-hosts {
+		list-style: none;
+		padding: 0;
+		margin: 0.3rem 0 0;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+
+	.recent-host {
+		background: var(--bg-input);
+		border: 1px solid var(--border);
+		color: inherit;
+		padding: 0.2rem 0.6rem;
+		border-radius: 4px;
+		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+		font-size: 0.78rem;
+		cursor: pointer;
+	}
+
+	.recent-host:hover {
+		background: var(--bg-elev);
+		border-color: var(--border-strong);
 	}
 </style>

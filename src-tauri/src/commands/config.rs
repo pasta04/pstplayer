@@ -1,4 +1,4 @@
-use pst_core::config::schema::{HistoryEntry, MAX_HISTORY};
+use pst_core::config::schema::{HistoryEntry, MAX_HISTORY, MAX_RECENT_HOSTS};
 use pst_core::config::{self, Config};
 use pst_core::util::errors::IpcError;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -52,5 +52,20 @@ pub fn save_window_geometry(x: i32, y: i32, width: u32, height: u32) -> Result<(
     cfg.window.y = Some(y);
     cfg.window.width = Some(width);
     cfg.window.height = Some(height);
+    config::save(&cfg).map_err(Into::into)
+}
+
+/// Push a PeerCast host:port into the MRU list. Deduplicates by
+/// canonical "host:port" form and caps the list at MAX_RECENT_HOSTS.
+#[tauri::command]
+pub fn push_recent_host(host: String, port: u16) -> Result<(), IpcError> {
+    let entry = format!("{host}:{port}");
+    if entry.trim().is_empty() {
+        return Ok(());
+    }
+    let mut cfg = config::load().map_err(IpcError::from)?;
+    cfg.peercast.recent_hosts.retain(|e| e != &entry);
+    cfg.peercast.recent_hosts.insert(0, entry);
+    cfg.peercast.recent_hosts.truncate(MAX_RECENT_HOSTS);
     config::save(&cfg).map_err(Into::into)
 }

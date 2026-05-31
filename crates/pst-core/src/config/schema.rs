@@ -36,6 +36,7 @@ pub struct HistoryEntry {
 }
 
 pub const MAX_HISTORY: usize = 30;
+pub const MAX_RECENT_HOSTS: usize = 8;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PeerCastConfig {

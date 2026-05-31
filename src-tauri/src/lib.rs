@@ -47,6 +47,7 @@ pub fn run() {
             commands::config::get_history,
             commands::config::clear_history,
             commands::config::save_window_geometry,
+            commands::config::push_recent_host,
             commands::bbs::list_threads,
             commands::bbs::fetch_thread,
             commands::bbs::post_to_thread,
