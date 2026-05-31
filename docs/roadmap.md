@@ -139,8 +139,9 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
 - [x] Windows portable ZIP / macOS DMG/APP / Linux DEB/AppImage/RPM の生成
       (`.github/workflows/build.yml`、3 OS で `npm run tauri build`、
       Artifacts として 14 日間保持。Windows は NSIS 不安定のため portable に切替済)
-- [ ] GitHub Releases への自動発行 (`v*` タグトリガで build.yml に release ジョブ追加、
-      `pstplayer-{version}-{os}-{arch}.{ext}` 形式にリネーム + SHA-256 添付)
+- [x] GitHub Releases への自動発行 (`v*` タグトリガで build.yml に release ジョブ追加、
+      `pstplayer-{version}-{os}-{arch}.{ext}` 形式にリネーム + `SHA256SUMS.txt` 添付、
+      `-rc.* / -beta.* / -alpha.*` は自動で prerelease 扱い)
 - [ ] Windows の libmpv-dev リンク安定化 (現状 continue-on-error)
 - [ ] `THIRD-PARTY.md` 生成 (`cargo-about` で依存ライセンス一覧)
 

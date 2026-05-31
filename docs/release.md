@@ -212,40 +212,35 @@ Windows libmpv ビルドの ffmpeg が GPL 構成になっていないか毎回�
 
 ### 6.1 現状の `.github/workflows/build.yml`
 
-- トリガ: `push` (main + 開発ブランチ) / `workflow_dispatch`
-- ジョブ: 3 OS マトリクス、artifacts として 14 日保持
-- リリース連携: **なし** (`v*` タグトリガ無し、GitHub Releases 自動作成無し)
+- トリガ: `push` (main + 開発ブランチ + `v*` タグ) / `workflow_dispatch`
+- ジョブ: 3 OS マトリクスで artifacts 生成 (14 日保持)
+- リリース連携: **タグ駆動で release ジョブが動く** (詳細は §6.2)
 
-### 6.2 仕様確定後に追加するもの (順次実装)
+### 6.2 release ジョブ (実装済)
 
-1. **タグトリガ追加**
+`build.yml` の末尾に `release` ジョブを追加。`startsWith(github.ref,
+'refs/tags/v')` でフィルタしているのでブランチ push では走らない。
 
-   ```yaml
-   on:
-     push:
-       branches: [main]
-       tags: ['v*']
-   ```
+実行内容:
 
-2. **`release` ジョブ追加** (タグ実行時のみ)
-   - 全 OS の artifacts を集める
-   - リネームして `pstplayer-{version}-{os}-{arch}.{ext}` 形式に統一
-   - `gh release create` で GitHub Releases にアップロード
-   - `prerelease: true` を `v*-rc.*` / `v*-beta.*` で自動判定
-   - SHA-256 サムを `.sha256` ファイルとして添付
+1. `actions/download-artifact@v4` で 3 OS の artifacts を `artifacts/`
+   配下に展開
+2. タグ名から `VERSION` を抽出し、`-rc.*` / `-beta.*` / `-alpha.*` が
+   含まれていれば `prerelease=true`
+3. 配布物を `pstplayer-{version}-{os}-{arch}.{ext}` にリネーム
+   - Linux: `.deb` / `.AppImage` / `.rpm` をそのまま rename
+   - macOS: `.app` ディレクトリは zip 化して 1 ファイルに
+   - Windows: portable ディレクトリを `pstplayer-{ver}-windows-x64-portable`
+     に rename してから zip
+4. `sha256sum * > SHA256SUMS.txt` でチェックサム集約
+5. `gh release create "$TAG" staging/* --generate-notes --title "PSTPlayer $TAG"`
+   (prerelease の時は `--prerelease` を追加)
 
-3. **重複起動の抑止**
-   - 既存 `concurrency` で OK だが、タグ push と main push が重なる
-     可能性があるので `group` を見直す
+### 6.3 (任意) 将来のロジック分割
 
-### 6.3 ロジックの分割方針
-
-- `build.yml`: 既存のまま。3 OS 並列で artifacts を生成
-- `release.yml` (新規): `workflow_run` で build.yml の完了を受け、
-  タグ push のときだけ artifacts を集めて Release を作成
-
-または `build.yml` の最後に `release` ジョブを追加 (シンプル)。
-**現時点では後者推奨** (依存関係が単純)。
+build と release を 1 ファイルにまとめている。将来 release 周りが
+複雑化したら `release.yml` を `workflow_run` で別建てする選択肢が
+ある。現状はシンプルさを優先して 1 ファイル運用。
 
 ---
 

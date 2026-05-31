@@ -10,6 +10,10 @@ on:
       # 開発ブランチでも artifact を取れるよう一時的に許可。
       # main マージ後はこの行を削除し、main + workflow_dispatch のみに戻す。
       - claude/focused-mendel-rvEAd
+    tags:
+      # `v0.1.0` 等の SemVer タグで release ジョブも走る。
+      # 詳細は docs/release.md §6.2 を参照。
+      - 'v*'
   workflow_dispatch:
 
 concurrency:
@@ -268,3 +272,84 @@ jobs:
           path: portable-windows/
           if-no-files-found: error
           retention-days: 14
+
+  # `v*` タグが push された時のみ走り、build ジョブの全 OS artifacts
+  # を集めてリネーム → SHA-256 添付 → GitHub Releases 公開する。
+  # 詳細仕様は docs/release.md §6 を参照。
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Derive version + prerelease flag
+        id: meta
+        shell: bash
+        run: |
+          set -eu
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          IS_PRERELEASE=false
+          # v0.2.0-rc.1 / -beta.1 / -alpha.1 は prerelease 扱い。
+          case "$TAG" in
+            *-rc.*|*-beta.*|*-alpha.*) IS_PRERELEASE=true ;;
+          esac
+          echo "tag=$TAG"             >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION"     >> "$GITHUB_OUTPUT"
+          echo "prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
+
+      - name: Rename artifacts + compute SHA-256
+        shell: bash
+        run: |
+          set -eu
+          V="${{ steps.meta.outputs.version }}"
+          OUT=staging
+          mkdir -p "$OUT"
+
+          # Linux: 単独ファイル (deb / AppImage / rpm) をそのまま rename。
+          for ext in deb AppImage rpm; do
+            for f in artifacts/pstplayer-linux/*."$ext"; do
+              [ -f "$f" ] || continue
+              cp "$f" "$OUT/pstplayer-${V}-linux-x64.${ext}"
+            done
+          done
+
+          # macOS: .app ディレクトリは zip 化して 1 ファイルにする。
+          APP="$(find artifacts/pstplayer-macos -maxdepth 2 -name '*.app' -type d | head -1)"
+          if [ -n "${APP:-}" ]; then
+            ZIP="pstplayer-${V}-macos-universal.app.zip"
+            (cd "$(dirname "$APP")" && zip -qr "$OLDPWD/$OUT/$ZIP" "$(basename "$APP")")
+          fi
+
+          # Windows: portable ディレクトリを rename してから zip。
+          if [ -d "artifacts/pstplayer-windows-portable" ]; then
+            DIR="pstplayer-${V}-windows-x64-portable"
+            mv "artifacts/pstplayer-windows-portable" "artifacts/$DIR"
+            (cd artifacts && zip -qr "../$OUT/$DIR.zip" "$DIR")
+          fi
+
+          # SHA-256 サムを 1 ファイルに集約。
+          (cd "$OUT" && sha256sum * | tee SHA256SUMS.txt >/dev/null)
+          ls -la "$OUT"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -eu
+          TAG="${{ steps.meta.outputs.tag }}"
+          FLAGS=(--generate-notes --title "PSTPlayer $TAG")
+          if [ "${{ steps.meta.outputs.prerelease }}" = "true" ]; then
+            FLAGS+=(--prerelease)
+          fi
+          gh release create "$TAG" staging/* "${FLAGS[@]}"
