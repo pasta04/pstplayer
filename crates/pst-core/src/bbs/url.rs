@@ -140,8 +140,8 @@ mod tests {
         // /l30 (last-N) や /501-1000 (range) のサフィックスはそのまま
         // ブラウザの read.cgi に渡されるが、内部表現としては cat/board/key
         // のみあれば十分なので、サフィックスを無視できることを確認する。
-        let u = parse_shitaraba("https://jbbs.shitaraba.net/bbs/read.cgi/c/4567/1234567/l30")
-            .unwrap();
+        let u =
+            parse_shitaraba("https://jbbs.shitaraba.net/bbs/read.cgi/c/4567/1234567/l30").unwrap();
         assert_eq!(u.category, "c");
         assert_eq!(u.board_id, "4567");
         assert_eq!(u.key.as_deref(), Some("1234567"));
