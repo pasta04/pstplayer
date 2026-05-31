@@ -274,7 +274,7 @@ LAN 内別マシン構成では、どの PeerCast に繋いでいるか視覚的
 | URL の自動リンク化            | ★★    | http(s)://、画像/動画は別ペインプレビュー (v1.0 以降)             |
 | レス番号での抽出              | ★★    |                                                                  |
 | キーワード検索                | ★★    |                                                                  |
-| 新着レス通知                  | ★★    | OS 標準通知 (Tauri Notification API)                             |
+| 新着レス通知                  | ★      | OS 標準通知 (Tauri Notification API)。複数ウィンドウで鬱陶しい為 既定 OFF、TOML の `bbs.notify_on_new_post = true` で有効化 |
 | スレッドが落ちた時の検知      | ★★    |                                                                  |
 
 ### 3.2 対応掲示板タイプ

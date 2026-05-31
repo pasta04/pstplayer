@@ -76,6 +76,9 @@
 	let displayMode = $state<'plain' | 'html'>('plain');
 	// Submit key for the write box. Loaded from config on mount.
 	let submitKey = $state<'ctrl_enter' | 'shift_enter'>('ctrl_enter');
+	// OS notification on new posts. Hidden setting (TOML only), default
+	// off because frequent posts make it noisy across multiple windows.
+	let notifyOnNewPost = $state(false);
 	// Cache of sanitised HTML per post number to avoid re-fetching on
 	// every render.
 	let sanitizedCache = $state<Map<number, string>>(new Map());
@@ -193,6 +196,7 @@
 			const cfg = await getConfig();
 			displayMode = cfg?.bbs?.displayMode === 'html' ? 'html' : 'plain';
 			submitKey = cfg?.bbs?.submitKey === 'shift_enter' ? 'shift_enter' : 'ctrl_enter';
+			notifyOnNewPost = cfg?.bbs?.notifyOnNewPost === true;
 		} catch {
 			/* defaults */
 		}
@@ -297,9 +301,11 @@
 				if (forceReset) sanitizedCache = new Map();
 			} else if (newPosts.length > 0) {
 				posts = [...posts, ...newPosts];
-				const preview = newPosts[0].body.replace(/\s+/g, ' ').slice(0, 80);
-				const title = `新着 ${newPosts.length} 件 / ${posts[0]?.threadTitle || ''}`;
-				notify(title, preview);
+				if (notifyOnNewPost) {
+					const preview = newPosts[0].body.replace(/\s+/g, ' ').slice(0, 80);
+					const title = `新着 ${newPosts.length} 件 / ${posts[0]?.threadTitle || ''}`;
+					notify(title, preview);
+				}
 			}
 			fetchState = newState;
 

@@ -176,6 +176,7 @@ export interface BbsConfig {
 	autoRefreshSec: number;
 	displayMode: 'plain' | 'html';
 	submitKey: 'ctrl_enter' | 'shift_enter';
+	notifyOnNewPost: boolean;
 }
 
 export interface PlayerCfg {

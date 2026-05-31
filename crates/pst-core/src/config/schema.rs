@@ -77,6 +77,11 @@ pub struct BbsConfig {
     /// (Shift+Enter で送信). Plain Enter は常に改行。
     #[serde(default = "default_submit_key")]
     pub submit_key: String,
+    /// 新着レス到着時に OS 通知を出すか。レス頻度が高いと鬱陶しいので
+    /// 既定 false。設定 UI には出さず、TOML 直接編集で有効化する隠し
+    /// オプション。
+    #[serde(default)]
+    pub notify_on_new_post: bool,
 }
 
 fn default_refresh_sec() -> u32 {
