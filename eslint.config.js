@@ -57,6 +57,7 @@ export default [
 			'src-tauri/target/',
 			'target/',
 			'docs/',
+			'crates/pst-server/web/vendor/',
 			'**/*.json',
 			'**/*.md',
 		],

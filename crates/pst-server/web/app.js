@@ -67,25 +67,52 @@ function renderChannels(channels) {
 	}
 }
 
+// 直前に attach した Hls インスタンス (戻る時に destroy する)。
+let currentHls = null;
+
 function openChannel(id, name) {
 	refs.currentTitle.textContent = name || id;
 	refs.playerError.hidden = true;
 	refs.channelsSection.hidden = true;
 	refs.playerSection.hidden = false;
-	// HLS プロキシ経由で <video> に流す。Safari は m3u8 をネイティブで再生、
-	// それ以外は hls.js (未同梱、ユーザーが入れた場合) でフォールバック。
+	disposeHls();
+	// HLS プロキシ経由で <video> に流す。Safari (iOS / macOS) は m3u8
+	// をネイティブで再生できるためそのまま src 指定。Android Chrome /
+	// デスクトップ Chrome / Firefox はネイティブ非対応なので vendor の
+	// hls.js (defer ロード済み) を使う。
 	const url = `/hls/${encodeURIComponent(id)}.m3u8`;
 	if (canPlayHls()) {
 		refs.player.src = url;
 		refs.player.play().catch(() => undefined);
 	} else if (window.Hls && window.Hls.isSupported()) {
-		const hls = new window.Hls();
+		const hls = new window.Hls({ enableWorker: true, lowLatencyMode: false });
 		hls.loadSource(url);
 		hls.attachMedia(refs.player);
+		hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
+			refs.player.play().catch(() => undefined);
+		});
+		hls.on(window.Hls.Events.ERROR, (_evt, data) => {
+			if (data.fatal) {
+				refs.playerError.hidden = false;
+				refs.playerError.textContent = `再生エラー: ${data.type} / ${data.details}`;
+			}
+		});
+		currentHls = hls;
 	} else {
 		refs.playerError.hidden = false;
 		refs.playerError.textContent =
-			'このブラウザは HLS 再生に対応していません (Safari / iOS / macOS 推奨)。';
+			'このブラウザは HLS 再生に対応していません (hls.js も利用不可)。';
+	}
+}
+
+function disposeHls() {
+	if (currentHls) {
+		try {
+			currentHls.destroy();
+		} catch {
+			/* ignore */
+		}
+		currentHls = null;
 	}
 }
 
@@ -97,6 +124,7 @@ function canPlayHls() {
 }
 
 function backToList() {
+	disposeHls();
 	refs.player.pause();
 	refs.player.removeAttribute('src');
 	refs.player.load();

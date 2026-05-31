@@ -12,3 +12,6 @@ LICENSE
 # Handlebars 解釈とは構文が合わないため除外。
 about.hbs
 THIRD-PARTY.md
+
+# 同梱 vendor (hls.js 等)。サードパーティの minified ファイルは触らない。
+crates/pst-server/web/vendor/

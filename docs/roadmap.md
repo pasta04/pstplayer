@@ -214,8 +214,7 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
             は上流に転送、Basic 認証も付加)
       - [x] **SD カード保護のログ仕様** (既定 OFF、`[log] debug = true, dir = "..."`
             時のみ tracing-appender で日次ローテーション)
-      - [ ] **マルチ PeerCast 対応 / 認証 / 公開モード**
-      - [ ] **hls.js 同梱** (Android / Chrome / Firefox での再生対応、現状 Safari のみ)
+      - [ ] **認証 / 公開モード** (LAN 外公開時の Basic / OAuth 等)
 - [ ] リモート操作 (別端末からの再生制御) ← 上記サーバの延長
 - [ ] `pstplayer://` カスタム URL スキーマ (ブラウザからのワンクリック起動)
 

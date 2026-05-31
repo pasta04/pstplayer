@@ -111,11 +111,16 @@ dir = ""
 
 ## ブラウザ対応
 
-- **iPad / iPhone Safari**: HLS をネイティブ再生 (推奨)
-- **macOS Safari**: 同上
-- **Android Chrome / デスクトップ Chrome / Firefox**: ネイティブで HLS
-  非対応。`hls.js` を後で同梱予定 (本リリース時点では Safari 系のみ
-  確実)
+| ブラウザ                                       | 再生方式                      |
+| ---------------------------------------------- | ----------------------------- |
+| iPad / iPhone Safari                           | `<video>` のネイティブ HLS    |
+| macOS Safari                                   | 同上                          |
+| Android Chrome / デスクトップ Chrome / Firefox | 同梱の **hls.js** 経由        |
+
+`hls.js` (Apache-2.0) を `crates/pst-server/web/vendor/hls.min.js` に
+バンドル。ライセンス本文は同ディレクトリの `LICENSE-hls.js.txt`。差し
+替える時は Service Worker のキャッシュバージョン (`sw.js` の `CACHE`
+変数) も併せて bump してください。
 
 ## トラブルシューティング
 

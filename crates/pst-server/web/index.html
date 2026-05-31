@@ -10,6 +10,12 @@
 		<link rel="icon" href="/icon-192.svg" type="image/svg+xml" />
 		<link rel="apple-touch-icon" href="/icon-192.svg" />
 		<link rel="stylesheet" href="/style.css" />
+		<!-- hls.js: Apache-2.0、配布物に LICENSE-hls.js.txt を同梱
+		     (vendor/LICENSE-hls.js.txt)。Safari (iOS/macOS) は <video>
+		     で m3u8 をネイティブ再生できるため、defer で本ファイルが
+		     読み込まれていなくても起動はする。Android Chrome /
+		     デスクトップ Chrome/Firefox では hls.js が必須。 -->
+		<script src="/vendor/hls.min.js" defer></script>
 	</head>
 	<body data-theme="dark">
 		<header class="topbar">
