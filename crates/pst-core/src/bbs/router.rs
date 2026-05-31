@@ -61,6 +61,25 @@ mod tests {
     }
 
     #[test]
+    fn shitaraba_read_cgi_with_l30_suffix_classifies() {
+        // ブラウザがコピーする URL には /l30 や /501-1000 が付くことが
+        // 多いので、それらが付いていても Shitaraba 判定できること。
+        assert!(matches!(
+            classify("https://jbbs.shitaraba.net/bbs/read.cgi/c/4567/1234567/l30"),
+            Some(BoardKind::Shitaraba)
+        ));
+    }
+
+    #[test]
+    fn ch2_non_5ch_host_classifies() {
+        // 5ch 以外の 2ch 互換ホスト (例: jpnkn 系) も Ch2Compat として扱う。
+        assert!(matches!(
+            classify("https://example-bbs.invalid/test/read.cgi/myboard/1558097910/"),
+            Some(BoardKind::Ch2Compat)
+        ));
+    }
+
+    #[test]
     fn unknown_host_is_none() {
         assert!(classify("https://www.example.com/random/path/with/extras").is_none());
     }

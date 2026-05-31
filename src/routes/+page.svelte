@@ -291,13 +291,26 @@
 		}
 	}
 
+	// Drop any trailing browser-only suffix (e.g. `/l30`, `/501-1000`) and
+	// guarantee the URL ends with `/{key}/`. This keeps Range-based
+	// incremental fetch and write.cgi POST happy regardless of how the
+	// user (or PeerCast contact URL) spelled the link.
+	function normalizeThreadUrl(url: string, key: string): string {
+		const idx = url.lastIndexOf(`/${key}`);
+		if (idx < 0) return url;
+		return `${url.slice(0, idx)}/${key}/`;
+	}
+
 	async function tryLoadBoard(contactUrl: string) {
 		try {
 			threadList = await listThreads(contactUrl);
-			// Auto-pick the contact URL if it already names a thread (read.cgi…).
-			const m = contactUrl.match(/\/(\d+)\/?$/);
+			// Auto-pick the contact URL if it already names a thread.
+			// 末尾のサフィックス (l30, 501-1000 等) があっても許容し、
+			// canonical /{key}/ 形に正規化してから保存する。
+			const m = contactUrl.match(/\/(\d+)(?:\/[^/]*)?\/?$/);
 			if (m) {
-				currentThreadUrl = contactUrl;
+				const key = m[1];
+				currentThreadUrl = normalizeThreadUrl(contactUrl, key);
 				await loadCurrentThread(true);
 			} else if (threadList.length > 0) {
 				// Use shitaraba/2ch URL builder from contact URL + key.

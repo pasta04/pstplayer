@@ -134,4 +134,26 @@ mod tests {
         assert_eq!(u.board, "news4vip");
         assert!(u.key.is_none());
     }
+
+    #[test]
+    fn shitaraba_read_cgi_with_l30_suffix() {
+        // /l30 (last-N) や /501-1000 (range) のサフィックスはそのまま
+        // ブラウザの read.cgi に渡されるが、内部表現としては cat/board/key
+        // のみあれば十分なので、サフィックスを無視できることを確認する。
+        let u = parse_shitaraba("https://jbbs.shitaraba.net/bbs/read.cgi/c/4567/1234567/l30")
+            .unwrap();
+        assert_eq!(u.category, "c");
+        assert_eq!(u.board_id, "4567");
+        assert_eq!(u.key.as_deref(), Some("1234567"));
+    }
+
+    #[test]
+    fn ch2_read_cgi_non_5ch_host() {
+        // bbs.jpnkn.com や maguro.2ch.sc など、5ch 以外の 2ch 互換ホスト
+        // でも host/board/key が抽出できることを確認 (ホスト名で絞らない)。
+        let u = parse_ch2("https://example-bbs.invalid/test/read.cgi/myboard/1558097910/").unwrap();
+        assert_eq!(u.host, "example-bbs.invalid");
+        assert_eq!(u.board, "myboard");
+        assert_eq!(u.key.as_deref(), Some("1558097910"));
+    }
 }

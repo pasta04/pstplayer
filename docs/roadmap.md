@@ -66,6 +66,8 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
 - [x] ammonia による HTML サニタイズ (HTML 表示モード用)
 - [x] Tauri command 公開: `classify_board`, `list_threads`, `fetch_thread`,
       `post_to_thread`, `sanitize_html`
+- [x] URL 末尾サフィックス (`/l30`, `/501-1000` 等) を許容して全レス / 差分取得が機能
+      (pst-core パーサがサフィックスを無視 + フロントが canonical `/{key}/` に正規化)
 
 ### 1.5 UI (最小)
 
