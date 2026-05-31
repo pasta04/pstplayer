@@ -1,0 +1,24 @@
+# pst-server.toml example
+#
+# 詳細は docs/usage/server.md を参照。
+
+# 紐付け先 PeerCastStation。LAN 内の Pi から見た IP / port。
+[peercast]
+host = "192.0.2.10"
+port = 7144
+auth_user = ""
+auth_pass = ""
+
+[server]
+# 0.0.0.0:8080 で LAN 公開、127.0.0.1:8080 ならローカルのみ。
+bind = "0.0.0.0:8080"
+# 逆プロキシ経由で公開する場合の公開 URL。PWA manifest など Absolute
+# URL を作る用途。
+public_url = ""
+
+# Raspberry Pi の SD カード寿命対策として、本サーバは既定で一切
+# ログを書き出さない (起動失敗等の致命的なメッセージのみ stderr)。
+# 不具合調査時のみ tmpfs 等を指定して有効化する。
+[log]
+debug = false
+dir = ""

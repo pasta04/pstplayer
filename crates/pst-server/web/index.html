@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ja">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+		<title>PSTPlayer Web</title>
+		<meta name="theme-color" content="#1e2126" />
+		<meta name="description" content="PSTPlayer 中継サーバ (モバイル / ブラウザ向け)" />
+		<link rel="manifest" href="/manifest.webmanifest" />
+		<link rel="icon" href="/icon-192.svg" type="image/svg+xml" />
+		<link rel="apple-touch-icon" href="/icon-192.svg" />
+		<link rel="stylesheet" href="/style.css" />
+	</head>
+	<body data-theme="dark">
+		<header class="topbar">
+			<h1>📡 PSTPlayer</h1>
+			<button id="refresh" type="button" title="チャンネル一覧を更新">↻ 更新</button>
+		</header>
+		<main>
+			<section id="player-section" hidden>
+				<button id="back" type="button">← 戻る</button>
+				<h2 id="current-title">—</h2>
+				<video id="player" controls playsinline autoplay></video>
+				<div id="player-error" class="error" hidden></div>
+			</section>
+			<section id="channels-section">
+				<div id="status" class="muted small">読み込み中…</div>
+				<table id="channels" hidden>
+					<thead>
+						<tr>
+							<th>👥</th>
+							<th>名前</th>
+							<th>ジャンル</th>
+							<th>kbps</th>
+							<th>形式</th>
+						</tr>
+					</thead>
+					<tbody></tbody>
+				</table>
+				<div id="error" class="error" hidden></div>
+			</section>
+		</main>
+		<footer class="bottom">
+			<small>
+				PSTPlayer Web ·
+				<a href="https://github.com/pasta04/pstplayer" target="_blank" rel="noopener">GitHub</a>
+			</small>
+		</footer>
+		<script type="module" src="/app.js"></script>
+	</body>
+</html>

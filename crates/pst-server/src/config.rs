@@ -16,6 +16,23 @@ pub struct Config {
     pub peercast: PeerCastUpstream,
     #[serde(default)]
     pub server: ServerBinding,
+    #[serde(default)]
+    pub log: LogConfig,
+}
+
+/// ログ出力の制御。Raspberry Pi 等の SD カード環境を想定し、
+/// **既定では一切ログを書き出さない**。`debug = true` かつ `dir`
+/// が指定された時のみ、そのディレクトリに日次ローテーションで吐く。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct LogConfig {
+    /// `false` (既定) なら全ログを破棄。`true` で `dir` への書き出し
+    /// 有効化。
+    #[serde(default)]
+    pub debug: bool,
+    /// `debug = true` の時の出力先ディレクトリ。空なら `debug = true`
+    /// でも no-op (= 出力しない)。tmpfs / RAM disk を推奨。
+    #[serde(default)]
+    pub dir: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

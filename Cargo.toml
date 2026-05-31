@@ -21,7 +21,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 tokio = { version = "1", features = ["sync", "macros", "rt-multi-thread", "time"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "gzip", "cookies"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "gzip", "cookies", "stream"] }
 url = "2"
 encoding_rs = "0.8"
 regex = "1"
@@ -36,6 +36,7 @@ axum = "0.7"
 tower-http = { version = "0.5", features = ["trace", "cors", "fs"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
 
 [profile.release]
 panic = "abort"

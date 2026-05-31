@@ -205,9 +205,17 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
             - [x] エラーは pst-core::AppError を HTTP status にマッピング
                   (peercast_unreachable → 502, board_regulated → 403, 等)
             - [x] `--config <path>` で設定パス指定可、無ければ OS 標準
-      - [ ] **静的フロント (Svelte の Web ビルド) を `/` でホスト + PWA manifest**
-      - [ ] **HLS 配信 / プロキシ** (PeerCastStation の HLS 出力を活用)
+      - [x] **静的フロント (Vanilla JS PWA) を `/` でホスト + manifest + Service Worker**
+            (Svelte は使わず軽量 SPA、ServeDir でフォールバック配信。
+            `--web <dir>` / `PST_SERVER_WEB_DIR` / exe 隣の `web/` / 開発時のソース
+            ツリーの順で解決)
+      - [x] **HLS プロキシ** (PeerCastStation の `/hls/{id}` を `bytes_stream` で
+            透過、SD カード保護のためディスク書き込み無し。Range / If-Modified-Since
+            は上流に転送、Basic 認証も付加)
+      - [x] **SD カード保護のログ仕様** (既定 OFF、`[log] debug = true, dir = "..."`
+            時のみ tracing-appender で日次ローテーション)
       - [ ] **マルチ PeerCast 対応 / 認証 / 公開モード**
+      - [ ] **hls.js 同梱** (Android / Chrome / Firefox での再生対応、現状 Safari のみ)
 - [ ] リモート操作 (別端末からの再生制御) ← 上記サーバの延長
 - [ ] `pstplayer://` カスタム URL スキーマ (ブラウザからのワンクリック起動)
 

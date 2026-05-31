@@ -10,6 +10,8 @@ PSTPlayer は PeerCast 配信を視聴しながら関連 BBS (したらば / 2ch
 3. [基本操作](basic.md) — URL 貼り付け / YP 経由視聴 / BBS 読み書き
 4. [ショートカット一覧](shortcuts.md) — キーボード操作
 5. [トラブルシューティング](troubleshooting.md) — よくある問題と対処
+6. [pst-server](server.md) — Raspberry Pi 等の常駐サーバを LAN に置いて、
+   モバイル端末のブラウザから視聴 + BBS 書き込みする
 
 ## 動作要件
 

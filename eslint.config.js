@@ -41,6 +41,15 @@ export default [
 		},
 	},
 	{
+		// pst-server の静的フロントは vanilla JS。Service Worker (sw.js)
+		// は serviceworker globals、ほかは browser globals で評価する。
+		files: ['crates/pst-server/web/**/*.js'],
+		languageOptions: {
+			parserOptions: { ecmaVersion: 2022, sourceType: 'module' },
+			globals: { ...globals.browser, ...globals.serviceworker, ...globals.es2022 },
+		},
+	},
+	{
 		ignores: [
 			'.svelte-kit/',
 			'build/',
