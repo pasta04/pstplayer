@@ -6,6 +6,7 @@
 pub mod bbs;
 pub mod cli;
 pub mod config;
+pub mod favorites;
 pub mod peercast;
 pub mod single_instance;
 pub mod snapshot;

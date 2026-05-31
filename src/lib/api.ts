@@ -272,6 +272,21 @@ export interface WindowCfg {
 	always_on_top: boolean;
 }
 
+export interface FavoriteRule {
+	name: string;
+	channel_name: string;
+	genre: string;
+	desc: string;
+	comment: string;
+	pin_top: boolean;
+	auto_record: boolean;
+	color: string;
+}
+
+export interface FavoritesCfg {
+	rules: FavoriteRule[];
+}
+
 export interface Config {
 	peercast: PeerCastConfig;
 	bbs: BbsConfig;
@@ -280,8 +295,40 @@ export interface Config {
 	/** カスタムホットキー (action_id → "Ctrl+Shift+R" 等)。
 	 * 未指定の action はフロントのデフォルトを使う。 */
 	hotkeys?: Record<string, string>;
+	favorites?: FavoritesCfg;
 	// other sections exist but are not exposed yet
 	[key: string]: unknown;
+}
+
+/** お気に入りルールでチャンネル系のオブジェクトを判定する。
+ * 全フィールド空欄ならワイルドカード、複数指定は AND。
+ * pst-core::favorites::matches とロジックを揃える。 */
+export function ruleMatches(
+	rule: FavoriteRule,
+	t: { name: string; genre: string; desc: string; comment: string },
+): boolean {
+	const part = (needle: string, hay: string) => {
+		const n = (needle ?? '').trim();
+		if (!n) return true;
+		return (hay ?? '').toLowerCase().includes(n.toLowerCase());
+	};
+	return (
+		part(rule.channel_name, t.name) &&
+		part(rule.genre, t.genre) &&
+		part(rule.desc, t.desc) &&
+		part(rule.comment, t.comment)
+	);
+}
+
+export function firstFavoriteMatch(
+	rules: FavoriteRule[] | undefined,
+	t: { name: string; genre: string; desc: string; comment: string },
+): FavoriteRule | null {
+	if (!rules) return null;
+	for (const r of rules) {
+		if (ruleMatches(r, t)) return r;
+	}
+	return null;
 }
 
 export async function getConfig(): Promise<Config> {

@@ -8,6 +8,7 @@
 		fetchChannelInfo,
 		fetchChannelStatus,
 		fetchThread,
+		firstFavoriteMatch,
 		getCliArgs,
 		getConfig,
 		getHistory,
@@ -33,6 +34,7 @@
 		type PlayerStatus,
 		type ChannelInfo,
 		type ChannelStatus,
+		type FavoriteRule,
 		type FetchState,
 		type HistoryEntry,
 		type PeerCastEndpoint,
@@ -425,6 +427,32 @@
 		}
 		if (channelInfo?.url) {
 			await tryLoadBoard(channelInfo.url);
+		}
+		await maybeAutoRecord();
+	}
+
+	async function maybeAutoRecord() {
+		// 既に録画中なら何もしない (二重起動防止)。channelInfo が無い時
+		// もスキップ。お気に入りルールにマッチかつ auto_record=true なら
+		// 録画開始する。
+		if (!channelInfo) return;
+		if (recordPath) return;
+		try {
+			const cfg = await getConfig();
+			const rules = cfg?.favorites?.rules as FavoriteRule[] | undefined;
+			const fav = firstFavoriteMatch(rules, {
+				name: channelInfo.name,
+				genre: channelInfo.genre,
+				desc: channelInfo.desc,
+				comment: channelInfo.comment,
+			});
+			if (fav?.auto_record) {
+				const path = await playerRecordStart(channelInfo.name);
+				recordPath = path;
+				notify(`自動録画開始 (${fav.name || 'お気に入り'})`, path);
+			}
+		} catch (e) {
+			console.warn('auto-record failed', e);
 		}
 	}
 

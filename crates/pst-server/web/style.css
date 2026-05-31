@@ -160,6 +160,15 @@ table tbody tr:active {
 	background: var(--bg-elev);
 }
 
+table tbody tr.pinned {
+	font-weight: 600;
+}
+
+.fav-mark {
+	color: var(--accent);
+	margin-right: 0.25rem;
+}
+
 table .num {
 	text-align: right;
 	font-variant-numeric: tabular-nums;

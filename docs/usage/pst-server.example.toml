@@ -26,7 +26,23 @@ dir = ""
 # 録画機能 (既定 OFF)。
 # enabled = true かつ dir 指定で /api/record/start が動く。
 # SD カードへの書き込みを避けるには dir を USB / SSD マウント先にする。
+# 同時録画は max_concurrent 本まで (0 で既定 8)。
 [recording]
 enabled = false
-dir = ""        # 例: "/mnt/usb/recordings"
-ext = ""        # 空なら flv
+dir = ""             # 例: "/mnt/usb/recordings"
+ext = ""             # 空なら flv
+max_concurrent = 0
+
+# お気に入りルール (複数記述可)。上から評価され、最初にマッチしたもの
+# が採用。pin_top でチャンネル一覧の上位に固定、auto_record で視聴
+# 開始時に自動録画、color で行の背景色 (CSS 色) を指定。
+# Web フロントは /api/favorites でこの設定を読み出して適用する。
+# [[favorites.rules]]
+# name = "メイン"
+# channel_name = "MOXch"   # 部分一致
+# genre = ""
+# desc = ""
+# comment = ""
+# pin_top = true
+# auto_record = false
+# color = "#ff8a3d22"

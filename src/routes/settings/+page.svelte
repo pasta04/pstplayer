@@ -12,13 +12,16 @@
 		setConfig,
 		snapshotTargetDir,
 		type Config,
+		type FavoriteRule,
 		type HistoryEntry,
 	} from '$lib/api';
 	import { applyTheme, getTheme, setTheme, type Theme } from '$lib/theme';
 	import { HOTKEY_DEFS, bindingFromEvent, detectConflicts, type HotkeyDef } from '$lib/shortcuts';
 
 	let cfg = $state<Config | null>(null);
-	let tab = $state<'general' | 'peercast' | 'bbs' | 'player' | 'hotkeys' | 'history'>('general');
+	let tab = $state<'general' | 'peercast' | 'bbs' | 'player' | 'favorites' | 'hotkeys' | 'history'>(
+		'general',
+	);
 	let saving = $state(false);
 
 	// ── ホットキー編集状態 ──────────────────────────────────────
@@ -151,6 +154,44 @@
 		}
 	}
 
+	// ── お気に入りルール ────────────────────────────────────────
+	const emptyRule = (): FavoriteRule => ({
+		name: '',
+		channel_name: '',
+		genre: '',
+		desc: '',
+		comment: '',
+		pin_top: false,
+		auto_record: false,
+		color: '',
+	});
+
+	function ensureFavorites(): FavoriteRule[] {
+		if (!cfg) return [];
+		if (!cfg.favorites) cfg.favorites = { rules: [] };
+		if (!cfg.favorites.rules) cfg.favorites.rules = [];
+		return cfg.favorites.rules;
+	}
+
+	function addRule() {
+		ensureFavorites().push(emptyRule());
+		cfg = { ...cfg! };
+	}
+
+	function deleteRule(i: number) {
+		const rules = ensureFavorites();
+		rules.splice(i, 1);
+		cfg = { ...cfg! };
+	}
+
+	function moveRule(i: number, dir: -1 | 1) {
+		const rules = ensureFavorites();
+		const j = i + dir;
+		if (j < 0 || j >= rules.length) return;
+		[rules[i], rules[j]] = [rules[j], rules[i]];
+		cfg = { ...cfg! };
+	}
+
 	function applyRecentHost(entry: string) {
 		if (!cfg) return;
 		// entry は "host:port" 形式。IPv6 は host:port 表記が曖昧なので
@@ -183,6 +224,9 @@
 			<button class:active={tab === 'peercast'} onclick={() => (tab = 'peercast')}>PeerCast</button>
 			<button class:active={tab === 'bbs'} onclick={() => (tab = 'bbs')}>BBS</button>
 			<button class:active={tab === 'player'} onclick={() => (tab = 'player')}>プレイヤー</button>
+			<button class:active={tab === 'favorites'} onclick={() => (tab = 'favorites')}>
+				お気に入り
+			</button>
 			<button class:active={tab === 'hotkeys'} onclick={() => (tab = 'hotkeys')}>
 				ショートカット
 			</button>
@@ -343,6 +387,56 @@
 					**再エンコードせず** 元の stream をそのまま書き出します (CPU
 					負荷ほぼゼロ)。拡張子は元コンテナに合わせて指定してください (FLV 配信なら flv、mkv
 					が安全な選択肢)。
+				</p>
+			{:else if tab === 'favorites'}
+				<p class="hint small muted">
+					各ルールはチャンネル一覧 (YP・PeerCast) に対して上から評価され、最初にマッチした
+					ものが採用されます。フィールドは部分一致 (大文字小文字無視) で、空欄はワイルド
+					カードです。複数フィールドを書くと AND 条件。
+				</p>
+				<table class="favorites">
+					<thead>
+						<tr>
+							<th>名前</th>
+							<th>チャンネル名</th>
+							<th>ジャンル</th>
+							<th>詳細</th>
+							<th>コメント</th>
+							<th title="上位固定">⬆</th>
+							<th title="自動録画">⏺</th>
+							<th title="背景色 (CSS 色)">色</th>
+							<th></th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each ensureFavorites() as rule, i (i)}
+							<tr style={rule.color ? `background:${rule.color};` : undefined}>
+								<td><input type="text" bind:value={rule.name} placeholder="メイン" /></td>
+								<td><input type="text" bind:value={rule.channel_name} /></td>
+								<td><input type="text" bind:value={rule.genre} /></td>
+								<td><input type="text" bind:value={rule.desc} /></td>
+								<td><input type="text" bind:value={rule.comment} /></td>
+								<td><input type="checkbox" bind:checked={rule.pin_top} /></td>
+								<td><input type="checkbox" bind:checked={rule.auto_record} /></td>
+								<td>
+									<input
+										type="text"
+										class="color"
+										bind:value={rule.color}
+										placeholder="#ff8a3d22"
+									/>
+								</td>
+								<td class="ops">
+									<button type="button" onclick={() => moveRule(i, -1)} title="上へ">↑</button>
+									<button type="button" onclick={() => moveRule(i, 1)} title="下へ">↓</button>
+									<button type="button" onclick={() => deleteRule(i)} title="削除">×</button>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+				<p>
+					<button type="button" onclick={addRule}>＋ ルール追加</button>
 				</p>
 			{:else if tab === 'hotkeys'}
 				<p class="hint small muted">
@@ -657,6 +751,49 @@
 	.recent-host:hover {
 		background: var(--bg-elev);
 		border-color: var(--border-strong);
+	}
+
+	table.favorites {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: 0.82rem;
+	}
+	table.favorites th,
+	table.favorites td {
+		text-align: left;
+		padding: 0.25rem 0.3rem;
+		border-bottom: 1px solid var(--border);
+		vertical-align: middle;
+	}
+	table.favorites th {
+		font-size: 0.72rem;
+		color: var(--fg-muted);
+		font-weight: 600;
+	}
+	table.favorites input[type='text'] {
+		width: 100%;
+		min-width: 5rem;
+		background: var(--bg-input);
+		color: inherit;
+		border: 1px solid var(--border);
+		border-radius: 3px;
+		padding: 0.15rem 0.35rem;
+		font-family: inherit;
+		font-size: 0.78rem;
+	}
+	table.favorites input.color {
+		min-width: 6rem;
+		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	}
+	table.favorites .ops button {
+		background: var(--bg-input);
+		color: inherit;
+		border: 1px solid var(--border);
+		border-radius: 3px;
+		padding: 0.15rem 0.35rem;
+		margin-right: 0.15rem;
+		font-size: 0.78rem;
+		cursor: pointer;
 	}
 
 	table.hotkeys {

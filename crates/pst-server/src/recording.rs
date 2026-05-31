@@ -1,17 +1,18 @@
-//! Recording task — 上流 PeerCastStation の生 stream (`/stream/{id}.flv`)
-//! を tokio task でファイルに書き出す。
+//! Recording task — 上流 PeerCastStation の生 stream を tokio task
+//! でファイルに書き出す。同時に複数本録画可能。
 //!
 //! 設計メモ:
-//! * 同時録画は **1 本だけ**。すでに走っているタスクがあれば 409。
+//! * 同時録画は config の `recording.max_concurrent` で上限指定可。
+//!   既定 8 本。1 ホスト 1 チャンネル 1 本まで (同一 channel_id を
+//!   二重開始すると 409)。
 //! * ファイル名は `YYYYMMDD_HHmmss_<channel_name>.<ext>` (pst-core の
 //!   `snapshot::make_filename` と同じ規則)。
 //! * ディスク書き込みは録画タスクが直接 `tokio::fs::File::write_all` で
-//!   行う。HLS プロキシのような透過 stream ではなく、ユーザーの意図で
-//!   開始した「書き出し」なので SD カード保護方針と矛盾しない。
-//! * stop は `JoinHandle::abort()` で即時切る。書き出し中のチャンク
-//!   は最後まで flush できないが、FLV/MKV は途中で切れても多くの
-//!   プレイヤーで再生可能。
+//!   行う。ユーザー意図の write なので SD カード保護方針と矛盾しない。
+//! * stop は `JoinHandle::abort()` で即時切る。FLV/MKV は途中で切れても
+//!   多くのプレイヤーで再生可能。
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -25,27 +26,32 @@ use tokio::sync::Mutex;
 use crate::error::ApiError;
 use crate::state::AppState;
 
-/// AppState に Arc<Mutex<>> で持たせる録画タスクの状態。
+const DEFAULT_MAX_CONCURRENT: u32 = 8;
+
+/// AppState に Arc で持たせる録画タスク群の状態。
 #[derive(Default)]
 pub struct RecordingState {
-    /// 録画中なら Some。stop / 完了時に None に戻す。
-    inner: Mutex<Option<RecordingTask>>,
+    /// channel_id をキーにした録画タスクの集合。
+    inner: Mutex<HashMap<String, RecordingTask>>,
 }
 
 pub struct RecordingTask {
     pub path: PathBuf,
-    pub channel_id: String,
     pub channel_name: String,
-    /// abort 用ハンドル。録画タスクが正常終了したらこれを参照しない。
+    /// abort 用ハンドル。
     pub handle: tokio::task::JoinHandle<()>,
 }
 
 #[derive(Debug, Serialize, Clone)]
-pub struct RecordingStatus {
-    pub recording: bool,
-    pub path: Option<String>,
-    pub channel_id: Option<String>,
-    pub channel_name: Option<String>,
+pub struct RecordingEntry {
+    pub channel_id: String,
+    pub channel_name: String,
+    pub path: String,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct RecordingList {
+    pub recordings: Vec<RecordingEntry>,
 }
 
 impl RecordingState {
@@ -53,31 +59,28 @@ impl RecordingState {
         Arc::new(Self::default())
     }
 
-    pub async fn status(&self) -> RecordingStatus {
+    pub async fn list(&self) -> RecordingList {
         let guard = self.inner.lock().await;
-        match guard.as_ref() {
-            Some(t) => RecordingStatus {
-                recording: true,
-                path: Some(t.path.to_string_lossy().into_owned()),
-                channel_id: Some(t.channel_id.clone()),
-                channel_name: Some(t.channel_name.clone()),
-            },
-            None => RecordingStatus {
-                recording: false,
-                path: None,
-                channel_id: None,
-                channel_name: None,
-            },
-        }
+        let mut recordings: Vec<RecordingEntry> = guard
+            .iter()
+            .map(|(id, t)| RecordingEntry {
+                channel_id: id.clone(),
+                channel_name: t.channel_name.clone(),
+                path: t.path.to_string_lossy().into_owned(),
+            })
+            .collect();
+        recordings.sort_by(|a, b| a.channel_id.cmp(&b.channel_id));
+        RecordingList { recordings }
     }
 
-    /// 録画開始。すでに進行中なら `Conflict` を返す。
+    /// 録画開始。同 channel_id が既に進行中なら 409。最大本数 (config
+    /// `max_concurrent`) を超えていたら 429。
     pub async fn start(
         &self,
         state: &AppState,
         channel_id: String,
         channel_name: String,
-    ) -> Result<RecordingStatus, ApiError> {
+    ) -> Result<RecordingEntry, ApiError> {
         let cfg = &state.cfg.recording;
         if !cfg.enabled {
             return Err(ApiError {
@@ -94,6 +97,11 @@ impl RecordingState {
                 message: "[recording] dir が空なので録画機能は無効です".into(),
             });
         }
+        let max = if cfg.max_concurrent == 0 {
+            DEFAULT_MAX_CONCURRENT
+        } else {
+            cfg.max_concurrent
+        };
         let dir = PathBuf::from(dir);
         tokio::fs::create_dir_all(&dir)
             .await
@@ -108,11 +116,20 @@ impl RecordingState {
         let path = dir.join(&filename);
 
         let mut guard = self.inner.lock().await;
-        if guard.is_some() {
+        if guard.contains_key(&channel_id) {
             return Err(ApiError {
                 status: axum::http::StatusCode::CONFLICT,
                 code: "recording_busy",
-                message: "別の録画が進行中です。先に /api/record/stop を呼んでください".into(),
+                message: format!("チャンネル {channel_id} は既に録画中です"),
+            });
+        }
+        if guard.len() as u32 >= max {
+            return Err(ApiError {
+                status: axum::http::StatusCode::TOO_MANY_REQUESTS,
+                code: "recording_limit",
+                message: format!(
+                    "同時録画の上限 ({max}) に達しています。停止してから再試行してください"
+                ),
             });
         }
 
@@ -131,31 +148,36 @@ impl RecordingState {
 
         let task = RecordingTask {
             path: path.clone(),
-            channel_id: channel_id.clone(),
             channel_name: channel_name.clone(),
             handle,
         };
-        *guard = Some(task);
-        Ok(RecordingStatus {
-            recording: true,
-            path: Some(path.to_string_lossy().into_owned()),
-            channel_id: Some(channel_id),
-            channel_name: Some(channel_name),
+        guard.insert(channel_id.clone(), task);
+        Ok(RecordingEntry {
+            channel_id,
+            channel_name,
+            path: path.to_string_lossy().into_owned(),
         })
     }
 
-    /// 録画停止。進行中でなければ no-op。
-    pub async fn stop(&self) -> RecordingStatus {
+    /// 特定 channel_id の録画を停止。進行中でなければ no-op。
+    pub async fn stop(&self, channel_id: &str) -> bool {
         let mut guard = self.inner.lock().await;
-        if let Some(task) = guard.take() {
+        if let Some(task) = guard.remove(channel_id) {
+            task.handle.abort();
+            true
+        } else {
+            false
+        }
+    }
+
+    /// 全録画を停止。
+    pub async fn stop_all(&self) -> usize {
+        let mut guard = self.inner.lock().await;
+        let n = guard.len();
+        for (_, task) in guard.drain() {
             task.handle.abort();
         }
-        RecordingStatus {
-            recording: false,
-            path: None,
-            channel_id: None,
-            channel_name: None,
-        }
+        n
     }
 }
 

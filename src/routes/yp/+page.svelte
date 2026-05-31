@@ -1,7 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { emit } from '@tauri-apps/api/event';
-	import { CommandError, fetchYpIndex, getConfig, type YpEntry } from '$lib/api';
+	import {
+		CommandError,
+		fetchYpIndex,
+		firstFavoriteMatch,
+		getConfig,
+		type FavoriteRule,
+		type YpEntry,
+	} from '$lib/api';
 
 	let entries = $state<YpEntry[]>([]);
 	let loading = $state(false);
@@ -10,16 +17,27 @@
 	let filter = $state('');
 	let sortKey = $state<'listeners' | 'name' | 'genre' | 'bitrate'>('listeners');
 	let sortDesc = $state(true);
+	let favorites = $state<FavoriteRule[]>([]);
 
 	onMount(async () => {
 		try {
 			const cfg = await getConfig();
 			ypUrl = cfg?.peercast?.ypUrl ?? '';
+			favorites = cfg?.favorites?.rules ?? [];
 		} catch {
 			/* default to empty; refresh will surface the error */
 		}
 		await refresh();
 	});
+
+	function matchFor(e: YpEntry): FavoriteRule | null {
+		return firstFavoriteMatch(favorites, {
+			name: e.name,
+			genre: e.genre,
+			desc: e.desc,
+			comment: e.comment,
+		});
+	}
 
 	async function refresh() {
 		loading = true;
@@ -62,6 +80,10 @@
 				)
 			: entries.slice();
 		filtered.sort((a, b) => {
+			// pin_top のお気に入りは常に最上位に固める (列ソートより優先)。
+			const pa = matchFor(a)?.pin_top ? 1 : 0;
+			const pb = matchFor(b)?.pin_top ? 1 : 0;
+			if (pa !== pb) return pb - pa;
 			let cmp: number;
 			switch (sortKey) {
 				case 'listeners':
@@ -131,9 +153,21 @@
 		</div>
 		<div class="tbody">
 			{#each visible as e (e.id)}
-				<button class="row" onclick={() => pick(e)} title={e.desc || e.comment}>
+				{@const fav = matchFor(e)}
+				<button
+					class="row"
+					class:pinned={fav?.pin_top}
+					onclick={() => pick(e)}
+					title={fav
+						? `★ ${fav.name || 'お気に入り'}${fav.auto_record ? ' / 自動録画' : ''}`
+						: e.desc || e.comment}
+					style={fav?.color ? `background:${fav.color};` : undefined}
+				>
 					<span class="c-listeners">{e.listeners}</span>
-					<span class="c-name">{e.name || '(unnamed)'}</span>
+					<span class="c-name">
+						{#if fav}<span class="fav-mark">★</span>{/if}
+						{e.name || '(unnamed)'}
+					</span>
 					<span class="c-genre">{e.genre}</span>
 					<span class="c-bitrate">{e.bitrate}</span>
 					<span class="c-uptime">{e.uptime}</span>
@@ -300,6 +334,14 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.row.pinned {
+		font-weight: 600;
+	}
+	.fav-mark {
+		color: var(--accent, #ff8a3d);
+		margin-right: 0.25rem;
 	}
 
 	.muted {

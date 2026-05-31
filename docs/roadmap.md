@@ -191,14 +191,27 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
       - Desktop: libmpv の `stream-record` で再エンコード無しに保存。
         右クリック → ⏺ 録画開始 / ⏹ 録画停止。設定 → プレイヤー で
         保存先ディレクトリと拡張子を指定 (空なら exe 配下 `recordings/`,
-        拡張子は `flv`)
-      - pst-server: `/api/record/{start,stop,status}` を追加。tokio task が
-        上流 `/stream/{id}.{ext}` を bytes_stream → tokio::fs::File に
-        書き出し。同時 1 本のみ。`[recording] enabled=true, dir="..."`
-        の時のみ有効 (SD カード保護のため既定 OFF)
-      - Web (`/`): 視聴中に ⏺ 録画 ボタン (status API で機能の有無を判定)
-      - 動作確認後に使い勝手 (ファイル名 / 出力形式 / 同時録画 / 自動
-        停止条件) を仕様調整予定
+        拡張子は `flv`)。お気に入りに `auto_record = true` のルールが
+        あれば視聴開始時に自動録画
+      - pst-server: `/api/record/{start,stop,list}` を追加 (複数本並行)。
+        tokio task が上流 `/stream/{id}.{ext}` を bytes_stream →
+        tokio::fs::File に書き出し。`[recording] enabled=true, dir="..."`
+        時のみ有効、`max_concurrent` (既定 8) まで同時録画可
+      - Web (`/`): 視聴中に ⏺ 録画 ボタン (list API で機能の有無 + 現
+        チャンネルの状態を判定)。お気に入り auto_record で視聴開始時に
+        自動録画
+      - 動作確認後に使い勝手 (ファイル名 / 出力形式 / 自動停止条件)
+        を仕様調整予定
+- [x] **お気に入り機能** (`pst-core::favorites`)
+      - 設定 → お気に入り タブで複数ルールを編集 (名前 / チャンネル名
+        / ジャンル / 詳細 / コメント、上位固定、自動録画、背景色)。
+        フィールドは部分一致 (大文字小文字無視) で空欄ワイルドカード、
+        複数記述で AND。並び順が優先順位
+      - Desktop YP ウィンドウ / pst-server Web フロントの両方でルールに
+        マッチした行を上位固定 + 背景色 + ★ マークで表示
+      - pst-server は `/api/favorites` で config の `[[favorites.rules]]`
+        を JSON で返す (read-only)
+      - 視聴開始時に `auto_record = true` ルールにマッチすれば自動録画
 - [ ] プラグイン機構 (BBS タイプ追加、フィルタ等)
 - [ ] 英語 UI (i18n)
 - [ ] PeerCast 本体の自動起動・終了

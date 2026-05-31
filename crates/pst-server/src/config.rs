@@ -20,6 +20,8 @@ pub struct Config {
     pub log: LogConfig,
     #[serde(default)]
     pub recording: RecordingConfig,
+    #[serde(default)]
+    pub favorites: pst_core::favorites::FavoritesConfig,
 }
 
 /// 録画機能の設定。SD カード保護方針に従い既定 OFF。`enabled = true`
@@ -35,6 +37,11 @@ pub struct RecordingConfig {
     /// ファイル名拡張子。空なら `flv`。
     #[serde(default)]
     pub ext: String,
+    /// 同時に録画できる本数。0 (既定) は 8 として扱う。1 に固定したい
+    /// なら 1。Pi 等のリソース制約と SD カード書き込み帯域を踏まえて
+    /// 抑えるための上限。
+    #[serde(default)]
+    pub max_concurrent: u32,
 }
 
 /// ログ出力の制御。Raspberry Pi 等の SD カード環境を想定し、

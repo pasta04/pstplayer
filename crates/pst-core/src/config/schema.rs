@@ -23,6 +23,10 @@ pub struct Config {
     /// が使われる。空文字列を入れると「割当無し」として無効化。
     #[serde(default)]
     pub hotkeys: std::collections::BTreeMap<String, String>,
+    /// YP / チャンネルリストに対するお気に入り (フィルタ) ルール。
+    /// 詳細は [`crate::favorites`]。
+    #[serde(default)]
+    pub favorites: crate::favorites::FavoritesConfig,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

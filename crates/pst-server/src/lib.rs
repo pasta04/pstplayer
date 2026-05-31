@@ -63,10 +63,13 @@ pub fn build_router(state: AppState, web_dir: Option<PathBuf>) -> Router {
         // HLS proxy (上流 PeerCastStation の /hls/{id} を透過)
         .route("/hls/:id", routing::get(hls::playlist))
         .route("/hls/:id/:segment", routing::get(hls::segment))
-        // Recording (既定 OFF、config の [recording] enabled = true 必要)
+        // Recording (既定 OFF、config の [recording] enabled = true 必要)。
+        // 同時録画は `[recording] max_concurrent` (既定 8) まで。
         .route("/api/record/start", routing::post(handlers::record_start))
         .route("/api/record/stop", routing::post(handlers::record_stop))
-        .route("/api/record/status", routing::get(handlers::record_status));
+        .route("/api/record/list", routing::get(handlers::record_list))
+        // Favorites (frontend に config の rules を流すだけの read-only)
+        .route("/api/favorites", routing::get(handlers::favorites_list));
 
     if let Some(dir) = web_dir.filter(|p| p.is_dir()) {
         // `/` 以下はすべて静的フロント (ServeDir)。API ルートが既に上で

@@ -23,12 +23,44 @@ const refs = {
 
 let currentChannelId = null;
 let currentChannelName = '';
+let favorites = [];
+
+function ruleMatches(rule, t) {
+	const part = (needle, hay) => {
+		const n = (needle ?? '').trim();
+		if (!n) return true;
+		return (hay ?? '').toLowerCase().includes(n.toLowerCase());
+	};
+	return (
+		part(rule.channel_name, t.name) &&
+		part(rule.genre, t.genre) &&
+		part(rule.desc, t.desc) &&
+		part(rule.comment, t.comment)
+	);
+}
+
+function firstFavoriteMatch(t) {
+	for (const r of favorites) if (ruleMatches(r, t)) return r;
+	return null;
+}
+
+async function loadFavorites() {
+	try {
+		const resp = await fetch('/api/favorites');
+		if (!resp.ok) return;
+		const body = await resp.json();
+		favorites = body.rules ?? [];
+	} catch {
+		favorites = [];
+	}
+}
 
 async function loadChannels() {
 	refs.status.hidden = false;
 	refs.status.textContent = '読み込み中…';
 	refs.channels.hidden = true;
 	refs.error.hidden = true;
+	await loadFavorites();
 	try {
 		const resp = await fetch('/api/channels');
 		const body = await resp.json();
@@ -46,26 +78,44 @@ async function loadChannels() {
 function renderChannels(channels) {
 	const tbody = refs.channelsTbody;
 	tbody.innerHTML = '';
-	const sorted = channels.slice().sort((a, b) => {
-		const la = a.status?.localDirects ?? 0;
-		const lb = b.status?.localDirects ?? 0;
+	const annotated = channels.map((ch) => {
+		const info = ch.info ?? {};
+		const fav = firstFavoriteMatch({
+			name: info.name ?? '',
+			genre: info.genre ?? '',
+			desc: info.desc ?? '',
+			comment: info.comment ?? '',
+		});
+		return { ch, info, fav };
+	});
+	annotated.sort((a, b) => {
+		// pin_top のお気に入りは最上位に固定。次に listeners 降順。
+		const pa = a.fav?.pin_top ? 1 : 0;
+		const pb = b.fav?.pin_top ? 1 : 0;
+		if (pa !== pb) return pb - pa;
+		const la = a.ch.status?.localDirects ?? 0;
+		const lb = b.ch.status?.localDirects ?? 0;
 		return lb - la;
 	});
-	for (const ch of sorted) {
+	for (const { ch, info, fav } of annotated) {
 		const tr = document.createElement('tr');
-		const info = ch.info ?? {};
 		const status = ch.status ?? {};
+		if (fav?.color) tr.style.background = fav.color;
+		if (fav?.pin_top) tr.classList.add('pinned');
 		tr.innerHTML = `
 			<td class="num">${status.localDirects ?? 0}</td>
-			<td>${escapeHtml(info.name || '(unnamed)')}</td>
+			<td>${fav ? '<span class="fav-mark">★</span>' : ''}${escapeHtml(info.name || '(unnamed)')}</td>
 			<td>${escapeHtml(info.genre || '')}</td>
 			<td class="num">${info.bitrate ?? 0}</td>
 			<td>${escapeHtml(info.contentType || '')}</td>
 		`;
+		tr.title = fav
+			? `★ ${fav.name || 'お気に入り'}${fav.auto_record ? ' / 自動録画' : ''}`
+			: info.desc || '';
 		tr.addEventListener('click', () => openChannel(ch.channelId, info.name || ''));
 		tbody.appendChild(tr);
 	}
-	if (sorted.length === 0) {
+	if (annotated.length === 0) {
 		const tr = document.createElement('tr');
 		tr.innerHTML = `<td colspan="5" class="muted small">視聴可能なチャンネルがありません。</td>`;
 		tbody.appendChild(tr);
@@ -75,14 +125,15 @@ function renderChannels(channels) {
 // 直前に attach した Hls インスタンス (戻る時に destroy する)。
 let currentHls = null;
 
-function openChannel(id, name) {
+async function openChannel(id, name) {
 	currentChannelId = id;
 	currentChannelName = name || '';
 	refs.currentTitle.textContent = name || id;
 	refs.playerError.hidden = true;
 	refs.channelsSection.hidden = true;
 	refs.playerSection.hidden = false;
-	syncRecordStatus();
+	await syncRecordStatus();
+	maybeAutoRecord({ name: name || '', genre: '', desc: '', comment: '' });
 	disposeHls();
 	// HLS プロキシ経由で <video> に流す。Safari (iOS / macOS) は m3u8
 	// をネイティブで再生できるためそのまま src 指定。Android Chrome /
@@ -153,29 +204,36 @@ refs.refresh.addEventListener('click', loadChannels);
 refs.back.addEventListener('click', backToList);
 refs.record.addEventListener('click', toggleRecord);
 
-// 録画機能が server で有効か (config の [recording] enabled = true) を
-// 起動時に 1 度だけ確認。失敗時は無効ボタンを隠したまま。
+// 録画 API は複数本対応 (/api/record/list, start, stop)。
+// 現在開いているチャンネルが録画中かを 1 つだけ判定する。
 async function syncRecordStatus() {
-	try {
-		const resp = await fetch('/api/record/status');
-		if (!resp.ok) {
-			refs.record.hidden = true;
-			return;
-		}
-		const body = await resp.json();
-		refs.record.hidden = false;
-		applyRecordingStatus(body);
-	} catch {
+	const list = await fetchRecordingList();
+	if (list === null) {
 		refs.record.hidden = true;
+		return;
+	}
+	refs.record.hidden = false;
+	const me = list.find((r) => r.channel_id === currentChannelId);
+	applyRecordingStatus(me ?? null);
+}
+
+async function fetchRecordingList() {
+	try {
+		const resp = await fetch('/api/record/list');
+		if (!resp.ok) return null;
+		const body = await resp.json();
+		return body.recordings ?? [];
+	} catch {
+		return null;
 	}
 }
 
-function applyRecordingStatus(body) {
-	if (body.recording) {
+function applyRecordingStatus(entry) {
+	if (entry) {
 		refs.record.textContent = '⏹ 録画停止';
 		refs.record.classList.add('on');
 		refs.recordInfo.hidden = false;
-		refs.recordInfo.textContent = `録画中: ${body.path ?? ''}`;
+		refs.recordInfo.textContent = `録画中: ${entry.path ?? ''}`;
 	} else {
 		refs.record.textContent = '⏺ 録画';
 		refs.record.classList.remove('on');
@@ -184,13 +242,18 @@ function applyRecordingStatus(body) {
 }
 
 async function toggleRecord() {
+	if (!currentChannelId) return;
 	try {
-		const statusResp = await fetch('/api/record/status');
-		const status = await statusResp.json();
-		if (status.recording) {
-			const r = await fetch('/api/record/stop', { method: 'POST' });
-			applyRecordingStatus(await r.json());
-		} else if (currentChannelId) {
+		const list = (await fetchRecordingList()) ?? [];
+		const me = list.find((r) => r.channel_id === currentChannelId);
+		if (me) {
+			await fetch('/api/record/stop', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ id: currentChannelId }),
+			});
+			applyRecordingStatus(null);
+		} else {
 			const r = await fetch('/api/record/start', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
@@ -207,6 +270,24 @@ async function toggleRecord() {
 	} catch (e) {
 		refs.playerError.hidden = false;
 		refs.playerError.textContent = `録画 API エラー: ${e.message || e}`;
+	}
+}
+
+async function maybeAutoRecord(target) {
+	const fav = firstFavoriteMatch(target);
+	if (!fav?.auto_record) return;
+	const list = (await fetchRecordingList()) ?? [];
+	if (list.some((r) => r.channel_id === currentChannelId)) return;
+	try {
+		const r = await fetch('/api/record/start', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ id: currentChannelId, name: currentChannelName }),
+		});
+		const body = await r.json();
+		if (r.ok) applyRecordingStatus(body);
+	} catch {
+		/* best-effort */
 	}
 }
 

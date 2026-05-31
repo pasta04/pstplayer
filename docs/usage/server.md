@@ -67,8 +67,20 @@ dir = ""
 # SD カードに書きたくない場合は外付け USB / SSD のマウント先を指定。
 [recording]
 enabled = false
-dir = ""        # 例: "/mnt/usb/recordings"
-ext = ""        # 空なら flv
+dir = ""             # 例: "/mnt/usb/recordings"
+ext = ""             # 空なら flv
+max_concurrent = 0   # 0 = 既定 (8 本)。同時録画の上限
+
+# お気に入りルール。複数定義可、上から評価。フィールドは部分一致
+# (大文字小文字無視)、空欄ワイルドカード、複数記述で AND。
+# Web フロントは /api/favorites で読み出し、上位固定 / 背景色 /
+# 自動録画に反映する。
+[[favorites.rules]]
+name = "メイン"
+channel_name = "MOXch"
+pin_top = true
+auto_record = false
+color = "#ff8a3d22"
 ```
 
 ## ログ仕様
@@ -102,9 +114,10 @@ ext = ""        # 空なら flv
 | `POST /api/thread/post` (JSON)      | BBS 書き込み                                              |
 | `GET  /hls/:id`                     | PeerCastStation の HLS playlist をプロキシ                |
 | `GET  /hls/:id/:segment`            | TS セグメントをプロキシ                                   |
-| `GET  /api/record/status`           | 現在の録画状態 (`{recording, path, channel_id, channel_name}`) |
+| `GET  /api/record/list`             | 進行中の全録画タスク一覧                                   |
 | `POST /api/record/start` (JSON)     | 録画開始 (`{id, name}`)。既定 OFF                          |
-| `POST /api/record/stop`             | 録画停止                                                   |
+| `POST /api/record/stop` (JSON)      | 録画停止 (`{id}` で指定、省略時は全停止)                   |
+| `GET  /api/favorites`               | 設定 `[[favorites.rules]]` を JSON で返す (read-only)      |
 
 エラー応答は `application/json` で `{ "code": "...", "message": "..." }`
 の形式 (デスクトップ版と統一)。

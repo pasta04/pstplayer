@@ -208,7 +208,7 @@ pub async fn thread_post(Json(b): Json<PostBody>) -> ApiResult<Json<Empty>> {
     Ok(Json(Empty {}))
 }
 
-// ── Recording ─────────────────────────────────────────────────
+// ── Recording (複数本並行) ────────────────────────────────────
 
 #[derive(Deserialize)]
 pub struct RecordStart {
@@ -220,17 +220,50 @@ pub struct RecordStart {
 pub async fn record_start(
     State(s): State<AppState>,
     Json(b): Json<RecordStart>,
-) -> ApiResult<Json<crate::recording::RecordingStatus>> {
-    let status = s.recording.start(&s, b.id, b.name).await?;
-    Ok(Json(status))
+) -> ApiResult<Json<crate::recording::RecordingEntry>> {
+    let entry = s.recording.start(&s, b.id, b.name).await?;
+    Ok(Json(entry))
 }
 
-pub async fn record_stop(State(s): State<AppState>) -> Json<crate::recording::RecordingStatus> {
-    Json(s.recording.stop().await)
+#[derive(Deserialize)]
+pub struct RecordStop {
+    /// `id` 省略時は全停止。
+    #[serde(default)]
+    pub id: Option<String>,
 }
 
-pub async fn record_status(State(s): State<AppState>) -> Json<crate::recording::RecordingStatus> {
-    Json(s.recording.status().await)
+#[derive(Serialize)]
+pub struct RecordStopResp {
+    pub stopped: usize,
+}
+
+pub async fn record_stop(
+    State(s): State<AppState>,
+    Json(b): Json<RecordStop>,
+) -> Json<RecordStopResp> {
+    let stopped = match b.id {
+        Some(id) => {
+            if s.recording.stop(&id).await {
+                1
+            } else {
+                0
+            }
+        }
+        None => s.recording.stop_all().await,
+    };
+    Json(RecordStopResp { stopped })
+}
+
+pub async fn record_list(State(s): State<AppState>) -> Json<crate::recording::RecordingList> {
+    Json(s.recording.list().await)
+}
+
+// ── Favorites ─────────────────────────────────────────────────
+
+pub async fn favorites_list(
+    State(s): State<AppState>,
+) -> Json<pst_core::favorites::FavoritesConfig> {
+    Json(s.cfg.favorites.clone())
 }
 
 // ── Index ──────────────────────────────────────────────────────
