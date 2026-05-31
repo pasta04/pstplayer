@@ -507,13 +507,7 @@
 
 	async function ctxOpenContactUrl() {
 		closeCtxMenu();
-		if (!channelInfo?.url) return;
-		try {
-			const { openUrl } = await import('@tauri-apps/plugin-opener');
-			await openUrl(channelInfo.url);
-		} catch {
-			/* opener missing */
-		}
+		if (channelInfo?.url) await openExternal(channelInfo.url);
 	}
 
 	async function ctxToggleFullscreen() {
@@ -521,6 +515,12 @@
 		const { getCurrentWindow } = await import('@tauri-apps/api/window');
 		const w = getCurrentWindow();
 		await w.setFullscreen(!(await w.isFullscreen()));
+	}
+
+	async function ctxToggleAlwaysOnTop() {
+		closeCtxMenu();
+		alwaysOnTop = !alwaysOnTop;
+		await setAlwaysOnTop(alwaysOnTop);
 	}
 
 	async function doSnapshot() {
@@ -631,6 +631,17 @@
 	function onPostsClick(e: MouseEvent) {
 		const t = e.target;
 		if (!(t instanceof HTMLElement)) return;
+
+		// Body 内の URL ([format.ts] が `<a class="external">` で出力) は
+		// WebView 内で target="_blank" が機能しないので、ここで横取りして
+		// OS の既定ブラウザに渡す。
+		const a = t.closest('a.external');
+		if (a instanceof HTMLAnchorElement && a.href) {
+			e.preventDefault();
+			openExternal(a.href);
+			return;
+		}
+
 		const from = t.dataset.anchorFrom;
 		const to = t.dataset.anchorTo;
 		const id = t.dataset.idLink;
@@ -652,6 +663,15 @@
 			const matched = posts.filter((p) => p.id === id);
 			showPopup(matched, `ID:${id} (${matched.length})`, e);
 			e.preventDefault();
+		}
+	}
+
+	async function openExternal(url: string) {
+		try {
+			const { openUrl } = await import('@tauri-apps/plugin-opener');
+			await openUrl(url);
+		} catch (err) {
+			console.warn('failed to open external URL', err);
 		}
 	}
 
@@ -886,6 +906,9 @@
 				<button class="ctx-item" onclick={onStop} disabled={!channelId}> ■ 切断 (Stop) </button>
 				<div class="ctx-sep"></div>
 				<button class="ctx-item" onclick={ctxToggleFullscreen}>⛶ 全画面切替</button>
+				<button class="ctx-item" onclick={ctxToggleAlwaysOnTop}>
+					{alwaysOnTop ? '✓' : '　'} 常に最前面
+				</button>
 				<button class="ctx-item" onclick={ctxOpenContactUrl} disabled={!channelInfo?.url}>
 					🔗 コンタクト URL を開く
 				</button>
