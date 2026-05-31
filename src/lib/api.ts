@@ -288,6 +288,10 @@ export async function playerLoad(url: string): Promise<void> {
 	return call<void>('player_load', { url });
 }
 
+export async function playerAttach(windowLabel: string): Promise<void> {
+	return call<void>('player_attach', { windowLabel });
+}
+
 export async function playerStop(): Promise<void> {
 	return call<void>('player_stop');
 }

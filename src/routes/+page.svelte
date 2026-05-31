@@ -11,10 +11,13 @@
 		getCliArgs,
 		getConfig,
 		listThreads,
+		playerAttach,
+		playerLoad,
 		playerSetAspect,
 		playerSetVolume,
 		playerSnapshot,
 		playerStatus,
+		playerStop,
 		postToThread,
 		pushHistory,
 		resolveStreamUrl,
@@ -121,6 +124,13 @@
 
 	onMount(async () => {
 		themeUnlisten = initTheme();
+
+		// Hand the main Tauri window to libmpv so it renders into our surface
+		// (`wid` property). Best-effort: on Wayland this is unsupported and
+		// the engine just stays detached, which is fine for headless / dev.
+		playerAttach('main').catch((e) => {
+			console.warn('player_attach failed (libmpv overlay disabled)', e);
+		});
 
 		// Restore last main window position/size, then start watching.
 		await restoreMainWindowGeometry();
@@ -280,6 +290,14 @@
 			endpoint = await endpointForUrl(url);
 			channelId = extractChannelId(url);
 
+			// Hand the resolved stream URL to libmpv. Errors here shouldn't
+			// abort the BBS / channel-info wiring below.
+			try {
+				await playerLoad(streamUrl);
+			} catch (e) {
+				console.warn('player_load failed', e);
+			}
+
 			if (channelId && endpoint) {
 				await reloadInfoAndBbs();
 				startPolling();
@@ -434,6 +452,8 @@
 		if (!confirm('チャンネルを切断します。よろしいですか?')) return;
 		try {
 			await stopChannel(endpoint, channelId);
+			await playerStop().catch((e) => console.warn('player_stop failed', e));
+			streamUrl = null;
 		} catch (e) {
 			lastError = errorMessage(e);
 		}
@@ -720,13 +740,9 @@
 			role="presentation"
 		>
 			{#if streamUrl}
-				<div class="player-placeholder">
-					<div>
-						<div class="big">▶ libmpv プレースホルダ</div>
-						<div class="hint">ストリーム URL を取得済み (libmpv 統合は次フェーズ):</div>
-						<code class="url">{streamUrl}</code>
-					</div>
-				</div>
+				<!-- libmpv が wid 経由でこの領域に直接描画する。
+				     DOM 上は空のままで OK (動画は native overlay)。 -->
+				<div class="player-canvas" aria-label="再生中"></div>
 			{:else}
 				<div class="player-empty">
 					<form
@@ -1059,28 +1075,17 @@
 		min-height: 0;
 	}
 
-	.player-placeholder,
 	.player-empty {
 		color: #9aa0a6;
 		text-align: center;
 		padding: 2rem;
 	}
 
-	.big {
-		font-size: 1.4rem;
-		margin-bottom: 0.5rem;
-	}
-
-	.url {
-		display: inline-block;
-		margin-top: 0.5rem;
-		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-		font-size: 0.8rem;
-		background: var(--bg-input);
-		padding: 0.3rem 0.5rem;
-		border-radius: 3px;
-		max-width: 80%;
-		overflow-wrap: anywhere;
+	/* libmpv 描画用の透明な場所取り。動画は native overlay として
+	   この div の矩形に重ねて描かれる。背景は親 .player の黒。 */
+	.player-canvas {
+		flex: 1 1 auto;
+		align-self: stretch;
 	}
 
 	.url-form label {
