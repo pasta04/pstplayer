@@ -261,8 +261,28 @@
 	// ── Derived ──────────────────────────────────────────────────────
 
 	const visiblePosts = $derived.by(() => {
-		const q = filter.trim().toLowerCase();
-		if (!q) return posts;
+		const raw = filter.trim();
+		if (!raw) return posts;
+
+		// `>>N` / `>>N-M` でレス番号抽出 (前後 3 件も含めて文脈が読める
+		// ようにする)。
+		const anchor = raw.match(/^(?:>>|＞＞)?(\d+)(?:-(\d+))?$/);
+		if (anchor) {
+			const from = Math.max(1, Number(anchor[1]) - 2);
+			const to = anchor[2] ? Number(anchor[2]) + 2 : Number(anchor[1]) + 2;
+			return posts.filter((p) => p.number >= from && p.number <= to);
+		}
+
+		// `id:xxx` で同一 ID 抽出 (大文字小文字無視、部分一致)。
+		const idMatch = raw.match(/^id:(.+)$/i);
+		if (idMatch) {
+			const idQ = idMatch[1].trim().toLowerCase();
+			if (idQ) return posts.filter((p) => p.id.toLowerCase().includes(idQ));
+			return posts;
+		}
+
+		// それ以外はキーワード横断検索 (本文 / 名前 / ID / レス番号)。
+		const q = raw.toLowerCase();
 		return posts.filter(
 			(p) =>
 				p.body.toLowerCase().includes(q) ||
@@ -850,7 +870,8 @@
 						bind:this={filterInput}
 						bind:value={filter}
 						type="search"
-						placeholder="スレ内検索 (本文/名前/ID/番号)"
+						placeholder="検索 / >>123 / id:xxx で抽出"
+						title="検索:本文-名前-ID-番号 / >>N or >>N-M でレス番号抽出 / id:xxx で同一 ID 抽出"
 					/>
 					{#if filter}
 						<span class="filter-stat">{visiblePosts.length} / {posts.length}</span>
