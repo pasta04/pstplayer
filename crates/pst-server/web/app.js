@@ -17,7 +17,12 @@ const refs = {
 	player: $('player'),
 	playerError: $('player-error'),
 	currentTitle: $('current-title'),
+	record: $('record'),
+	recordInfo: $('record-info'),
 };
+
+let currentChannelId = null;
+let currentChannelName = '';
 
 async function loadChannels() {
 	refs.status.hidden = false;
@@ -71,10 +76,13 @@ function renderChannels(channels) {
 let currentHls = null;
 
 function openChannel(id, name) {
+	currentChannelId = id;
+	currentChannelName = name || '';
 	refs.currentTitle.textContent = name || id;
 	refs.playerError.hidden = true;
 	refs.channelsSection.hidden = true;
 	refs.playerSection.hidden = false;
+	syncRecordStatus();
 	disposeHls();
 	// HLS プロキシ経由で <video> に流す。Safari (iOS / macOS) は m3u8
 	// をネイティブで再生できるためそのまま src 指定。Android Chrome /
@@ -143,6 +151,64 @@ function escapeHtml(s) {
 
 refs.refresh.addEventListener('click', loadChannels);
 refs.back.addEventListener('click', backToList);
+refs.record.addEventListener('click', toggleRecord);
+
+// 録画機能が server で有効か (config の [recording] enabled = true) を
+// 起動時に 1 度だけ確認。失敗時は無効ボタンを隠したまま。
+async function syncRecordStatus() {
+	try {
+		const resp = await fetch('/api/record/status');
+		if (!resp.ok) {
+			refs.record.hidden = true;
+			return;
+		}
+		const body = await resp.json();
+		refs.record.hidden = false;
+		applyRecordingStatus(body);
+	} catch {
+		refs.record.hidden = true;
+	}
+}
+
+function applyRecordingStatus(body) {
+	if (body.recording) {
+		refs.record.textContent = '⏹ 録画停止';
+		refs.record.classList.add('on');
+		refs.recordInfo.hidden = false;
+		refs.recordInfo.textContent = `録画中: ${body.path ?? ''}`;
+	} else {
+		refs.record.textContent = '⏺ 録画';
+		refs.record.classList.remove('on');
+		refs.recordInfo.hidden = true;
+	}
+}
+
+async function toggleRecord() {
+	try {
+		const statusResp = await fetch('/api/record/status');
+		const status = await statusResp.json();
+		if (status.recording) {
+			const r = await fetch('/api/record/stop', { method: 'POST' });
+			applyRecordingStatus(await r.json());
+		} else if (currentChannelId) {
+			const r = await fetch('/api/record/start', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ id: currentChannelId, name: currentChannelName }),
+			});
+			const body = await r.json();
+			if (!r.ok) {
+				refs.playerError.hidden = false;
+				refs.playerError.textContent = `録画開始失敗: ${body.message ?? r.status}`;
+				return;
+			}
+			applyRecordingStatus(body);
+		}
+	} catch (e) {
+		refs.playerError.hidden = false;
+		refs.playerError.textContent = `録画 API エラー: ${e.message || e}`;
+	}
+}
 
 // Service Worker 登録 (PWA の Add to Home Screen 用)。失敗しても致命的
 // ではないので catch のみ。

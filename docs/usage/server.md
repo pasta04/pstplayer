@@ -61,6 +61,14 @@ public_url = "https://pst.example.lan/"   # 逆プロキシ越しの URL (manife
 [log]
 debug = false
 dir = ""
+
+# 録画機能。既定 OFF。enabled = true かつ dir が指定された時のみ
+# /api/record/start が動く。書き出しは指定ディレクトリへ直接行うので、
+# SD カードに書きたくない場合は外付け USB / SSD のマウント先を指定。
+[recording]
+enabled = false
+dir = ""        # 例: "/mnt/usb/recordings"
+ext = ""        # 空なら flv
 ```
 
 ## ログ仕様
@@ -94,9 +102,30 @@ dir = ""
 | `POST /api/thread/post` (JSON)      | BBS 書き込み                                              |
 | `GET  /hls/:id`                     | PeerCastStation の HLS playlist をプロキシ                |
 | `GET  /hls/:id/:segment`            | TS セグメントをプロキシ                                   |
+| `GET  /api/record/status`           | 現在の録画状態 (`{recording, path, channel_id, channel_name}`) |
+| `POST /api/record/start` (JSON)     | 録画開始 (`{id, name}`)。既定 OFF                          |
+| `POST /api/record/stop`             | 録画停止                                                   |
 
 エラー応答は `application/json` で `{ "code": "...", "message": "..." }`
 の形式 (デスクトップ版と統一)。
+
+## 録画
+
+`POST /api/record/start` で開始、`POST /api/record/stop` で停止。
+同時録画は 1 本まで (バッティングしたら 409 `recording_busy`)。
+
+- 既定 OFF (`[recording] enabled = false`)。SD カード書き込みを避け
+  たい構成では有効化しないこと
+- 有効化する場合は `dir` を **外付け USB / SSD のマウント先** に
+  指定するのを推奨
+- ファイル名は `YYYYMMDD_HHmmss_<channel_name>.<ext>` (Desktop 版と
+  同じ規則)
+- 上流 `http://{peercast}/stream/{id}.{ext}` を `bytes_stream` で
+  受けて直接書き出します。再エンコード / 一時バッファ無し
+
+Web フロント (`/`) では視聴中に右上の **⏺ 録画** ボタンで開始 /
+停止できます。サーバ側で機能が無効な場合 (`enabled = false`) は
+ボタン自体が隠れます。
 
 ## HLS と「ディスク不使用」方針
 

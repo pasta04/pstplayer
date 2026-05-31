@@ -88,6 +88,53 @@ pub fn player_snapshot(
     Ok(full_str)
 }
 
+/// 録画を開始する。`channel_name` は出力ファイル名の組み立てに使う。
+/// 戻り値は保存先の絶対パス (ユーザーに通知する用)。
+#[tauri::command]
+pub fn player_record_start(
+    channel_name: Option<String>,
+    engine: State<'_, PlayerEngine>,
+) -> Result<String, IpcError> {
+    let cfg = config::load().map_err(IpcError::from)?;
+    let exe_dir = exe_dir();
+    let resolved = snapshot::resolve_record_dir(&cfg.player, exe_dir.as_deref());
+    fs::create_dir_all(&resolved.dir).map_err(|e| {
+        AppError::Decode(format!("cannot create recording dir {}: {e}", resolved.dir.display()))
+    })?;
+    // 拡張子: 設定で明示があればそれ、なければ FLV (PeerCast の主流)。
+    // libmpv はファイル名の拡張子からコンテナを推測するため、ここで
+    // 何かを決めないと "拡張子なし" のファイルが出来てしまう。
+    let raw_ext = cfg.player.recording_ext.trim().trim_start_matches('.');
+    let ext = if raw_ext.is_empty() { "flv" } else { raw_ext };
+    let name = snapshot::make_filename(channel_name.as_deref().unwrap_or(""), ext);
+    let full = resolved.dir.join(&name);
+    let full_str = full.to_string_lossy().into_owned();
+    engine.start_record(&full_str).map_err(IpcError::from)?;
+    Ok(full_str)
+}
+
+/// 録画を停止する。録画中でなければ何もしない (libmpv 仕様で
+/// stream-record を空にするだけ)。
+#[tauri::command]
+pub fn player_record_stop(engine: State<'_, PlayerEngine>) -> Result<(), IpcError> {
+    engine.stop_record().map_err(Into::into)
+}
+
+/// 録画中のパスを返す。録画していなければ None。
+#[tauri::command]
+pub fn player_record_path(engine: State<'_, PlayerEngine>) -> Option<String> {
+    engine.record_path()
+}
+
+/// 録画ファイルの保存先 (現在の設定で解決した結果)。設定ダイアログの
+/// プレビュー表示用。
+#[tauri::command]
+pub fn recording_target_dir() -> Result<String, IpcError> {
+    let cfg = config::load().map_err(IpcError::from)?;
+    let resolved = snapshot::resolve_record_dir(&cfg.player, exe_dir().as_deref());
+    Ok(resolved.dir.to_string_lossy().into_owned())
+}
+
 /// Set the video aspect override. 0.0 = auto, -1.0 = stretch.
 #[tauri::command]
 pub fn player_set_aspect(aspect: f64, engine: State<'_, PlayerEngine>) -> Result<(), IpcError> {

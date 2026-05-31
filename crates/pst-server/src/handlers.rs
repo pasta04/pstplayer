@@ -208,6 +208,31 @@ pub async fn thread_post(Json(b): Json<PostBody>) -> ApiResult<Json<Empty>> {
     Ok(Json(Empty {}))
 }
 
+// ── Recording ─────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+pub struct RecordStart {
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+}
+
+pub async fn record_start(
+    State(s): State<AppState>,
+    Json(b): Json<RecordStart>,
+) -> ApiResult<Json<crate::recording::RecordingStatus>> {
+    let status = s.recording.start(&s, b.id, b.name).await?;
+    Ok(Json(status))
+}
+
+pub async fn record_stop(State(s): State<AppState>) -> Json<crate::recording::RecordingStatus> {
+    Json(s.recording.stop().await)
+}
+
+pub async fn record_status(State(s): State<AppState>) -> Json<crate::recording::RecordingStatus> {
+    Json(s.recording.status().await)
+}
+
 // ── Index ──────────────────────────────────────────────────────
 
 /// MVP の最小ランディング。Svelte の Web ビルドを後で /pkg にマウントする

@@ -20,14 +20,43 @@ pub struct ResolvedDir {
 }
 
 pub fn resolve_dir(cfg: &PlayerConfig, exe_dir: Option<&Path>) -> ResolvedDir {
-    if !cfg.snapshot_dir.trim().is_empty() {
+    resolve_named(
+        &cfg.snapshot_dir,
+        exe_dir,
+        "snapshot",
+        pictures_dir,
+        "snapshot",
+    )
+}
+
+/// 録画ファイル用ディレクトリ解決。snapshot と同じ規則だが、
+/// 既定サブディレクトリ名と OS 標準のフォールバック先 (Videos) が
+/// 異なる。
+pub fn resolve_record_dir(cfg: &PlayerConfig, exe_dir: Option<&Path>) -> ResolvedDir {
+    resolve_named(
+        &cfg.recording_dir,
+        exe_dir,
+        "recordings",
+        videos_dir,
+        "recordings",
+    )
+}
+
+fn resolve_named(
+    configured: &str,
+    exe_dir: Option<&Path>,
+    exe_subdir: &str,
+    fallback_root: fn() -> Option<PathBuf>,
+    fallback_subdir: &str,
+) -> ResolvedDir {
+    if !configured.trim().is_empty() {
         return ResolvedDir {
-            dir: expand_tilde(&cfg.snapshot_dir),
+            dir: expand_tilde(configured),
             fell_back: false,
         };
     }
     if let Some(exe) = exe_dir {
-        let candidate = exe.join("snapshot");
+        let candidate = exe.join(exe_subdir);
         if writable(&candidate) {
             return ResolvedDir {
                 dir: candidate,
@@ -35,10 +64,10 @@ pub fn resolve_dir(cfg: &PlayerConfig, exe_dir: Option<&Path>) -> ResolvedDir {
             };
         }
     }
-    let fallback = pictures_dir()
+    let fallback = fallback_root()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("PSTPlayer")
-        .join("snapshot");
+        .join(fallback_subdir);
     ResolvedDir {
         dir: fallback,
         fell_back: true,
@@ -89,6 +118,10 @@ fn home_dir() -> Option<PathBuf> {
 
 fn pictures_dir() -> Option<PathBuf> {
     directories::UserDirs::new().and_then(|d| d.picture_dir().map(|p| p.to_path_buf()))
+}
+
+fn videos_dir() -> Option<PathBuf> {
+    directories::UserDirs::new().and_then(|d| d.video_dir().map(|p| p.to_path_buf()))
 }
 
 fn writable(p: &Path) -> bool {

@@ -258,6 +258,8 @@ export interface PlayerCfg {
 	snapshot_dir: string;
 	snapshot_format: string;
 	snapshot_jpeg_quality: number;
+	recording_dir: string;
+	recording_ext: string;
 }
 
 export interface WindowCfg {
@@ -369,6 +371,22 @@ export async function playerSnapshot(channelName?: string): Promise<string> {
 
 export async function snapshotTargetDir(): Promise<string> {
 	return call<string>('snapshot_target_dir');
+}
+
+export async function playerRecordStart(channelName?: string): Promise<string> {
+	return call<string>('player_record_start', { channelName: channelName ?? '' });
+}
+
+export async function playerRecordStop(): Promise<void> {
+	return call<void>('player_record_stop');
+}
+
+export async function playerRecordPath(): Promise<string | null> {
+	return call<string | null>('player_record_path');
+}
+
+export async function recordingTargetDir(): Promise<string> {
+	return call<string>('recording_target_dir');
 }
 
 export async function playerSetAspect(aspect: number): Promise<void> {

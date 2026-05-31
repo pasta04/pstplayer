@@ -69,6 +69,10 @@ pub fn run() {
             commands::player::player_attach,
             commands::player::player_snapshot,
             commands::player::snapshot_target_dir,
+            commands::player::player_record_start,
+            commands::player::player_record_stop,
+            commands::player::player_record_path,
+            commands::player::recording_target_dir,
             commands::player::player_set_aspect,
         ])
         .run(tauri::generate_context!())

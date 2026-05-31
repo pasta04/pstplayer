@@ -10,6 +10,7 @@ pub mod config;
 pub mod error;
 pub mod handlers;
 pub mod hls;
+pub mod recording;
 pub mod state;
 
 use std::path::PathBuf;
@@ -61,7 +62,11 @@ pub fn build_router(state: AppState, web_dir: Option<PathBuf>) -> Router {
         .route("/api/thread/post", routing::post(handlers::thread_post))
         // HLS proxy (上流 PeerCastStation の /hls/{id} を透過)
         .route("/hls/:id", routing::get(hls::playlist))
-        .route("/hls/:id/:segment", routing::get(hls::segment));
+        .route("/hls/:id/:segment", routing::get(hls::segment))
+        // Recording (既定 OFF、config の [recording] enabled = true 必要)
+        .route("/api/record/start", routing::post(handlers::record_start))
+        .route("/api/record/stop", routing::post(handlers::record_stop))
+        .route("/api/record/status", routing::get(handlers::record_status));
 
     if let Some(dir) = web_dir.filter(|p| p.is_dir()) {
         // `/` 以下はすべて静的フロント (ServeDir)。API ルートが既に上で

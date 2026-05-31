@@ -15,6 +15,9 @@
 		peercastPing,
 		playerAttach,
 		playerLoad,
+		playerRecordPath,
+		playerRecordStart,
+		playerRecordStop,
 		playerSetAspect,
 		playerSetVolume,
 		playerSnapshot,
@@ -114,6 +117,8 @@
 	let history = $state<HistoryEntry[]>([]);
 	// チャンネル詳細モーダル (リレー / 接続情報の全フィールドを見るため)。
 	let showChannelDetails = $state(false);
+	// 録画中の保存先パス。null = 録画していない。
+	let recordPath = $state<string | null>(null);
 
 	// Volume (0-100). Wheel over the player area changes it.
 	let volume = $state(80);
@@ -604,10 +609,30 @@
 	function onPlayerContextMenu(e: MouseEvent) {
 		e.preventDefault();
 		ctxMenu = { x: e.clientX, y: e.clientY };
-		// メニュー展開のついでに最新履歴を取得 (best-effort)。
+		// メニュー展開のついでに最新履歴 / 録画状態を取得 (best-effort)。
 		getHistory()
 			.then((h) => (history = h))
 			.catch(() => undefined);
+		playerRecordPath()
+			.then((p) => (recordPath = p))
+			.catch(() => undefined);
+	}
+
+	async function ctxToggleRecord() {
+		closeCtxMenu();
+		try {
+			if (recordPath) {
+				await playerRecordStop();
+				notify('録画停止', recordPath);
+				recordPath = null;
+			} else {
+				const path = await playerRecordStart(channelInfo?.name);
+				recordPath = path;
+				notify('録画開始', path);
+			}
+		} catch (e) {
+			lastError = errorMessage(e);
+		}
 	}
 
 	async function openFromHistory(entry: HistoryEntry) {
@@ -1156,6 +1181,14 @@
 					}}
 				>
 					📷 スナップショット (F2)
+				</button>
+				<button
+					class="ctx-item"
+					onclick={ctxToggleRecord}
+					disabled={!streamUrl}
+					title={recordPath ?? '視聴中の配信を再エンコードせず保存します'}
+				>
+					{recordPath ? '⏹ 録画停止' : '⏺ 録画開始'}
 				</button>
 				<button class="ctx-item" onclick={onOpenSettings}>⚙ 設定...</button>
 				<button class="ctx-item" onclick={onOpenThreadList} disabled={!channelInfo?.url}>

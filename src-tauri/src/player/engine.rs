@@ -84,6 +84,23 @@ impl PlayerEngine {
         self.mpv.command("screenshot-to-file", &[path, flag]).map_err(map_err)
     }
 
+    /// 録画を開始する。`path` には拡張子付きの保存先絶対パスを渡す。
+    /// libmpv は現在のストリームを **再エンコードせずそのまま** 書き
+    /// 出す。空文字列を渡すと録画停止と同じ意味になる。
+    pub fn start_record(&self, path: &str) -> AppResult<()> {
+        self.mpv.set_property("stream-record", path).map_err(map_err)
+    }
+
+    /// 録画を停止する。
+    pub fn stop_record(&self) -> AppResult<()> {
+        self.mpv.set_property("stream-record", "").map_err(map_err)
+    }
+
+    /// 録画中なら現在の保存先パスを返す。
+    pub fn record_path(&self) -> Option<String> {
+        self.mpv.get_property::<String>("stream-record").ok().filter(|s| !s.is_empty())
+    }
+
     /// Override the displayed aspect ratio.
     ///   0.0 → "no override" (use the video's own DAR)
     ///  -1.0 → stretch to fill the window

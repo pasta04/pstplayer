@@ -22,3 +22,11 @@ public_url = ""
 [log]
 debug = false
 dir = ""
+
+# 録画機能 (既定 OFF)。
+# enabled = true かつ dir 指定で /api/record/start が動く。
+# SD カードへの書き込みを避けるには dir を USB / SSD マウント先にする。
+[recording]
+enabled = false
+dir = ""        # 例: "/mnt/usb/recordings"
+ext = ""        # 空なら flv

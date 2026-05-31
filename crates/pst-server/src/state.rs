@@ -5,15 +5,20 @@ use std::sync::Arc;
 use pst_core::peercast::types::{BasicAuth, PeerCastEndpoint};
 
 use crate::config::Config;
+use crate::recording::RecordingState;
 
 #[derive(Clone)]
 pub struct AppState {
     pub cfg: Arc<Config>,
+    pub recording: Arc<RecordingState>,
 }
 
 impl AppState {
     pub fn new(cfg: Config) -> Self {
-        Self { cfg: Arc::new(cfg) }
+        Self {
+            cfg: Arc::new(cfg),
+            recording: RecordingState::new(),
+        }
     }
 
     /// pst-core の API に渡せる形に変換する。Basic 認証は config に

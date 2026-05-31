@@ -124,6 +124,15 @@ pub struct PlayerConfig {
     pub snapshot_dir: String,
     pub snapshot_format: String,
     pub snapshot_jpeg_quality: u8,
+    /// 録画の保存先ディレクトリ。空なら exe 直下 `recordings/` を
+    /// 使う (snapshot と同じ解決ルール)。
+    #[serde(default)]
+    pub recording_dir: String,
+    /// 録画ファイルの拡張子。`""` (既定) なら libmpv の `stream-record`
+    /// が入力フォーマットから推測 (FLV → .flv 等)。明示指定したい時は
+    /// "mkv" / "mp4" 等を指定。
+    #[serde(default)]
+    pub recording_ext: String,
 }
 
 impl Default for PlayerConfig {
@@ -134,6 +143,8 @@ impl Default for PlayerConfig {
             snapshot_dir: String::new(),
             snapshot_format: "png".into(),
             snapshot_jpeg_quality: 95,
+            recording_dir: String::new(),
+            recording_ext: String::new(),
         }
     }
 }

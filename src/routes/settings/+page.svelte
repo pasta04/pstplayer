@@ -8,6 +8,7 @@
 		getConfig,
 		getHistory,
 		pushRecentHost,
+		recordingTargetDir,
 		setConfig,
 		snapshotTargetDir,
 		type Config,
@@ -80,6 +81,7 @@
 	let theme = $state<Theme>('system');
 	let history = $state<HistoryEntry[]>([]);
 	let snapshotPreview = $state<string>('');
+	let recordingPreview = $state<string>('');
 
 	onMount(async () => {
 		applyTheme(getTheme()); // settings window also reflects the chosen theme
@@ -89,6 +91,7 @@
 			configPath = await configFilePath();
 			history = await getHistory();
 			snapshotPreview = await snapshotTargetDir();
+			recordingPreview = await recordingTargetDir();
 		} catch (e) {
 			message = errMsg(e);
 		}
@@ -97,6 +100,14 @@
 	async function refreshSnapshotPreview() {
 		try {
 			snapshotPreview = await snapshotTargetDir();
+		} catch {
+			/* ignore */
+		}
+	}
+
+	async function refreshRecordingPreview() {
+		try {
+			recordingPreview = await recordingTargetDir();
 		} catch {
 			/* ignore */
 		}
@@ -310,6 +321,28 @@
 					F2 キーまたは配信画面の右クリック → スナップショット で撮影できます。 ファイル名は <code
 						>YYYYMMDD_HHmmss_チャンネル名.png</code
 					> 形式。
+				</p>
+				<label>
+					録画の保存先
+					<input
+						type="text"
+						bind:value={cfg.player.recording_dir}
+						placeholder="(空 = exe 配下の recordings/)"
+						onblur={refreshRecordingPreview}
+					/>
+				</label>
+				<p class="hint small muted">
+					現在の解決先: <code class="path">{recordingPreview}</code>
+				</p>
+				<label>
+					録画ファイル拡張子
+					<input type="text" bind:value={cfg.player.recording_ext} placeholder="(空 = flv)" />
+				</label>
+				<p class="hint small muted">
+					配信画面の右クリック → ⏺ 録画開始 で開始、もう一度押すと停止。 libmpv の stream-record で
+					**再エンコードせず** 元の stream をそのまま書き出します (CPU
+					負荷ほぼゼロ)。拡張子は元コンテナに合わせて指定してください (FLV 配信なら flv、mkv
+					が安全な選択肢)。
 				</p>
 			{:else if tab === 'hotkeys'}
 				<p class="hint small muted">

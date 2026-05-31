@@ -24,10 +24,14 @@
 		</header>
 		<main>
 			<section id="player-section" hidden>
-				<button id="back" type="button">← 戻る</button>
-				<h2 id="current-title">—</h2>
+				<div class="player-toolbar">
+					<button id="back" type="button">← 戻る</button>
+					<h2 id="current-title">—</h2>
+					<button id="record" type="button" hidden>⏺ 録画</button>
+				</div>
 				<video id="player" controls playsinline autoplay></video>
 				<div id="player-error" class="error" hidden></div>
+				<div id="record-info" class="muted small" hidden></div>
 			</section>
 			<section id="channels-section">
 				<div id="status" class="muted small">読み込み中…</div>

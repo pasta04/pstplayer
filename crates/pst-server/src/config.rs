@@ -18,6 +18,23 @@ pub struct Config {
     pub server: ServerBinding,
     #[serde(default)]
     pub log: LogConfig,
+    #[serde(default)]
+    pub recording: RecordingConfig,
+}
+
+/// 録画機能の設定。SD カード保護方針に従い既定 OFF。`enabled = true`
+/// + `dir` 指定時のみ `/api/record/*` が動く。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RecordingConfig {
+    /// `false` (既定) なら API が `503` を返して録画機能を拒否。
+    #[serde(default)]
+    pub enabled: bool,
+    /// 出力先ディレクトリ (絶対パス推奨)。空なら enabled でも無効化。
+    #[serde(default)]
+    pub dir: String,
+    /// ファイル名拡張子。空なら `flv`。
+    #[serde(default)]
+    pub ext: String,
 }
 
 /// ログ出力の制御。Raspberry Pi 等の SD カード環境を想定し、

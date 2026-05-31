@@ -187,7 +187,18 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
 
 ## フェーズ 4: 拡張 (v1.0 以降)
 
-- [ ] 録画 (`stream-record`)
+- [x] 録画 (Desktop + pst-server 両方の MVP)
+      - Desktop: libmpv の `stream-record` で再エンコード無しに保存。
+        右クリック → ⏺ 録画開始 / ⏹ 録画停止。設定 → プレイヤー で
+        保存先ディレクトリと拡張子を指定 (空なら exe 配下 `recordings/`,
+        拡張子は `flv`)
+      - pst-server: `/api/record/{start,stop,status}` を追加。tokio task が
+        上流 `/stream/{id}.{ext}` を bytes_stream → tokio::fs::File に
+        書き出し。同時 1 本のみ。`[recording] enabled=true, dir="..."`
+        の時のみ有効 (SD カード保護のため既定 OFF)
+      - Web (`/`): 視聴中に ⏺ 録画 ボタン (status API で機能の有無を判定)
+      - 動作確認後に使い勝手 (ファイル名 / 出力形式 / 同時録画 / 自動
+        停止条件) を仕様調整予定
 - [ ] プラグイン機構 (BBS タイプ追加、フィルタ等)
 - [ ] 英語 UI (i18n)
 - [ ] PeerCast 本体の自動起動・終了
