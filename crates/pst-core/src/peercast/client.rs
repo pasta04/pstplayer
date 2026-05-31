@@ -52,6 +52,19 @@ pub fn endpoint_for(url: &str) -> AppResult<PeerCastEndpoint> {
     Ok(url::parse(url)?.endpoint)
 }
 
+/// Same as [`endpoint_for`] but stamps the user's saved Basic auth
+/// onto the endpoint. URLs do not carry credentials, so we pull
+/// them from `config.toml` whenever the bare endpoint is going to be
+/// used to drive JSON-RPC / legacy admin calls.
+pub fn endpoint_for_with_auth(url: &str, cfg: &PeerCastConfig) -> AppResult<PeerCastEndpoint> {
+    let parsed = url::parse(url)?;
+    Ok(PeerCastEndpoint {
+        host: parsed.endpoint.host,
+        port: parsed.endpoint.port,
+        auth: auth_from_cfg(cfg),
+    })
+}
+
 /// Fetch channel info, preferring JSON-RPC and falling back to viewxml.
 pub async fn fetch_info(endpoint: &PeerCastEndpoint, channel_id: &str) -> AppResult<ChannelInfo> {
     match jsonrpc::get_channel_info(endpoint, channel_id).await {
@@ -124,7 +137,7 @@ pub fn resolve_endpoint(cli: &CliArgs, cfg: &PeerCastConfig) -> PeerCastEndpoint
     }
 }
 
-fn auth_from_cfg(cfg: &PeerCastConfig) -> Option<BasicAuth> {
+pub(crate) fn auth_from_cfg(cfg: &PeerCastConfig) -> Option<BasicAuth> {
     match (&cfg.auth_user, &cfg.auth_pass) {
         (Some(u), Some(p)) if !u.is_empty() => Some(BasicAuth {
             user: u.clone(),
@@ -185,6 +198,36 @@ mod tests {
         let ep = resolve_endpoint(&cli, &cfg);
         assert_eq!(ep.host, "h");
         assert_eq!(ep.port, 1234);
+    }
+
+    #[test]
+    fn endpoint_for_with_auth_attaches_config_creds() {
+        let cfg = PeerCastConfig {
+            auth_user: Some("admin".into()),
+            auth_pass: Some("secret".into()),
+            ..Default::default()
+        };
+        let ep = endpoint_for_with_auth(
+            "http://192.0.2.55:7148/pls/0123456789ABCDEF0123456789ABCDEF",
+            &cfg,
+        )
+        .unwrap();
+        assert_eq!(ep.host, "192.0.2.55");
+        assert_eq!(ep.port, 7148);
+        let auth = ep.auth.expect("auth attached");
+        assert_eq!(auth.user, "admin");
+        assert_eq!(auth.pass, "secret");
+    }
+
+    #[test]
+    fn endpoint_for_with_auth_omits_creds_when_blank() {
+        let cfg = PeerCastConfig::default();
+        let ep = endpoint_for_with_auth(
+            "http://localhost:7144/pls/0123456789ABCDEF0123456789ABCDEF",
+            &cfg,
+        )
+        .unwrap();
+        assert!(ep.auth.is_none());
     }
 
     #[test]

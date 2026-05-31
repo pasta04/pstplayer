@@ -82,6 +82,34 @@ export async function endpointForUrl(url: string): Promise<PeerCastEndpoint> {
 	return call<PeerCastEndpoint>('endpoint_for_url', { url });
 }
 
+export interface CliArgs {
+	url: string | null;
+	channel_name: string | null;
+	id: string | null;
+	tip: string | null;
+	contact: string | null;
+	genre: string | null;
+	desc: string | null;
+	bitrate: number | null;
+	content_type: string | null;
+	comment: string | null;
+	yp_name: string | null;
+	yp_url: string | null;
+	no_autoplay: boolean;
+	no_bbs: boolean;
+	minimized: boolean;
+	show_help: boolean;
+	show_version: boolean;
+}
+
+export async function getCliArgs(): Promise<CliArgs> {
+	return call<CliArgs>('get_cli_args');
+}
+
+export async function resolveDefaultEndpoint(): Promise<PeerCastEndpoint> {
+	return call<PeerCastEndpoint>('resolve_default_endpoint');
+}
+
 export async function fetchChannelInfo(
 	endpoint: PeerCastEndpoint,
 	channelId: string,

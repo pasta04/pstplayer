@@ -35,10 +35,10 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
 - [x] 戦略選択 (JSON-RPC 優先 → legacy_admin フォールバック、`client::fetch_info` 等)
 - [x] 単体テスト 43 件 pass (URL 6 / playlist 6 / YP 2 / encoding 5 / anchor 5 / cli 4 / config 1 / jsonrpc 3 / legacy_admin 3)
 - [x] Tauri command 公開 (`resolve_stream_url`, `endpoint_for_url`, `fetch_channel_info`, `fetch_channel_status`, `bump_channel`, `stop_channel`)
-- [x] **CLI 引数からの URL 受け取りで再生開始 (外部ツール連携の基本)** - 引数パース完了
-- [ ] **PeerCast 接続先 (host/port) を設定 UI で指定可能に** (localhost 以外: LAN 内別マシン対応)
-- [ ] **Basic 認証情報の受け渡し** (config から取得して JSON-RPC リクエストに付加)
-- [ ] **接続先の優先順位解決ロジック** (CLI 引数 > config > default)
+- [x] **CLI 引数からの URL 受け取りで再生開始** (`get_cli_args` Tauri command 経由、`--no-autoplay` 尊重)
+- [x] **PeerCast 接続先 (host/port) を設定 UI で指定可能に** (settings ダイアログ PeerCast タブ)
+- [x] **Basic 認証情報の受け渡し** (`endpoint_for_url` が config の auth を endpoint に付加 → JSON-RPC / legacy admin で basic_auth を送出)
+- [x] **接続先の優先順位解決ロジック** (`client::resolve_endpoint` で CLI URL > config > localhost:7144、`resolve_default_endpoint` Tauri command で公開)
 
 ### 1.3 動画再生 (最小)
 

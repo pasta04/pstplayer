@@ -1,3 +1,4 @@
+use pst_core::config;
 use pst_core::peercast::{
     client,
     types::{ChannelInfo, ChannelStatus, PeerCastEndpoint},
@@ -11,10 +12,13 @@ pub async fn resolve_stream_url(url: String) -> Result<String, IpcError> {
     client::resolve_stream_url(&url).await.map_err(Into::into)
 }
 
-/// Extract the host/port that a PeerCast URL points to.
+/// Extract the host/port that a PeerCast URL points to, with the
+/// user's saved Basic-auth credentials stamped on so that subsequent
+/// JSON-RPC / legacy-admin calls succeed against a protected endpoint.
 #[tauri::command]
 pub fn endpoint_for_url(url: String) -> Result<PeerCastEndpoint, IpcError> {
-    client::endpoint_for(&url).map_err(Into::into)
+    let cfg = config::load().map_err(IpcError::from)?;
+    client::endpoint_for_with_auth(&url, &cfg.peercast).map_err(Into::into)
 }
 
 #[tauri::command]

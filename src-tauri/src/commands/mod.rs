@@ -1,4 +1,5 @@
 pub mod bbs;
+pub mod cli;
 pub mod config;
 pub mod peercast;
 pub mod player;

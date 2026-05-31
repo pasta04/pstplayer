@@ -5,14 +5,18 @@ pub mod commands;
 pub mod player;
 
 use player::engine::PlayerEngine;
+use pst_core::cli;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let cli_args = cli::parse(&std::env::args().skip(1).collect::<Vec<_>>());
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
-        .setup(|app| {
+        .setup(move |app| {
+            app.handle().manage(cli_args);
             // Initialise libmpv once at startup. If this fails (e.g.
             // libmpv.so missing) we report and continue without the
             // player rather than aborting the whole app.
@@ -28,6 +32,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::ping,
+            commands::cli::get_cli_args,
+            commands::cli::resolve_default_endpoint,
             commands::peercast::resolve_stream_url,
             commands::peercast::endpoint_for_url,
             commands::peercast::fetch_channel_info,

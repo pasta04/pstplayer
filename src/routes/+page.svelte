@@ -8,6 +8,7 @@
 		fetchChannelInfo,
 		fetchChannelStatus,
 		fetchThread,
+		getCliArgs,
 		getConfig,
 		listThreads,
 		playerSetAspect,
@@ -140,6 +141,17 @@
 			posts = [];
 			await loadCurrentThread(true);
 		});
+
+		// Honour CLI args (positional URL → auto-play unless --no-autoplay).
+		try {
+			const cli = await getCliArgs();
+			if (cli.url && !cli.no_autoplay) {
+				pasteUrl = cli.url;
+				await onPaste();
+			}
+		} catch {
+			/* CLI parsing is best-effort */
+		}
 
 		shortcutsUnlisten = installShortcuts({
 			toggleBbsPane: () => (showBbsPane = !showBbsPane),
