@@ -176,7 +176,8 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
 - [ ] パフォーマンス計測と改善 (起動時間、メモリ、CPU)
 - [ ] 3 OS で実機 QA
 - [ ] バグ修正
-- [ ] ユーザマニュアル (`docs/usage/`)
+- [x] ユーザマニュアル (`docs/usage/` 1 巡目: README + install + first-setup +
+      basic + shortcuts + troubleshooting の 6 章。スクリーンショットは実機 QA 時に追加)
 - [ ] (任意) コード署名 (Windows) / 公証 (macOS)
 - [ ] (任意) 自動更新機構 (Tauri Updater)
 
