@@ -143,8 +143,12 @@ PSTPlayer.app/
 
 ### 4.1 現状
 
-`src-tauri/icons/` に Tauri 初期生成のジェネリックアイコンが入っている
-だけ。PSTPlayer 専用のアイコン未作成。**v0.1.0 までに差し替え必須**。
+**v0.0.x: 専用アイコン (メガホン + 放射波) に差し替え済**。配色は
+`#1e2126` (ダーク背景) + `#ff8a3d` (アクセントオレンジ、スレッド
+タイトル帯と同色) + `#f3f5f7` (放射波の白)。`src-tauri/icons/icon.png`
+を 512×512 ベースとし、`tauri icon` で各サイズ + `.ico` + `.icns` を
+生成。Microsoft Store 用 (`Square*.png`) と iOS/Android はデスクトップ
+専用なので生成しても `.gitignore` で除外している。
 
 ### 4.2 必須サイズと形式
 
@@ -162,21 +166,25 @@ PSTPlayer.app/
 Windows Store 用の `SquareNxN.png` 群は使わない (Store 配布しない)。
 将来 Microsoft Store 対応するなら再評価。
 
-### 4.3 デザイン指針 (案)
+### 4.3 デザイン指針 (採用版)
 
+- PeerCast 本家のメガホンモチーフを継承
+  (再生クライアントとしての一貫性のため)
+- 「再生」を強調するため、メガホン口から放射波 2 本を出すシルエット
+  構成。タスクバー / Dock の 16-32px でも識別可能
 - PCRPlayer 由来のモチーフは**使用不可** (GPL かつ著作物のため)
-- 識別性: 「動画」と「掲示板」が直感的に分かるモチーフ
-  - 暫定案 A: ▶ (再生記号) + 吹き出し
-  - 暫定案 B: フィルムリール + コメント
-  - 暫定案 C: モノグラム「PST」
-- 配色: ダーク基調、アクセント 1 色 (ライトテーマ移行時にも視認性確保)
+- 配色: ダーク基調 + アクセント 1 色 (ライトテーマ移行時にも視認性確保)
 - スタイル: フラット / 単純な幾何形 (アイコンサイズ縮小時の崩れ回避)
 
-### 4.4 制作フロー (未確定)
+### 4.4 制作フロー
 
-1. 512×512 png を 1 枚作る
-2. `tauri icon path/to/source.png` で全サイズと .ico/.icns を一括生成
-3. 生成物をコミット (src-tauri/icons/ を上書き)
+1. 512×512 png を 1 枚作る (`src-tauri/icons/icon.png`)
+2. `cd src-tauri && npx tauri icon icons/icon.png` で全サイズ +
+   `.ico` + `.icns` を一括生成
+3. デスクトップに不要な iOS / Android / Microsoft Store 用は
+   `src-tauri/.gitignore` で除外済 (再生成のたび追従するので操作不要)
+4. `src-tauri/tauri.conf.json` の `bundle.icon` で参照しているファイル
+   が揃っていることを確認してコミット
 
 ---
 

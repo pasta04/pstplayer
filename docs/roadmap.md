@@ -133,7 +133,8 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
 
 - [x] **配布方針ドキュメント** (`docs/release.md` — バージョニング / タグ運用 /
       配布物命名 / アイコン仕様 / CI ワークフローとの対応 / 将来計画)
-- [ ] アイコン設計 (PSTPlayer 専用、`tauri icon` で全 OS 用一括生成、v0.1.0 までに)
+- [x] アイコン設計 (PSTPlayer 専用、メガホン + 放射波のシルエット、`tauri icon` で
+      全 OS 用一括生成。iOS/Android/Microsoft Store 用は `.gitignore` で除外)
 - [x] Windows portable ZIP / macOS DMG/APP / Linux DEB/AppImage/RPM の生成
       (`.github/workflows/build.yml`、3 OS で `npm run tauri build`、
       Artifacts として 14 日間保持。Windows は NSIS 不安定のため portable に切替済)
