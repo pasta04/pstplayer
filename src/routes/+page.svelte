@@ -10,6 +10,7 @@
 		fetchThread,
 		getCliArgs,
 		getConfig,
+		getHistory,
 		listThreads,
 		playerAttach,
 		playerLoad,
@@ -27,6 +28,7 @@
 		type ChannelInfo,
 		type ChannelStatus,
 		type FetchState,
+		type HistoryEntry,
 		type PeerCastEndpoint,
 		type Post,
 		type SubjectEntry,
@@ -102,6 +104,8 @@
 
 	// Right-click context menu over the player area.
 	let ctxMenu = $state<{ x: number; y: number } | null>(null);
+	// 視聴履歴 (右クリックメニューのサブメニュー用に config から都度取得)。
+	let history = $state<HistoryEntry[]>([]);
 
 	// Volume (0-100). Wheel over the player area changes it.
 	let volume = $state(80);
@@ -497,6 +501,16 @@
 	function onPlayerContextMenu(e: MouseEvent) {
 		e.preventDefault();
 		ctxMenu = { x: e.clientX, y: e.clientY };
+		// メニュー展開のついでに最新履歴を取得 (best-effort)。
+		getHistory()
+			.then((h) => (history = h))
+			.catch(() => undefined);
+	}
+
+	async function openFromHistory(entry: HistoryEntry) {
+		closeCtxMenu();
+		pasteUrl = entry.url;
+		await onPaste();
 	}
 
 	function onPlayerWheel(e: WheelEvent) {
@@ -929,6 +943,53 @@
 					🔗 コンタクト URL を開く
 				</button>
 				<button class="ctx-item" onclick={ctxCopyChannelUrl}>📋 チャンネル URL をコピー</button>
+				<div class="ctx-sep"></div>
+				<div class="ctx-sub-host">
+					<button class="ctx-item ctx-has-sub" type="button">
+						📐 サイズ <span class="ctx-arrow">▶</span>
+					</button>
+					<div class="ctx-submenu">
+						{#each SIZE_PERCENTS as pct, i (pct)}
+							<button
+								class="ctx-item"
+								onclick={() => {
+									closeCtxMenu();
+									applySizePreset(i + 1);
+								}}>{pct}%</button
+							>
+						{/each}
+					</div>
+				</div>
+				<div class="ctx-sub-host">
+					<button class="ctx-item ctx-has-sub" type="button">
+						📺 アスペクト比 <span class="ctx-arrow">▶</span>
+					</button>
+					<div class="ctx-submenu">
+						{#each ASPECT_PRESETS as ap, i (ap.label)}
+							<button
+								class="ctx-item"
+								onclick={() => {
+									closeCtxMenu();
+									applyAspectPreset(i + 1);
+								}}>{ap.label}</button
+							>
+						{/each}
+					</div>
+				</div>
+				<div class="ctx-sub-host">
+					<button class="ctx-item ctx-has-sub" type="button" disabled={history.length === 0}>
+						🕒 視聴履歴 <span class="ctx-arrow">▶</span>
+					</button>
+					{#if history.length > 0}
+						<div class="ctx-submenu ctx-submenu-wide">
+							{#each history.slice(0, 12) as h (h.url)}
+								<button class="ctx-item" onclick={() => openFromHistory(h)} title={h.url}>
+									{h.channelName || h.url}
+								</button>
+							{/each}
+						</div>
+					{/if}
+				</div>
 				<div class="ctx-sep"></div>
 				<button
 					class="ctx-item"
@@ -1492,6 +1553,48 @@
 		height: 1px;
 		background: var(--border);
 		margin: 0.25rem 0;
+	}
+
+	/* サブメニュー: 親 .ctx-sub-host を hover した時に右に展開。 */
+	.ctx-sub-host {
+		position: relative;
+	}
+	.ctx-has-sub {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+	}
+	.ctx-arrow {
+		font-size: 0.7rem;
+		color: var(--fg-muted);
+		margin-left: 0.6rem;
+	}
+	.ctx-submenu {
+		display: none;
+		position: absolute;
+		top: 0;
+		left: 100%;
+		min-width: 140px;
+		background: var(--bg-elev);
+		border: 1px solid var(--border-strong);
+		border-radius: 6px;
+		padding: 0.25rem 0;
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+		z-index: 1;
+	}
+	.ctx-submenu-wide {
+		min-width: 260px;
+		max-width: 360px;
+	}
+	.ctx-submenu .ctx-item {
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	/* hover + focus-within の両方で出すことでキーボードフォーカスでも開く。 */
+	.ctx-sub-host:hover > .ctx-submenu,
+	.ctx-sub-host:focus-within > .ctx-submenu {
+		display: block;
 	}
 
 	.filter-bar {
