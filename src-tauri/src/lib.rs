@@ -40,6 +40,7 @@ pub fn run() {
             commands::peercast::fetch_channel_status,
             commands::peercast::bump_channel,
             commands::peercast::stop_channel,
+            commands::peercast::fetch_yp_index,
             commands::config::get_config,
             commands::config::set_config,
             commands::config::config_file_path,

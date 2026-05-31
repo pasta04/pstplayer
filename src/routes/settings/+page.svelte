@@ -154,6 +154,17 @@
 					接続タイムアウト (秒)
 					<input type="number" min="1" max="60" bind:value={cfg.peercast.timeoutSec} />
 				</label>
+				<label>
+					YP index.txt URL
+					<input
+						type="url"
+						bind:value={cfg.peercast.ypUrl}
+						placeholder="http://yp.example.invalid/index.txt"
+					/>
+				</label>
+				<p class="hint small muted">
+					YP (Yellow Page) チャンネル一覧の取得先。空にすると YP 機能は無効です。
+				</p>
 				{#if cfg.peercast.recentHosts && cfg.peercast.recentHosts.length > 0}
 					<fieldset>
 						<legend>最近使ったホスト</legend>

@@ -132,6 +132,32 @@ export async function stopChannel(endpoint: PeerCastEndpoint, channelId: string)
 	return call<void>('stop_channel', { endpoint, channelId });
 }
 
+export interface YpEntry {
+	name: string;
+	id: string;
+	tip: string;
+	contact_url: string;
+	genre: string;
+	desc: string;
+	listeners: number;
+	relays: number;
+	bitrate: number;
+	content_type: string;
+	track_artist: string;
+	track_album: string;
+	track_title: string;
+	track_contact: string;
+	name_url_encoded: string;
+	uptime: string;
+	flag_click: string;
+	comment: string;
+	flag_extra: string;
+}
+
+export async function fetchYpIndex(overrideUrl?: string): Promise<YpEntry[]> {
+	return call<YpEntry[]>('fetch_yp_index', { overrideUrl: overrideUrl ?? null });
+}
+
 // ── BBS ─────────────────────────────────────────────────────────────
 
 export type BoardKind = 'Shitaraba' | 'Ch2Compat';
@@ -196,6 +222,7 @@ export interface PeerCastConfig {
 	authPass: string | null;
 	timeoutSec: number;
 	recentHosts: string[];
+	ypUrl: string;
 }
 
 export interface BbsConfig {

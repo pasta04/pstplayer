@@ -42,6 +42,14 @@ export async function openThreadList(boardUrl: string): Promise<void> {
 	});
 }
 
+export async function openYpList(): Promise<void> {
+	await openOrFocus('yp', '/yp', {
+		title: 'PSTPlayer · YP チャンネル一覧',
+		width: 760,
+		height: 540,
+	});
+}
+
 export function thisWindowLabel(): string {
 	return getCurrentWindow().label;
 }

@@ -47,6 +47,10 @@ pub struct PeerCastConfig {
     pub timeout_sec: u64,
     #[serde(default)]
     pub recent_hosts: Vec<String>,
+    /// YP `index.txt` の URL。空文字列なら YP 機能を無効化。
+    /// 例: `http://yp.example.invalid/index.txt`
+    #[serde(default)]
+    pub yp_url: String,
 }
 
 impl Default for PeerCastConfig {
@@ -58,6 +62,7 @@ impl Default for PeerCastConfig {
             auth_pass: None,
             timeout_sec: 5,
             recent_hosts: Vec::new(),
+            yp_url: String::new(),
         }
     }
 }

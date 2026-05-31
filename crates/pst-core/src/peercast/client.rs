@@ -161,6 +161,7 @@ mod tests {
             auth_pass: Some("p".into()),
             timeout_sec: 5,
             recent_hosts: vec![],
+            yp_url: String::new(),
         };
         let ep = resolve_endpoint(&cli, &cfg);
         assert_eq!(ep.host, "192.0.2.55");

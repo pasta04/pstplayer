@@ -34,7 +34,7 @@
 		type SubjectEntry,
 	} from '$lib/api';
 	import { formatUptime, linkifySanitized, renderBodyHtml, renderIdHtml } from '$lib/format';
-	import { openSettings, openThreadList } from '$lib/windows';
+	import { openSettings, openThreadList, openYpList } from '$lib/windows';
 	import { installShortcuts, setAlwaysOnTop, setDecorations } from '$lib/shortcuts';
 	import { notify } from '$lib/notifications';
 	import { initTheme } from '$lib/theme';
@@ -126,6 +126,7 @@
 	let countdownTimer: ReturnType<typeof setInterval> | null = null;
 	let threadSelectedUnlisten: UnlistenFn | null = null;
 	let configSavedUnlisten: UnlistenFn | null = null;
+	let ypSelectedUnlisten: UnlistenFn | null = null;
 
 	let shortcutsUnlisten: (() => void) | null = null;
 	let themeUnlisten: (() => void) | null = null;
@@ -164,6 +165,16 @@
 			posts = [];
 			await loadCurrentThread(true);
 		});
+
+		// YP ウィンドウからチャンネルが選ばれたら自動再生開始 (貼り付け
+		// 欄に流し込む → onPaste で endpoint 解決 + libmpv ロード)。
+		ypSelectedUnlisten = await listen<{ url: string; channelName: string }>(
+			'yp:selected',
+			async (e) => {
+				pasteUrl = e.payload.url;
+				await onPaste();
+			},
+		);
 
 		// Honour CLI args (positional URL → auto-play unless --no-autoplay).
 		try {
@@ -228,6 +239,7 @@
 		if (countdownTimer) clearInterval(countdownTimer);
 		threadSelectedUnlisten?.();
 		configSavedUnlisten?.();
+		ypSelectedUnlisten?.();
 		shortcutsUnlisten?.();
 		themeUnlisten?.();
 		windowGeomUnlisten?.();
@@ -1080,6 +1092,15 @@
 				<button class="ctx-item" onclick={onOpenSettings}>⚙ 設定...</button>
 				<button class="ctx-item" onclick={onOpenThreadList} disabled={!channelInfo?.url}>
 					≡ スレ一覧を開く
+				</button>
+				<button
+					class="ctx-item"
+					onclick={() => {
+						closeCtxMenu();
+						openYpList();
+					}}
+				>
+					📡 YP チャンネル一覧
 				</button>
 			</div>
 		</div>

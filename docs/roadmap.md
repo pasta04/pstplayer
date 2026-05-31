@@ -94,7 +94,9 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
 
 ### 2.1 PeerCast
 
-- [ ] YP チャンネル一覧 (`index.txt` パース、19 フィールド)
+- [x] YP チャンネル一覧 (`index.txt` パース、19 フィールド、別ウィンドウで取得 →
+      ソート可能なテーブル → 行クリックで `yp:selected` event → メインで自動再生。
+      取得先 URL は設定 → PeerCast → 「YP index.txt URL」で指定)
 - [x] リレー状況・接続情報の詳細表示 (右クリック → 📊 チャンネル詳細、
       ChannelInfo/Status/PlayerStat の全フィールドをモーダル表示)
 - [ ] チャンネル情報の定期更新 (Tauri event 経由 push)

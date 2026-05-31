@@ -4,6 +4,11 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::util::{
+    errors::{AppError, AppResult},
+    http::CLIENT,
+};
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct YpEntry {
     pub name: String,
@@ -72,6 +77,22 @@ pub fn parse_line(line: &str) -> Option<YpEntry> {
 /// Parse an entire `index.txt` body, skipping malformed lines.
 pub fn parse(body: &str) -> Vec<YpEntry> {
     body.lines().filter_map(parse_line).collect()
+}
+
+/// Fetch a YP `index.txt` from `yp_url` and return parsed entries.
+/// `yp_url` should be the absolute URL of the index file
+/// (例: `http://yp.example.invalid/index.txt`)。空文字列は早期エラー。
+pub async fn fetch_index(yp_url: &str) -> AppResult<Vec<YpEntry>> {
+    let url = yp_url.trim();
+    if url.is_empty() {
+        return Err(AppError::InvalidUrl("YP URL is empty".into()));
+    }
+    let resp = CLIENT.get(url).send().await?;
+    if !resp.status().is_success() {
+        return Err(AppError::Network(format!("YP fetch returned {}", resp.status())));
+    }
+    let body = resp.text().await?;
+    Ok(parse(&body))
 }
 
 #[cfg(test)]

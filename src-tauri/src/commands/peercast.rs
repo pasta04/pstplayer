@@ -2,6 +2,7 @@ use pst_core::config;
 use pst_core::peercast::{
     client,
     types::{ChannelInfo, ChannelStatus, PeerCastEndpoint},
+    yp::{self, YpEntry},
 };
 use pst_core::util::errors::IpcError;
 
@@ -45,4 +46,19 @@ pub async fn bump_channel(endpoint: PeerCastEndpoint, channel_id: String) -> Res
 #[tauri::command]
 pub async fn stop_channel(endpoint: PeerCastEndpoint, channel_id: String) -> Result<(), IpcError> {
     client::stop(&endpoint, &channel_id).await.map_err(Into::into)
+}
+
+/// Fetch the configured YP `index.txt` and return parsed entries.
+/// `override_url` を渡すと config の `peercast.yp_url` ではなくそれを
+/// 使用 (将来の複数 YP 切替や手入力に備える)。
+#[tauri::command]
+pub async fn fetch_yp_index(override_url: Option<String>) -> Result<Vec<YpEntry>, IpcError> {
+    let url = match override_url {
+        Some(s) if !s.trim().is_empty() => s,
+        _ => {
+            let cfg = config::load().map_err(IpcError::from)?;
+            cfg.peercast.yp_url
+        }
+    };
+    yp::fetch_index(&url).await.map_err(Into::into)
 }
