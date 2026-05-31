@@ -143,7 +143,8 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
       `pstplayer-{version}-{os}-{arch}.{ext}` 形式にリネーム + `SHA256SUMS.txt` 添付、
       `-rc.* / -beta.* / -alpha.*` は自動で prerelease 扱い)
 - [ ] Windows の libmpv-dev リンク安定化 (現状 continue-on-error)
-- [ ] `THIRD-PARTY.md` 生成 (`cargo-about` で依存ライセンス一覧)
+- [x] `THIRD-PARTY.md` 生成 (`cargo-about` 設定 + テンプレート + release ジョブで都度生成、
+      `staging/THIRD-PARTY-{version}.md` として Releases に同梱)
 
 **完了条件**: PCRPlayer ユーザーがそのまま乗り換えられるレベルの基本体験。
 

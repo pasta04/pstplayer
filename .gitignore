@@ -15,6 +15,10 @@ vite.config.ts.timestamp-*
 
 # Tauri-specific generated files are handled in src-tauri/.gitignore.
 
+# cargo-about の生成物。リポジトリには about.toml / about.hbs だけを
+# 置き、THIRD-PARTY.md は配布ジョブ (CI release ステップ) で都度生成。
+/THIRD-PARTY.md
+
 # Editor / OS
 .idea/
 *.swp

@@ -291,6 +291,23 @@ jobs:
         with:
           path: artifacts/
 
+      - name: Install Rust (for cargo-about)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo-about binary
+        uses: actions/cache@v4
+        id: cache-cargo-about
+        with:
+          path: ~/.cargo/bin/cargo-about
+          key: cargo-about-0.9.0
+
+      - name: Install cargo-about
+        if: steps.cache-cargo-about.outputs.cache-hit != 'true'
+        run: cargo install cargo-about --version '^0.9' --locked --features cli
+
+      - name: Generate THIRD-PARTY.md
+        run: cargo about generate about.hbs > THIRD-PARTY.md
+
       - name: Derive version + prerelease flag
         id: meta
         shell: bash
@@ -335,6 +352,11 @@ jobs:
             DIR="pstplayer-${V}-windows-x64-portable"
             mv "artifacts/pstplayer-windows-portable" "artifacts/$DIR"
             (cd artifacts && zip -qr "../$OUT/$DIR.zip" "$DIR")
+          fi
+
+          # THIRD-PARTY.md (cargo-about 生成) も同梱。
+          if [ -f THIRD-PARTY.md ]; then
+            cp THIRD-PARTY.md "$OUT/THIRD-PARTY-${V}.md"
           fi
 
           # SHA-256 サムを 1 ファイルに集約。

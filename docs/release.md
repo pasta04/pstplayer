@@ -193,7 +193,19 @@ Windows Store 用の `SquareNxN.png` 群は使わない (Store 配布しない)�
 ### 5.1 配布物に同梱
 
 - `LICENSE` (本体: MIT)
-- `THIRD-PARTY.md` (依存ライブラリのライセンス一覧、`cargo-about` で生成予定)
+- `THIRD-PARTY.md` (依存ライブラリのライセンス一覧、`cargo-about`
+  で release ジョブ中に都度生成 → `staging/THIRD-PARTY-{version}.md`
+  として GitHub Releases に同梱)
+
+  ローカルで生成したい時:
+
+  ```bash
+  cargo install cargo-about --locked --features cli   # 初回のみ
+  cargo about generate about.hbs > THIRD-PARTY.md
+  ```
+
+  設定は `about.toml` (許容ライセンス一覧)、テンプレートは
+  `about.hbs`。
 
 ### 5.2 注意が必要なもの
 
