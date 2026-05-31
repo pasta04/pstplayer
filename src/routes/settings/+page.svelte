@@ -165,6 +165,10 @@
 						<option value="shift_enter">Shift+Enter で送信 (Enter は改行)</option>
 					</select>
 				</label>
+				<label class="check">
+					<input type="checkbox" bind:checked={cfg.bbs.autoscroll} />
+					新着レス到着時に末尾へ自動スクロール (手動スクロール中は一時停止)
+				</label>
 			{:else if tab === 'player'}
 				<label>
 					初期音量 (0-100)
@@ -286,6 +290,16 @@
 		align-items: center;
 		gap: 0.6rem;
 		font-size: 0.9rem;
+	}
+
+	label.check {
+		display: flex;
+		grid-template-columns: none;
+		gap: 0.5rem;
+	}
+
+	label.check input {
+		width: auto;
 	}
 
 	input,

@@ -205,6 +205,7 @@ export interface BbsConfig {
 	displayMode: 'plain' | 'html';
 	submitKey: 'ctrl_enter' | 'shift_enter';
 	notifyOnNewPost: boolean;
+	autoscroll: boolean;
 }
 
 export interface PlayerCfg {

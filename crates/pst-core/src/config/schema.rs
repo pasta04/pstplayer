@@ -82,6 +82,11 @@ pub struct BbsConfig {
     /// オプション。
     #[serde(default)]
     pub notify_on_new_post: bool,
+    /// 新着レスが追加された時、ユーザーが末尾近くにいたら自動的に
+    /// 末尾までスクロールするか。手動スクロール中 (末尾から離れている)
+    /// は追従しない。既定 ON。
+    #[serde(default = "default_autoscroll")]
+    pub autoscroll: bool,
 }
 
 fn default_refresh_sec() -> u32 {
@@ -94,6 +99,10 @@ fn default_display_mode() -> String {
 
 fn default_submit_key() -> String {
     "ctrl_enter".to_string()
+}
+
+fn default_autoscroll() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

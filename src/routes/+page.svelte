@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy, onMount } from 'svelte';
+	import { onDestroy, onMount, tick } from 'svelte';
 	import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 	import {
 		CommandError,
@@ -81,6 +81,10 @@
 	// OS notification on new posts. Hidden setting (TOML only), default
 	// off because frequent posts make it noisy across multiple windows.
 	let notifyOnNewPost = $state(false);
+	// Auto-scroll the post list to the bottom when new posts arrive,
+	// unless the user has manually scrolled up.
+	let autoscroll = $state(true);
+	let postsEl: HTMLDivElement | null = $state(null);
 	// Cache of sanitised HTML per post number to avoid re-fetching on
 	// every render.
 	let sanitizedCache = $state<Map<number, string>>(new Map());
@@ -216,9 +220,25 @@
 			displayMode = cfg?.bbs?.displayMode === 'html' ? 'html' : 'plain';
 			submitKey = cfg?.bbs?.submitKey === 'shift_enter' ? 'shift_enter' : 'ctrl_enter';
 			notifyOnNewPost = cfg?.bbs?.notifyOnNewPost === true;
+			autoscroll = cfg?.bbs?.autoscroll !== false;
 		} catch {
 			/* defaults */
 		}
+	}
+
+	// ── Post-list auto scroll ────────────────────────────────────────
+	//
+	// Spec (docs/ui-design.md §147): デフォルト ON。手動スクロール時は
+	// 一時停止 = ユーザーが末尾付近にいない時は追従しない。
+	const NEAR_BOTTOM_PX = 24;
+
+	function isNearBottom(el: HTMLElement | null): boolean {
+		if (!el) return false;
+		return el.scrollTop + el.clientHeight >= el.scrollHeight - NEAR_BOTTOM_PX;
+	}
+
+	function scrollPostsToBottom() {
+		if (postsEl) postsEl.scrollTop = postsEl.scrollHeight;
 	}
 
 	// ── Derived ──────────────────────────────────────────────────────
@@ -328,11 +348,17 @@
 		try {
 			const prev = forceReset ? null : fetchState;
 			const [newPosts, newState] = await fetchThread(currentThreadUrl, prev);
+			// Snapshot whether the user was anchored to the bottom *before*
+			// we mutate `posts`, so reactive re-render extends the
+			// scrollable area without losing the anchor.
+			const wasAtBottom = isNearBottom(postsEl);
+			let appendedNew = false;
 			if (forceReset || !fetchState) {
 				posts = newPosts;
 				if (forceReset) sanitizedCache = new Map();
 			} else if (newPosts.length > 0) {
 				posts = [...posts, ...newPosts];
+				appendedNew = true;
 				if (notifyOnNewPost) {
 					const preview = newPosts[0].body.replace(/\s+/g, ' ').slice(0, 80);
 					const title = `新着 ${newPosts.length} 件 / ${posts[0]?.threadTitle || ''}`;
@@ -340,6 +366,10 @@
 				}
 			}
 			fetchState = newState;
+			if (appendedNew && autoscroll && wasAtBottom) {
+				await tick();
+				scrollPostsToBottom();
+			}
 
 			// Pre-fetch sanitised HTML for the new posts in HTML mode.
 			if (displayMode === 'html') {
@@ -746,6 +776,7 @@
 				<div
 					class="posts"
 					role="list"
+					bind:this={postsEl}
 					onclick={onPostsClick}
 					onkeydown={onPostsKeyDown}
 					onmouseover={onPostsHover}
