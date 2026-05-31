@@ -7,9 +7,10 @@
 		<title>PSTPlayer</title>
 		<style>
 			/* Theme tokens. data-theme="light" overrides the dark defaults.
-			   コンテナ系 (タイトル帯 / ステータスバー / 書き込み欄まわり /
-			   BBS ペイン外側) は両テーマとも黒で固定する。レス一覧と
-			   入力 textarea だけがテーマ依存の明色になる。 */
+			   コンテナ帯 (スレッドタイトル帯 / ステータスバー /
+			   書き込み欄まわり) は両テーマとも黒で固定。BBS ペインと
+			   レス一覧 / 入力 textarea はテーマに追従して明色 (ライト
+			   = 白、ダーク = 暗グレー) になる。 */
 			:root {
 				--bg: #1d1f23;
 				--bg-elev: #25282d;
@@ -28,7 +29,6 @@
 				--bar-thread: #000;
 				--bar-status: #000;
 				--bar-write: #000;
-				--bbs-bg: #000;
 			}
 			:root[data-theme='light'] {
 				--bg: #f5f6f8;
@@ -48,7 +48,6 @@
 				--bar-thread: #000;
 				--bar-status: #000;
 				--bar-write: #000;
-				--bbs-bg: #000;
 			}
 		</style>
 		%sveltekit.head%

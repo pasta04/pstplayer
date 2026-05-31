@@ -1128,12 +1128,15 @@
 	}
 
 	.bbs {
-		background: var(--bbs-bg);
+		/* BBS ペイン全体 (フィルタ行 + レス一覧 + 未選択メッセージ) を
+		   白系の島にする。スレッド帯 / ステータスバー / 書き込み欄
+		   まわりだけが黒。 */
+		background: var(--bg-elev);
 		border-left: 1px solid var(--border);
 		overflow-y: auto;
 		min-height: 0;
 		font-size: 0.85rem;
-		color: var(--fg-dim);
+		color: var(--fg);
 	}
 
 	.bbs-empty {
@@ -1362,6 +1365,13 @@
 
 	.muted {
 		color: var(--fg-muted);
+	}
+
+	/* 黒地の帯の中では .muted も白系で見せる (var(--fg-muted) は
+	   黒背景だと潰れるため)。 */
+	.thread-bar .muted,
+	.status-bar .muted {
+		color: rgba(255, 255, 255, 0.75);
 	}
 
 	.small {
