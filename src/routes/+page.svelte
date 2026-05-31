@@ -523,6 +523,23 @@
 		hoveredId = null;
 	}
 
+	function onPostsFocusIn(e: FocusEvent) {
+		// Mirror onPostsHover for keyboard users.
+		const t = e.target;
+		if (!(t instanceof HTMLElement)) return;
+		const id = t.dataset.idLink;
+		hoveredId = id ?? null;
+	}
+
+	function onPostsKeyDown(e: KeyboardEvent) {
+		// Treat Enter/Space on a post-number "button" the same as click.
+		if (e.key !== 'Enter' && e.key !== ' ') return;
+		const t = e.target;
+		if (!(t instanceof HTMLElement) || !t.dataset.postNum) return;
+		e.preventDefault();
+		insertQuote(Number(t.dataset.postNum));
+	}
+
 	function onPostsClick(e: MouseEvent) {
 		const t = e.target;
 		if (!(t instanceof HTMLElement)) return;
@@ -666,15 +683,19 @@
 						<button class="filter-clear" onclick={() => (filter = '')}>×</button>
 					{/if}
 				</div>
-				<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions a11y_mouse_events_have_key_events -->
-				<ol
+				<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+				<!-- svelte-ignore a11y_mouse_events_have_key_events -->
+				<div
 					class="posts"
+					role="list"
 					onclick={onPostsClick}
+					onkeydown={onPostsKeyDown}
 					onmouseover={onPostsHover}
 					onmouseleave={onPostsLeave}
+					onfocusin={onPostsFocusIn}
 				>
 					{#each visiblePosts as p (p.number)}
-						<li class="post" class:highlight-id={hoveredId && p.id === hoveredId}>
+						<div class="post" role="listitem" class:highlight-id={hoveredId && p.id === hoveredId}>
 							<div class="head">
 								<span
 									class="num"
@@ -695,9 +716,9 @@
 									{@html renderBodyHtml(p.body)}
 								{/if}
 							</div>
-						</li>
+						</div>
 					{/each}
-				</ol>
+				</div>
 				{#if threadLoading}
 					<div class="muted small">更新中…</div>
 				{/if}
@@ -822,10 +843,9 @@
 					<span>{popup.label} — {popup.posts.length} 件</span>
 					<button class="popup-close" onclick={closePopup}>×</button>
 				</div>
-				<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
-				<ol class="posts in-popup" onclick={onPostsClick}>
+				<div class="posts in-popup" role="list" onclick={onPostsClick} onkeydown={onPostsKeyDown}>
 					{#each popup.posts as p (p.number)}
-						<li class="post">
+						<div class="post" role="listitem">
 							<div class="head">
 								<span
 									class="num"
@@ -845,9 +865,9 @@
 									{@html renderBodyHtml(p.body)}
 								{/if}
 							</div>
-						</li>
+						</div>
 					{/each}
-				</ol>
+				</div>
 			</div>
 		</div>
 	{/if}

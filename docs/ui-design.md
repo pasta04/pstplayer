@@ -16,7 +16,7 @@ PSTPlayer のメインウィンドウのレイアウトとインタラクショ�
 │                                           │               │
 │                                           │   レス一覧    │
 │              配信画面 (動画)              │     表示      │
-│                 (libmpv)                  │   (BBS pane)  │ scrollbar
+│                 (libmpv)                  │   (BBS ペイン)│ scrollbar
 │                                           │               │
 │                                           │               │
 │                                           │               │
