@@ -127,6 +127,7 @@ MIT License。PCRPlayer (GPL v3) のコードは参照せず、公開プロト�
 - [`docs/ui-design.md`](docs/ui-design.md) — UI レイアウト・インタラクション
 - [`docs/shortcuts.md`](docs/shortcuts.md) — キーボードショートカット一覧
 - [`docs/roadmap.md`](docs/roadmap.md) — 開発ロードマップ (フェーズ計画)
+- [`docs/release.md`](docs/release.md) — リリース / 配布方針 (バージョニング・タグ運用・アイコン仕様)
 - [`docs/protocols/peercast.md`](docs/protocols/peercast.md) — PeerCast プロトコル参考メモ
 - [`docs/protocols/bbs.md`](docs/protocols/bbs.md) — BBS プロトコル参考メモ
 - [`docs/decisions/`](docs/decisions/) — アーキテクチャ決定記録 (ADR)
