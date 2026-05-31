@@ -99,7 +99,9 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
       取得先 URL は設定 → PeerCast → 「YP index.txt URL」で指定)
 - [x] リレー状況・接続情報の詳細表示 (右クリック → 📊 チャンネル詳細、
       ChannelInfo/Status/PlayerStat の全フィールドをモーダル表示)
-- [ ] チャンネル情報の定期更新 (Tauri event 経由 push)
+- [x] チャンネル情報の定期更新 (pseudo-push: backend の tokio タスクが
+      5 秒間隔で fetch_status → `channel:status` event でフロントに配る。
+      複数 listener (詳細モーダル / 将来の追加ウィンドウ) で共有可能)
 
 ### 2.2 BBS
 

@@ -21,6 +21,11 @@ tauri-plugin-opener = "2"
 tauri-plugin-notification = "2"
 serde.workspace = true
 serde_json.workspace = true
+# バックエンドのチャンネル状態ポーラー (channel_polling.rs) で
+# tokio::spawn / interval / JoinHandle::abort を直接使うため。
+# pst-core 経由でも入っているが、本クレートのコードから直接参照する
+# ので明示。
+tokio.workspace = true
 libmpv2 = { version = "5", default-features = false, features = ["render"] }
 raw-window-handle = "0.6"
 

@@ -1,9 +1,11 @@
 // PSTPlayer Tauri shell. Pure logic lives in the `pst-core` crate
 // (see crates/pst-core/) so it can be reused by future server / web builds.
 
+pub mod channel_polling;
 pub mod commands;
 pub mod player;
 
+use channel_polling::ChannelPolling;
 use player::engine::PlayerEngine;
 use pst_core::cli;
 use tauri::Manager;
@@ -17,6 +19,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .setup(move |app| {
             app.handle().manage(cli_args);
+            app.handle().manage(ChannelPolling::new());
             // Initialise libmpv once at startup. If this fails (e.g.
             // libmpv.so missing) we report and continue without the
             // player rather than aborting the whole app.
@@ -40,6 +43,8 @@ pub fn run() {
             commands::peercast::fetch_channel_status,
             commands::peercast::bump_channel,
             commands::peercast::stop_channel,
+            commands::peercast::start_channel_polling,
+            commands::peercast::stop_channel_polling,
             commands::peercast::fetch_yp_index,
             commands::config::get_config,
             commands::config::set_config,

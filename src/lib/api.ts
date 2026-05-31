@@ -132,6 +132,17 @@ export async function stopChannel(endpoint: PeerCastEndpoint, channelId: string)
 	return call<void>('stop_channel', { endpoint, channelId });
 }
 
+export async function startChannelPolling(
+	endpoint: PeerCastEndpoint,
+	channelId: string,
+): Promise<void> {
+	return call<void>('start_channel_polling', { endpoint, channelId });
+}
+
+export async function stopChannelPolling(): Promise<void> {
+	return call<void>('stop_channel_polling');
+}
+
 export interface YpEntry {
 	name: string;
 	id: string;

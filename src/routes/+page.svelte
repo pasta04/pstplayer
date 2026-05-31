@@ -23,7 +23,9 @@
 		pushHistory,
 		resolveStreamUrl,
 		sanitizeHtml,
+		startChannelPolling,
 		stopChannel,
+		stopChannelPolling,
 		type PlayerStatus,
 		type ChannelInfo,
 		type ChannelStatus,
@@ -119,14 +121,15 @@
 	const REFRESH_SEC = 5;
 	let refreshCountdown = $state(REFRESH_SEC);
 
-	// Polling handles
-	let infoTimer: ReturnType<typeof setInterval> | null = null;
+	// Polling handles (channel status は backend ポーラー経由なのでここ
+	// では持たない)
 	let threadTimer: ReturnType<typeof setInterval> | null = null;
 	let playerTimer: ReturnType<typeof setInterval> | null = null;
 	let countdownTimer: ReturnType<typeof setInterval> | null = null;
 	let threadSelectedUnlisten: UnlistenFn | null = null;
 	let configSavedUnlisten: UnlistenFn | null = null;
 	let ypSelectedUnlisten: UnlistenFn | null = null;
+	let channelStatusUnlisten: UnlistenFn | null = null;
 
 	let shortcutsUnlisten: (() => void) | null = null;
 	let themeUnlisten: (() => void) | null = null;
@@ -185,6 +188,13 @@
 			},
 		);
 
+		// バックエンドの pseudo-push (5 秒間隔でチャンネル状態を fetch
+		// → channel:status event)。フロント側 setInterval を 1 箇所に
+		// まとめる目的。複数ウィンドウからも同じ event を listen 可。
+		channelStatusUnlisten = await listen<ChannelStatus>('channel:status', (e) => {
+			channelStatus = e.payload;
+		});
+
 		// Honour CLI args (positional URL → auto-play unless --no-autoplay).
 		try {
 			const cli = await getCliArgs();
@@ -242,16 +252,17 @@
 	});
 
 	onDestroy(() => {
-		if (infoTimer) clearInterval(infoTimer);
 		if (threadTimer) clearInterval(threadTimer);
 		if (playerTimer) clearInterval(playerTimer);
 		if (countdownTimer) clearInterval(countdownTimer);
 		threadSelectedUnlisten?.();
 		configSavedUnlisten?.();
 		ypSelectedUnlisten?.();
+		channelStatusUnlisten?.();
 		shortcutsUnlisten?.();
 		themeUnlisten?.();
 		windowGeomUnlisten?.();
+		stopChannelPolling().catch(() => undefined);
 	});
 
 	async function reloadBbsPrefs() {
@@ -475,17 +486,14 @@
 	}
 
 	function startPolling() {
-		if (infoTimer) clearInterval(infoTimer);
 		if (threadTimer) clearInterval(threadTimer);
 		if (playerTimer) clearInterval(playerTimer);
-		infoTimer = setInterval(() => {
-			if (endpoint && channelId) {
-				fetchChannelStatus(endpoint, channelId).then(
-					(s) => (channelStatus = s),
-					() => undefined,
-				);
-			}
-		}, 5_000);
+		// チャンネル状態 (status) は backend ポーラーが 5 秒間隔で
+		// fetch → 'channel:status' event を emit する。フロントは
+		// onMount で listen 済みなのでここでは start を呼ぶだけ。
+		if (endpoint && channelId) {
+			startChannelPolling(endpoint, channelId).catch(() => undefined);
+		}
 		threadTimer = setInterval(() => {
 			if (currentThreadUrl && !threadLoading) loadCurrentThread(false);
 			refreshCountdown = REFRESH_SEC;
@@ -517,6 +525,7 @@
 		if (!confirm('チャンネルを切断します。よろしいですか?')) return;
 		try {
 			await stopChannel(endpoint, channelId);
+			await stopChannelPolling().catch(() => undefined);
 			await playerStop().catch((e) => console.warn('player_stop failed', e));
 			streamUrl = null;
 		} catch (e) {

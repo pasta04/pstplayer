@@ -1,3 +1,4 @@
+use crate::channel_polling::ChannelPolling;
 use pst_core::config;
 use pst_core::peercast::{
     client,
@@ -5,6 +6,7 @@ use pst_core::peercast::{
     yp::{self, YpEntry},
 };
 use pst_core::util::errors::IpcError;
+use tauri::{AppHandle, Runtime, State};
 
 /// Resolve a user-supplied PeerCast URL into the concrete stream URL
 /// that the embedded media player should load.
@@ -46,6 +48,27 @@ pub async fn bump_channel(endpoint: PeerCastEndpoint, channel_id: String) -> Res
 #[tauri::command]
 pub async fn stop_channel(endpoint: PeerCastEndpoint, channel_id: String) -> Result<(), IpcError> {
     client::stop(&endpoint, &channel_id).await.map_err(Into::into)
+}
+
+/// バックエンド側のチャンネル状態ポーラーを起動。指定 endpoint /
+/// channel_id に対して 5 秒間隔で fetch_status を呼び、結果を
+/// `channel:status` event でフロントに emit する。既に動いている
+/// タスクは abort してから差し替える。
+#[tauri::command]
+pub fn start_channel_polling<R: Runtime>(
+    endpoint: PeerCastEndpoint,
+    channel_id: String,
+    app: AppHandle<R>,
+    polling: State<'_, ChannelPolling>,
+) {
+    polling.start(app, endpoint, channel_id);
+}
+
+/// バックエンドのポーラーを停止。視聴を停止した時 / アプリ終了時に
+/// フロントから呼ぶ。
+#[tauri::command]
+pub fn stop_channel_polling(polling: State<'_, ChannelPolling>) {
+    polling.stop();
 }
 
 /// Fetch the configured YP `index.txt` and return parsed entries.
