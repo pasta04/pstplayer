@@ -19,17 +19,10 @@ jobs:
   rust:
     name: Rust (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-24.04
-            experimental: false
-          - os: macos-latest
-            experimental: false
-          - os: windows-latest
-            experimental: false
+        os: [ubuntu-24.04, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
 
@@ -130,26 +123,13 @@ jobs:
       - name: cargo clippy (workspace)
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      - name: cargo test (workspace, non-Windows)
-        if: runner.os != 'Windows'
+      # Windows ランナーでも全 OS 共通でフルテストを試みる。過去は
+      # `STATUS_DLL_NOT_FOUND` で test バイナリが起動しなかったが、最近
+      # の `tauri build --no-bundle` + libmpv-2.dll の System32 配置で
+      # 安定したので分岐を解消。万一退化したら次のコミットで Windows
+      # だけ `--no-run` に戻すこと。
+      - name: cargo test (workspace)
         run: cargo test --workspace
-
-      # On Windows the libmpv-2.dll we link against pulls in delay-load
-      # dependencies (UCRT / WinRT API sets) that the GitHub-hosted
-      # runner can't resolve at process start, so any binary linking
-      # libmpv aborts with STATUS_DLL_NOT_FOUND before main() runs.
-      #
-      # We split: run pst-core's 71 tests (Tauri-/libmpv-free) for full
-      # coverage, then only compile pstplayer's test binary to verify
-      # linkage. Actual playback testing is done on a real Windows host
-      # or via the build.yml artifact.
-      - name: cargo test pst-core (Windows)
-        if: runner.os == 'Windows'
-        run: cargo test -p pst-core
-
-      - name: cargo test pstplayer build only (Windows)
-        if: runner.os == 'Windows'
-        run: cargo test -p pstplayer --no-run
 
   frontend:
     name: Frontend

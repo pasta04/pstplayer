@@ -115,13 +115,13 @@ mod tests {
     /// soft skip so that environments without libmpv installed (some
     /// minimal CI containers) don't break the rest of the suite.
     ///
-    /// On Windows CI we don't even attempt to run this test (and the
-    /// CI workflow uses `cargo test --no-run` for the pstplayer crate)
-    /// because the GitHub runner can't resolve some of libmpv-2.dll's
-    /// import dependencies, which aborts the test binary at process
-    /// start with `STATUS_DLL_NOT_FOUND` before any `#[ignore]` can
-    /// take effect. Local Windows installs with a full mpv install
-    /// pick up those DLLs fine.
+    /// Historical note: Windows CI used to abort with
+    /// `STATUS_DLL_NOT_FOUND` because the GitHub runner couldn't
+    /// resolve libmpv-2.dll's delay-loaded API set imports. That was
+    /// worked around by copying the DLL into System32 in the workflow
+    /// and switching from `cargo build --release` to
+    /// `tauri build --no-bundle`; full `cargo test --workspace` now
+    /// runs on Windows too.
     #[test]
     fn engine_initialises() {
         match PlayerEngine::new() {

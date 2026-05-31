@@ -27,20 +27,16 @@ jobs:
   build:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-24.04
             artifact: linux
-            experimental: false
           - os: macos-latest
             artifact: macos
-            experimental: false
           - os: windows-latest
             artifact: windows
-            experimental: false
 
     steps:
       - uses: actions/checkout@v4
