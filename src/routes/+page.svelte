@@ -32,6 +32,7 @@
 	import { installShortcuts, setAlwaysOnTop, setDecorations } from '$lib/shortcuts';
 	import { notify } from '$lib/notifications';
 	import { initTheme } from '$lib/theme';
+	import { restoreMainWindowGeometry, watchMainWindowGeometry } from '$lib/window-state';
 
 	// ── State ────────────────────────────────────────────────────────
 
@@ -111,9 +112,14 @@
 
 	let shortcutsUnlisten: (() => void) | null = null;
 	let themeUnlisten: (() => void) | null = null;
+	let windowGeomUnlisten: (() => void) | null = null;
 
 	onMount(async () => {
 		themeUnlisten = initTheme();
+
+		// Restore last main window position/size, then start watching.
+		await restoreMainWindowGeometry();
+		windowGeomUnlisten = await watchMainWindowGeometry();
 
 		// Load BBS display mode + submit key from config (best-effort).
 		await reloadBbsPrefs();
@@ -189,6 +195,7 @@
 		configSavedUnlisten?.();
 		shortcutsUnlisten?.();
 		themeUnlisten?.();
+		windowGeomUnlisten?.();
 	});
 
 	async function reloadBbsPrefs() {

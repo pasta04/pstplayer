@@ -187,10 +187,21 @@ export interface PlayerCfg {
 	snapshot_jpeg_quality: number;
 }
 
+export interface WindowCfg {
+	x: number | null;
+	y: number | null;
+	width: number | null;
+	height: number | null;
+	bbs_pane_ratio: number | null;
+	bbs_pane_position: string | null;
+	always_on_top: boolean;
+}
+
 export interface Config {
 	peercast: PeerCastConfig;
 	bbs: BbsConfig;
 	player: PlayerCfg;
+	window?: WindowCfg;
 	// other sections exist but are not exposed yet
 	[key: string]: unknown;
 }
@@ -223,6 +234,15 @@ export async function getHistory(): Promise<HistoryEntry[]> {
 
 export async function clearHistory(): Promise<void> {
 	return call<void>('clear_history');
+}
+
+export async function saveWindowGeometry(
+	x: number,
+	y: number,
+	width: number,
+	height: number,
+): Promise<void> {
+	return call<void>('save_window_geometry', { x, y, width, height });
 }
 
 // ── Player (libmpv) ─────────────────────────────────────────────────

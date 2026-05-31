@@ -42,3 +42,15 @@ pub fn clear_history() -> Result<(), IpcError> {
     cfg.history.recent.clear();
     config::save(&cfg).map_err(Into::into)
 }
+
+/// Persist physical window geometry. Other `window.*` fields
+/// (bbs_pane_ratio, always_on_top, etc.) are preserved.
+#[tauri::command]
+pub fn save_window_geometry(x: i32, y: i32, width: u32, height: u32) -> Result<(), IpcError> {
+    let mut cfg = config::load().map_err(IpcError::from)?;
+    cfg.window.x = Some(x);
+    cfg.window.y = Some(y);
+    cfg.window.width = Some(width);
+    cfg.window.height = Some(height);
+    config::save(&cfg).map_err(Into::into)
+}

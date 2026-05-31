@@ -40,6 +40,7 @@ pub fn run() {
             commands::config::push_history,
             commands::config::get_history,
             commands::config::clear_history,
+            commands::config::save_window_geometry,
             commands::bbs::list_threads,
             commands::bbs::fetch_thread,
             commands::bbs::post_to_thread,
