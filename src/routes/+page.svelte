@@ -109,6 +109,8 @@
 	let ctxMenu = $state<{ x: number; y: number } | null>(null);
 	// 視聴履歴 (右クリックメニューのサブメニュー用に config から都度取得)。
 	let history = $state<HistoryEntry[]>([]);
+	// チャンネル詳細モーダル (リレー / 接続情報の全フィールドを見るため)。
+	let showChannelDetails = $state(false);
 
 	// Volume (0-100). Wheel over the player area changes it.
 	let volume = $state(80);
@@ -1008,6 +1010,16 @@
 					🔗 コンタクト URL を開く
 				</button>
 				<button class="ctx-item" onclick={ctxCopyChannelUrl}>📋 チャンネル URL をコピー</button>
+				<button
+					class="ctx-item"
+					onclick={() => {
+						closeCtxMenu();
+						showChannelDetails = true;
+					}}
+					disabled={!channelInfo}
+				>
+					📊 チャンネル詳細...
+				</button>
 				<div class="ctx-sep"></div>
 				<div class="ctx-sub-host">
 					<button class="ctx-item ctx-has-sub" type="button">
@@ -1069,6 +1081,92 @@
 				<button class="ctx-item" onclick={onOpenThreadList} disabled={!channelInfo?.url}>
 					≡ スレ一覧を開く
 				</button>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Channel details modal (PeerCast info + status の全フィールド) -->
+	{#if showChannelDetails && channelInfo}
+		<div
+			class="popup-backdrop"
+			role="presentation"
+			onclick={() => (showChannelDetails = false)}
+		></div>
+		<div class="details-modal" role="dialog" aria-modal="true" aria-label="チャンネル詳細">
+			<div class="popup-head">
+				<span>📊 {channelInfo.name || '(unnamed)'}</span>
+				<button class="popup-close" onclick={() => (showChannelDetails = false)}>×</button>
+			</div>
+			<div class="details-body">
+				<h4>チャンネル情報</h4>
+				<dl class="details-grid">
+					<dt>名前</dt>
+					<dd>{channelInfo.name || '-'}</dd>
+					<dt>ジャンル</dt>
+					<dd>{channelInfo.genre || '-'}</dd>
+					<dt>詳細</dt>
+					<dd>{channelInfo.desc || '-'}</dd>
+					<dt>コメント</dt>
+					<dd>{channelInfo.comment || '-'}</dd>
+					<dt>コンタクト URL</dt>
+					<dd>
+						{#if channelInfo.url}
+							{@const contactUrl = channelInfo.url}
+							<a
+								class="external-static"
+								href={contactUrl}
+								onclick={(e) => {
+									e.preventDefault();
+									openExternal(contactUrl);
+								}}>{contactUrl}</a
+							>
+						{:else}-{/if}
+					</dd>
+					<dt>形式</dt>
+					<dd>
+						{channelInfo.contentType || '-'}
+						<span class="muted"
+							>/ {channelInfo.mimeType || '-'} / {channelInfo.streamType || '-'} / .{channelInfo.streamExt ||
+								'-'}</span
+						>
+					</dd>
+					<dt>ビットレート</dt>
+					<dd>{channelInfo.bitrate || 0} kbps</dd>
+				</dl>
+				{#if channelStatus}
+					<h4>接続状態</h4>
+					<dl class="details-grid">
+						<dt>ステータス</dt>
+						<dd>{channelStatus.status || '-'}</dd>
+						<dt>稼働時間</dt>
+						<dd>{formatUptime(channelStatus.uptime)}</dd>
+						<dt>ローカル接続</dt>
+						<dd>
+							直 {channelStatus.localDirects} / リレー {channelStatus.localRelays}
+						</dd>
+						<dt>全体接続</dt>
+						<dd>
+							直 {channelStatus.totalDirects} / リレー {channelStatus.totalRelays}
+						</dd>
+						<dt>受信中</dt>
+						<dd>{channelStatus.isReceiving ? 'はい' : 'いいえ'}</dd>
+						<dt>配信元</dt>
+						<dd>{channelStatus.isBroadcasting ? 'はい' : 'いいえ'}</dd>
+						<dt>リレー枠</dt>
+						<dd>{channelStatus.isRelayFull ? '満杯' : '空きあり'}</dd>
+						<dt>直接枠</dt>
+						<dd>{channelStatus.isDirectFull ? '満杯' : '空きあり'}</dd>
+					</dl>
+				{/if}
+				{#if playerStat}
+					<h4>再生</h4>
+					<dl class="details-grid">
+						<dt>解像度</dt>
+						<dd>{playerStat.width ?? '-'} × {playerStat.height ?? '-'}</dd>
+						<dt>FPS</dt>
+						<dd>{playerStat.fps?.toFixed(2) ?? '-'}</dd>
+					</dl>
+				{/if}
 			</div>
 		</div>
 	{/if}
@@ -1584,6 +1682,57 @@
 	}
 	.popup :global(.posts.in-popup) {
 		font-size: 0.8rem;
+	}
+
+	.details-modal {
+		position: fixed;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		z-index: 210;
+		min-width: 400px;
+		max-width: min(620px, calc(100vw - 32px));
+		max-height: calc(100vh - 64px);
+		background: var(--bg-elev);
+		border: 1px solid var(--border-strong);
+		border-radius: 8px;
+		display: flex;
+		flex-direction: column;
+		box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
+	}
+	.details-body {
+		overflow-y: auto;
+		padding: 0.6rem 1rem 1rem;
+	}
+	.details-body h4 {
+		margin: 0.6rem 0 0.3rem;
+		font-size: 0.78rem;
+		color: var(--fg-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		border-bottom: 1px solid var(--border);
+		padding-bottom: 0.2rem;
+	}
+	.details-body h4:first-child {
+		margin-top: 0;
+	}
+	.details-grid {
+		display: grid;
+		grid-template-columns: 8rem 1fr;
+		gap: 0.3rem 0.8rem;
+		margin: 0;
+		font-size: 0.85rem;
+	}
+	.details-grid dt {
+		color: var(--fg-muted);
+	}
+	.details-grid dd {
+		margin: 0;
+		word-break: break-word;
+	}
+	.details-grid a.external-static {
+		color: var(--accent-link);
+		text-decoration: underline;
 	}
 
 	/* Right-click context menu */
