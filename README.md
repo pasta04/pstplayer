@@ -27,7 +27,8 @@ Rust テスト 72 件 (うち 71 が `pst-core`、1 が libmpv 初期化テス�
 pstplayer/
 ├── Cargo.toml                  ← workspace root
 ├── crates/
-│   └── pst-core/               ← UI 非依存ロジック (PeerCast / BBS / config)
+│   ├── pst-core/               ← UI 非依存ロジック (PeerCast / BBS / config)
+│   └── pst-server/             ← (フェーズ 4 MVP) axum HTTP API。モバイル向け
 ├── src-tauri/                  ← Tauri デスクトップアプリ
 │   └── src/{commands, player}  ← Tauri command + libmpv 統合
 ├── src/                        ← フロントエンド (Svelte 5)

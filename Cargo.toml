@@ -4,6 +4,7 @@
 [workspace]
 members = [
     "crates/pst-core",
+    "crates/pst-server",
     "src-tauri",
 ]
 resolver = "2"
@@ -30,6 +31,11 @@ directories = "5"
 quick-xml = { version = "0.36", features = ["serialize"] }
 ammonia = "4"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+# pst-server 用 (axum + tower-http)。デスクトップ側は使わない。
+axum = "0.7"
+tower-http = { version = "0.5", features = ["trace", "cors", "fs"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [profile.release]
 panic = "abort"

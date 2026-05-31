@@ -195,6 +195,19 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
       設定ファイルに紐付け先 PeerCastStation を書き、`getChannels` をプロキシして
       TOP ページに視聴可能チャンネル一覧を表示、HLS 出力で全端末対応、PWA 化。
       詳細は [ADR-0005](decisions/0005-workspace-and-server.md))
+      - [x] **MVP 着手**: `crates/pst-server/` 作成、axum 0.7 ベース
+            - [x] `pst-server.toml` 設定 (peercast 接続先 + bind / public_url)
+            - [x] PeerCast API プロキシ: `GET /api/channels`, `GET /api/channel/{id}/info`,
+                  `/status`, `POST /api/channel/{id}/bump`, `/stop`
+            - [x] YP プロキシ: `GET /api/yp?url=...`
+            - [x] BBS プロキシ: `GET /api/board?url=...`, `GET /api/thread?url=...`,
+                  `POST /api/thread/post`
+            - [x] エラーは pst-core::AppError を HTTP status にマッピング
+                  (peercast_unreachable → 502, board_regulated → 403, 等)
+            - [x] `--config <path>` で設定パス指定可、無ければ OS 標準
+      - [ ] **静的フロント (Svelte の Web ビルド) を `/` でホスト + PWA manifest**
+      - [ ] **HLS 配信 / プロキシ** (PeerCastStation の HLS 出力を活用)
+      - [ ] **マルチ PeerCast 対応 / 認証 / 公開モード**
 - [ ] リモート操作 (別端末からの再生制御) ← 上記サーバの延長
 - [ ] `pstplayer://` カスタム URL スキーマ (ブラウザからのワンクリック起動)
 
