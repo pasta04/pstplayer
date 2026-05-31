@@ -33,16 +33,12 @@
 		}
 	}
 
-	// 行クリック: 「このチャンネルを開け」を main にイベントで通知。
-	// PeerCast URL は `http://{host:port}/pls/{id}` の形に組み立てる。
-	// host:port は YP の `tip` フィールド (チャンネル元の IP) ではなく
-	// ユーザーの PeerCast (= 自分が接続しているリレー) で再生するので、
-	// main 側で endpoint を決め直す。ここでは pls URL の起点として
-	// `http://{tip}/pls/{id}` を渡すが、main は `endpointForUrl` で
-	// 自分の config endpoint に丸めて使う。
+	// 行クリック: チャンネル id と name を main に通知。URL の組み立て
+	// は main 側 (= 自分の PeerCast に対して /pls/{id} を叩く形)。
+	// YP の `tip` は配信元 IP なので直接叩くと NAT 越しできない場合が
+	// あるため、自分の PeerCast にリレー要求するのが正解。
 	async function pick(entry: YpEntry) {
-		const url = `http://${entry.tip}/pls/${entry.id}`;
-		await emit('yp:selected', { url, channelName: entry.name });
+		await emit('yp:selected', { id: entry.id, channelName: entry.name });
 	}
 
 	function toggleSort(key: typeof sortKey) {

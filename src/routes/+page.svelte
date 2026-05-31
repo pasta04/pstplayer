@@ -166,13 +166,22 @@
 			await loadCurrentThread(true);
 		});
 
-		// YP ウィンドウからチャンネルが選ばれたら自動再生開始 (貼り付け
-		// 欄に流し込む → onPaste で endpoint 解決 + libmpv ロード)。
-		ypSelectedUnlisten = await listen<{ url: string; channelName: string }>(
+		// YP ウィンドウからチャンネルが選ばれたら自動再生開始。チャンネル
+		// id だけが来るので、自分の PeerCast (config の host:port) に対し
+		// /pls/{id} を組み立てる。YP の tip (配信元 IP) を直接叩かないの
+		// は NAT 越しでリレーが必要なケースがあるため。
+		ypSelectedUnlisten = await listen<{ id: string; channelName: string }>(
 			'yp:selected',
 			async (e) => {
-				pasteUrl = e.payload.url;
-				await onPaste();
+				try {
+					const cfg = await getConfig();
+					const host = cfg?.peercast?.host || 'localhost';
+					const port = cfg?.peercast?.port || 7144;
+					pasteUrl = `http://${host}:${port}/pls/${e.payload.id}`;
+					await onPaste();
+				} catch (err) {
+					console.warn('yp:selected handling failed', err);
+				}
 			},
 		);
 
