@@ -269,6 +269,9 @@ export interface Config {
 	bbs: BbsConfig;
 	player: PlayerCfg;
 	window?: WindowCfg;
+	/** カスタムホットキー (action_id → "Ctrl+Shift+R" 等)。
+	 * 未指定の action はフロントのデフォルトを使う。 */
+	hotkeys?: Record<string, string>;
 	// other sections exist but are not exposed yet
 	[key: string]: unknown;
 }

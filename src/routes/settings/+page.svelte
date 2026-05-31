@@ -14,10 +14,67 @@
 		type HistoryEntry,
 	} from '$lib/api';
 	import { applyTheme, getTheme, setTheme, type Theme } from '$lib/theme';
+	import { HOTKEY_DEFS, bindingFromEvent, detectConflicts, type HotkeyDef } from '$lib/shortcuts';
 
 	let cfg = $state<Config | null>(null);
-	let tab = $state<'general' | 'peercast' | 'bbs' | 'player' | 'history'>('general');
+	let tab = $state<'general' | 'peercast' | 'bbs' | 'player' | 'hotkeys' | 'history'>('general');
 	let saving = $state(false);
+
+	// ── ホットキー編集状態 ──────────────────────────────────────
+	// 編集中のキャプチャ対象 (action id)。null なら待機中ではない。
+	let capturingId = $state<string | null>(null);
+
+	function currentBinding(def: HotkeyDef): string {
+		if (!cfg) return def.defaultBinding;
+		const hk = (cfg.hotkeys ?? {}) as Record<string, string>;
+		return hk[def.id] ?? def.defaultBinding;
+	}
+
+	function setBinding(id: string, binding: string) {
+		if (!cfg) return;
+		const hk = { ...((cfg.hotkeys ?? {}) as Record<string, string>) };
+		hk[id] = binding;
+		cfg.hotkeys = hk;
+	}
+
+	function resetBinding(id: string) {
+		if (!cfg) return;
+		const hk = { ...((cfg.hotkeys ?? {}) as Record<string, string>) };
+		delete hk[id];
+		cfg.hotkeys = hk;
+	}
+
+	function disableBinding(id: string) {
+		// 空文字列を入れて「割当無し」として記録。
+		setBinding(id, '');
+	}
+
+	function startCapture(id: string) {
+		capturingId = id;
+	}
+
+	function onCaptureKey(e: KeyboardEvent) {
+		if (!capturingId) return;
+		// Esc でキャプチャをキャンセル。
+		if (e.key === 'Escape') {
+			e.preventDefault();
+			capturingId = null;
+			return;
+		}
+		const s = bindingFromEvent(e);
+		if (!s) return; // 単独 Modifier だけは無視
+		e.preventDefault();
+		setBinding(capturingId, s);
+		capturingId = null;
+	}
+
+	const conflicts = $derived.by(() => {
+		if (!cfg) return {} as Record<string, string[]>;
+		const hk: Record<string, string> = {};
+		const stored = (cfg.hotkeys ?? {}) as Record<string, string>;
+		for (const def of HOTKEY_DEFS) hk[def.id] = stored[def.id] ?? def.defaultBinding;
+		return detectConflicts(hk);
+	});
 	let message = $state<string | null>(null);
 	let configPath = $state<string>('');
 	let theme = $state<Theme>('system');
@@ -106,6 +163,8 @@
 	<title>PSTPlayer · 設定</title>
 </svelte:head>
 
+<svelte:window onkeydown={onCaptureKey} />
+
 <main>
 	{#if cfg}
 		<nav>
@@ -113,6 +172,9 @@
 			<button class:active={tab === 'peercast'} onclick={() => (tab = 'peercast')}>PeerCast</button>
 			<button class:active={tab === 'bbs'} onclick={() => (tab = 'bbs')}>BBS</button>
 			<button class:active={tab === 'player'} onclick={() => (tab = 'player')}>プレイヤー</button>
+			<button class:active={tab === 'hotkeys'} onclick={() => (tab = 'hotkeys')}>
+				ショートカット
+			</button>
 			<button class:active={tab === 'history'} onclick={() => (tab = 'history')}>履歴</button>
 		</nav>
 
@@ -249,6 +311,49 @@
 						>YYYYMMDD_HHmmss_チャンネル名.png</code
 					> 形式。
 				</p>
+			{:else if tab === 'hotkeys'}
+				<p class="hint small muted">
+					各行の「変更」を押した後、割り当てたいキーを押すとそのまま記録されます (Esc
+					でキャンセル)。Ctrl+1〜9 (サイズ) / Alt+1〜7 (アスペクト比) / Esc (全画面解除)
+					はカスタマイズ不可です。保存ボタンで反映されます。
+				</p>
+				<table class="hotkeys">
+					<thead>
+						<tr>
+							<th>動作</th>
+							<th>キー</th>
+							<th>操作</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each HOTKEY_DEFS as def (def.id)}
+							{@const cb = currentBinding(def)}
+							{@const cf = conflicts[def.id]}
+							<tr class:conflict={cf}>
+								<td>{def.label}</td>
+								<td class="key-cell">
+									{#if capturingId === def.id}
+										<span class="capturing">⌨ 待機中…</span>
+									{:else if cb}
+										<code class="key">{cb}</code>
+									{:else}
+										<span class="muted small">(無し)</span>
+									{/if}
+									{#if cf}
+										<span class="conflict-note">⚠ 衝突: {cf.join(', ')}</span>
+									{/if}
+								</td>
+								<td class="ops">
+									<button type="button" onclick={() => startCapture(def.id)}>
+										{capturingId === def.id ? '…キャプ中' : '変更'}
+									</button>
+									<button type="button" onclick={() => disableBinding(def.id)}>無効</button>
+									<button type="button" onclick={() => resetBinding(def.id)}>初期</button>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
 			{:else if tab === 'history'}
 				<div class="hist-head">
 					<span class="hint">最近開いたチャンネル ({history.length})</span>
@@ -518,6 +623,62 @@
 
 	.recent-host:hover {
 		background: var(--bg-elev);
+		border-color: var(--border-strong);
+	}
+
+	table.hotkeys {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: 0.85rem;
+	}
+	table.hotkeys th,
+	table.hotkeys td {
+		text-align: left;
+		padding: 0.35rem 0.45rem;
+		border-bottom: 1px solid var(--border);
+		vertical-align: middle;
+	}
+	table.hotkeys th {
+		font-size: 0.78rem;
+		color: var(--fg-muted);
+		font-weight: 600;
+	}
+	table.hotkeys tr.conflict td {
+		background: color-mix(in srgb, var(--err) 14%, transparent);
+	}
+	table.hotkeys .key {
+		background: var(--bg-input);
+		border: 1px solid var(--border);
+		border-radius: 3px;
+		padding: 0.1rem 0.4rem;
+		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+		font-size: 0.78rem;
+	}
+	table.hotkeys .capturing {
+		color: var(--accent);
+		font-weight: 600;
+	}
+	table.hotkeys .conflict-note {
+		display: block;
+		color: var(--err);
+		font-size: 0.7rem;
+		margin-top: 0.15rem;
+	}
+	table.hotkeys .ops {
+		display: flex;
+		gap: 0.3rem;
+		white-space: nowrap;
+	}
+	table.hotkeys .ops button {
+		background: var(--bg-input);
+		color: inherit;
+		border: 1px solid var(--border);
+		border-radius: 3px;
+		padding: 0.18rem 0.5rem;
+		font-size: 0.78rem;
+		cursor: pointer;
+	}
+	table.hotkeys .ops button:hover {
 		border-color: var(--border-strong);
 	}
 </style>

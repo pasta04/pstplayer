@@ -18,6 +18,11 @@ pub struct Config {
     pub display: DisplayConfig,
     #[serde(default)]
     pub history: HistoryConfig,
+    /// ユーザーがカスタマイズしたホットキー (action_id → 文字列形式
+    /// e.g. `Ctrl+Shift+R`)。未指定の action はフロント側のデフォルト
+    /// が使われる。空文字列を入れると「割当無し」として無効化。
+    #[serde(default)]
+    pub hotkeys: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

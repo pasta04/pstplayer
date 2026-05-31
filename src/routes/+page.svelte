@@ -152,9 +152,10 @@
 		// Load BBS display mode + submit key from config (best-effort).
 		await reloadBbsPrefs();
 
-		// Re-read the same prefs whenever the settings window saves.
+		// Re-read prefs + hotkeys whenever the settings window saves.
 		configSavedUnlisten = await listen('config:saved', () => {
 			reloadBbsPrefs();
+			reinstallShortcuts();
 		});
 
 		threadSelectedUnlisten = await listen<{
@@ -206,50 +207,66 @@
 			/* CLI parsing is best-effort */
 		}
 
-		shortcutsUnlisten = installShortcuts({
-			toggleBbsPane: () => (showBbsPane = !showBbsPane),
-			toggleStatusBar: () => (showStatusBar = !showStatusBar),
-			toggleTitleBar: () => (showTitleBar = !showTitleBar),
-			toggleFrame: async () => {
-				showFrame = !showFrame;
-				await setDecorations(showFrame);
-			},
-			toggleAlwaysOnTop: async () => {
-				alwaysOnTop = !alwaysOnTop;
-				await setAlwaysOnTop(alwaysOnTop);
-			},
-			bump: onBump,
-			stop: onStop,
-			pasteUrl: async () => {
-				try {
-					const text = await navigator.clipboard.readText();
-					if (text.trim().startsWith('http')) {
-						pasteUrl = text.trim();
-						await onPaste();
-					}
-				} catch {
-					/* clipboard permission denied — ignore */
-				}
-			},
-			openSettings: onOpenSettings,
-			openThreadList: onOpenThreadList,
-			focusSearch: () => filterInput?.focus(),
-			reloadThread: () => {
-				if (currentThreadUrl && !threadLoading) loadCurrentThread(false);
-			},
-			reloadThreadFull: () => {
-				if (currentThreadUrl && !threadLoading) {
-					fetchState = null;
-					posts = [];
-					sanitizedCache = new Map();
-					loadCurrentThread(true);
-				}
-			},
-			snapshot: doSnapshot,
-			setSizePreset: applySizePreset,
-			setAspectPreset: applyAspectPreset,
-		});
+		await reinstallShortcuts();
 	});
+
+	async function reinstallShortcuts() {
+		shortcutsUnlisten?.();
+		let customs: Record<string, string> = {};
+		try {
+			const cfg = await getConfig();
+			customs = (cfg?.hotkeys as Record<string, string>) ?? {};
+		} catch {
+			/* default bindings */
+		}
+		shortcutsUnlisten = installShortcuts(
+			{
+				toggleBbsPane: () => (showBbsPane = !showBbsPane),
+				toggleStatusBar: () => (showStatusBar = !showStatusBar),
+				toggleTitleBar: () => (showTitleBar = !showTitleBar),
+				toggleFrame: async () => {
+					showFrame = !showFrame;
+					await setDecorations(showFrame);
+				},
+				toggleAlwaysOnTop: async () => {
+					alwaysOnTop = !alwaysOnTop;
+					await setAlwaysOnTop(alwaysOnTop);
+				},
+				bump: onBump,
+				stop: onStop,
+				pasteUrl: async () => {
+					try {
+						const text = await navigator.clipboard.readText();
+						if (text.trim().startsWith('http')) {
+							pasteUrl = text.trim();
+							await onPaste();
+						}
+					} catch {
+						/* clipboard permission denied — ignore */
+					}
+				},
+				openSettings: onOpenSettings,
+				openThreadList: onOpenThreadList,
+				focusSearch: () => filterInput?.focus(),
+				reloadThread: () => {
+					if (currentThreadUrl && !threadLoading) loadCurrentThread(false);
+				},
+				reloadThreadFull: () => {
+					if (currentThreadUrl && !threadLoading) {
+						fetchState = null;
+						posts = [];
+						sanitizedCache = new Map();
+						loadCurrentThread(true);
+					}
+				},
+				snapshot: doSnapshot,
+				toggleFullscreen: ctxToggleFullscreen,
+				setSizePreset: applySizePreset,
+				setAspectPreset: applyAspectPreset,
+			},
+			customs,
+		);
+	}
 
 	onDestroy(() => {
 		if (threadTimer) clearInterval(threadTimer);
