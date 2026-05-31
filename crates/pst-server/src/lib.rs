@@ -29,13 +29,22 @@ pub fn build_router(state: AppState) -> Router {
         .route("/", routing::get(handlers::index))
         // PeerCast
         .route("/api/channels", routing::get(handlers::channels))
-        .route("/api/channel/{id}/info", routing::get(handlers::channel_info))
+        .route(
+            "/api/channel/{id}/info",
+            routing::get(handlers::channel_info),
+        )
         .route(
             "/api/channel/{id}/status",
             routing::get(handlers::channel_status),
         )
-        .route("/api/channel/{id}/bump", routing::post(handlers::channel_bump))
-        .route("/api/channel/{id}/stop", routing::post(handlers::channel_stop))
+        .route(
+            "/api/channel/{id}/bump",
+            routing::post(handlers::channel_bump),
+        )
+        .route(
+            "/api/channel/{id}/stop",
+            routing::post(handlers::channel_stop),
+        )
         // YP
         .route("/api/yp", routing::get(handlers::yp_index))
         // BBS

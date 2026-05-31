@@ -108,7 +108,9 @@ pub async fn board_threads(Query(q): Query<BoardQuery>) -> ApiResult<Json<Thread
                 .await?
         }
         Some(BoardKind::Ch2Compat) => {
-            pst_core::bbs::ch2::Ch2Client::new().list_threads(&q.url).await?
+            pst_core::bbs::ch2::Ch2Client::new()
+                .list_threads(&q.url)
+                .await?
         }
         None => {
             return Err(ApiError {
@@ -191,7 +193,9 @@ pub async fn thread_post(Json(b): Json<PostBody>) -> ApiResult<Json<Empty>> {
                 .await?
         }
         Some(BoardKind::Ch2Compat) => {
-            pst_core::bbs::ch2::Ch2Client::new().post(&b.url, &req).await?
+            pst_core::bbs::ch2::Ch2Client::new()
+                .post(&b.url, &req)
+                .await?
         }
         None => {
             return Err(ApiError {
