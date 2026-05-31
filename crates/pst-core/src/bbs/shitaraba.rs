@@ -5,6 +5,7 @@ use serde::Serialize;
 use super::{
     encoding::{percent_encode, BoardEncoding},
     parse::{parse_shitaraba_dat, parse_shitaraba_subject},
+    post_result::{classify_shitaraba, PostOutcome},
     types::{FetchState, Post, PostRequest},
     url::parse_shitaraba,
 };
@@ -189,18 +190,18 @@ impl ShitarabaClient {
         let text = BoardEncoding::EucJp
             .decode(&text_bytes)
             .unwrap_or_else(|_| String::new());
-        if text.contains("書きこみました") || text.contains("RESULT::CHECK") {
-            Ok(())
-        } else if text.contains("RESULT::ERROR") || text.contains("投稿できません") {
-            Err(AppError::Network(
-                "BBS rejected the post (regulated or invalid)".into(),
-            ))
-        } else {
-            // Unknown response — surface a short excerpt for debugging.
-            let excerpt: String = text.chars().take(200).collect();
-            Err(AppError::Network(format!(
-                "unknown BBS response: {excerpt}"
-            )))
+        // RESULT::CHECK は (旧仕様の) Cookie 確認ステップに使われる
+        // ことがあるため成功扱い。残りは post_result の判定に任せる。
+        if text.contains("RESULT::CHECK") {
+            return Ok(());
+        }
+        match classify_shitaraba(&text) {
+            PostOutcome::Success => Ok(()),
+            PostOutcome::NeedsCookieConfirm => Err(AppError::PostRejected(
+                "Cookie 確認画面が返ってきました (ブラウザで一度書き込んで確認画面を抜けてください)"
+                    .into(),
+            )),
+            PostOutcome::Rejected(kind) => Err(kind.into_error()),
         }
     }
 }

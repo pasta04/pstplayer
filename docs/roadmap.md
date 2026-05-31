@@ -163,7 +163,16 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
 
 ## フェーズ 3: 安定化・品質 (v1.0)
 
-- [ ] エラー処理の網羅 (ネットワーク断、サーバ規制、スレ落ち等)
+- [x] エラー処理の網羅 (1 巡目: AppError を分類 + 起動時疎通チェック + 規制検出)
+      - `AppError::{PeerCastUnreachable, ThreadGone, BoardRegulated, PostRejected}` 追加
+      - `reqwest::Error::is_connect()/is_timeout()` で接続失敗を `PeerCastUnreachable` に分離
+      - BBS 投稿応答 (`bbs::post_result`) で「ホスト規制 / プロバ規制 / !=BANNED!= 等」
+        を `BoardRegulated`、その他拒否を `PostRejected` に分類
+      - `config::load_or_default()` で TOML 破損時に `.bak.YYYYMMDD_HHMMSS` を作って
+        デフォルト起動。アプリが立ち上がらない状態を防ぐ
+      - 起動時に `peercastPing()` (getVersionInfo) → 失敗なら設定ウィンドウを自動オープン
+        + lastError 表示
+      - 残: libmpv 再生中の stream 切断検知、ネットワーク断時の自動 retry など
 - [ ] パフォーマンス計測と改善 (起動時間、メモリ、CPU)
 - [ ] 3 OS で実機 QA
 - [ ] バグ修正

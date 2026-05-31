@@ -12,6 +12,7 @@
 		getConfig,
 		getHistory,
 		listThreads,
+		peercastPing,
 		playerAttach,
 		playerLoad,
 		playerSetAspect,
@@ -197,11 +198,26 @@
 		});
 
 		// Honour CLI args (positional URL → auto-play unless --no-autoplay).
+		// CLI url が無ければ初期表示として:
+		//   - PeerCast に応答あり → YP ウィンドウを自動オープン
+		//   - PeerCast 未起動 / port 違い → 設定ウィンドウを開いて促す
+		// メインウィンドウの URL 貼り付け欄はバックアップとして残る。
 		try {
 			const cli = await getCliArgs();
 			if (cli.url && !cli.no_autoplay) {
 				pasteUrl = cli.url;
 				await onPaste();
+			} else if (!cli.no_autoplay) {
+				try {
+					await peercastPing();
+					await openYpList();
+				} catch (err) {
+					if (err instanceof CommandError && err.code === 'peercast_unreachable') {
+						lastError =
+							'PeerCast 本体に接続できません。設定で接続先 (ホスト/ポート) を確認してください。';
+						await openSettings();
+					}
+				}
 			}
 		} catch {
 			/* CLI parsing is best-effort */
@@ -833,7 +849,24 @@
 	}
 
 	function errorMessage(e: unknown): string {
-		if (e instanceof CommandError) return `${e.code}: ${e.message}`;
+		if (e instanceof CommandError) {
+			// pst-core::AppError → IpcError code に対応する日本語メッセージ。
+			// メッセージ自体は backend が組み立てているのでそのまま添える。
+			switch (e.code) {
+				case 'peercast_unreachable':
+					return `PeerCast に接続できません。設定 → PeerCast のホスト / ポートを確認してください。 (${e.message})`;
+				case 'board_regulated':
+					return `書き込みが規制されています: ${e.message}`;
+				case 'post_rejected':
+					return `書き込みが拒否されました: ${e.message}`;
+				case 'thread_gone':
+					return `スレッドが見つかりません (削除 / 過去ログ送り)。 ${e.message}`;
+				case 'invalid_url':
+					return `URL が不正です: ${e.message}`;
+				default:
+					return `${e.code}: ${e.message}`;
+			}
+		}
 		return String(e);
 	}
 </script>

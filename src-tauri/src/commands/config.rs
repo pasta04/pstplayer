@@ -5,7 +5,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 #[tauri::command]
 pub fn get_config() -> Result<Config, IpcError> {
-    config::load().map_err(Into::into)
+    // 破損 TOML でアプリ起動を阻害しないよう load_or_default を使う。
+    // バックアップは backend ログに出力するのみ (フロントへの通知は
+    // 別途 config:corrupted event 等で連動させる余地あり)。
+    let (cfg, bak) = config::load_or_default();
+    if let Some(path) = bak {
+        eprintln!("warning: config.toml was corrupt; backed up to {}", path.display());
+    }
+    Ok(cfg)
 }
 
 #[tauri::command]

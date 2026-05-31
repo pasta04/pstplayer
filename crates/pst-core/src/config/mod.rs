@@ -33,6 +33,35 @@ pub fn load() -> AppResult<Config> {
     toml::from_str(&raw).map_err(|e| AppError::Decode(format!("parse config: {e}")))
 }
 
+/// Best-effort load: パース失敗時は破損ファイルをタイムスタンプ付き
+/// `.bak.YYYYMMDD_HHMMSS` にバックアップして、デフォルト Config を
+/// 返す。起動 (Tauri command) で使うとアプリが立ち上がらない状態を
+/// 防げる。
+///
+/// 返り値の 2 要素目は「破損のためバックアップしたファイルのパス」。
+/// None なら正常 load。Some(_) ならユーザーに通知してよい状況。
+pub fn load_or_default() -> (Config, Option<PathBuf>) {
+    match load() {
+        Ok(cfg) => (cfg, None),
+        Err(_) => {
+            // バックアップを試みる (失敗してもデフォルトで起動する)。
+            let bak = match config_path() {
+                Ok(path) if path.exists() => {
+                    let stamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+                    let bak = path.with_extension(format!("toml.bak.{stamp}"));
+                    if fs::copy(&path, &bak).is_ok() {
+                        Some(bak)
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            };
+            (Config::default(), bak)
+        }
+    }
+}
+
 /// Write the config to disk, creating the parent directory if needed.
 pub fn save(cfg: &Config) -> AppResult<()> {
     let path = config_path()?;

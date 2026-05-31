@@ -39,6 +39,7 @@ pub fn run() {
             commands::cli::resolve_default_endpoint,
             commands::peercast::resolve_stream_url,
             commands::peercast::endpoint_for_url,
+            commands::peercast::peercast_ping,
             commands::peercast::fetch_channel_info,
             commands::peercast::fetch_channel_status,
             commands::peercast::bump_channel,

@@ -3,6 +3,7 @@
 use super::{
     encoding::{percent_encode, BoardEncoding},
     parse::{parse_ch2_dat, parse_ch2_subject},
+    post_result::{classify_ch2, PostOutcome},
     types::{FetchState, Post, PostRequest},
     url::parse_ch2,
 };
@@ -184,35 +185,32 @@ impl Ch2Client {
         let text1 = BoardEncoding::ShiftJis
             .decode(&bytes1)
             .unwrap_or_else(|_| String::new());
-        if text1.contains("<!-- 2ch_X:true -->") {
-            return Ok(());
-        }
-        if text1.contains("<!-- 2ch_X:cookie -->") || text1.contains("<!-- 2ch_X:check -->") {
-            // Re-send with the cookies the server just handed us.
-            let resp2 = self
-                .http
-                .post(&url)
-                .header("Referer", &referer)
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .body(body_str)
-                .send()
-                .await?;
-            let bytes2 = resp2.bytes().await?;
-            let text2 = BoardEncoding::ShiftJis
-                .decode(&bytes2)
-                .unwrap_or_else(|_| String::new());
-            if text2.contains("<!-- 2ch_X:true -->") {
-                return Ok(());
+        match classify_ch2(&text1) {
+            PostOutcome::Success => Ok(()),
+            PostOutcome::Rejected(kind) => Err(kind.into_error()),
+            PostOutcome::NeedsCookieConfirm => {
+                // Re-send with the cookies the server just handed us.
+                let resp2 = self
+                    .http
+                    .post(&url)
+                    .header("Referer", &referer)
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .body(body_str)
+                    .send()
+                    .await?;
+                let bytes2 = resp2.bytes().await?;
+                let text2 = BoardEncoding::ShiftJis
+                    .decode(&bytes2)
+                    .unwrap_or_else(|_| String::new());
+                match classify_ch2(&text2) {
+                    PostOutcome::Success => Ok(()),
+                    PostOutcome::Rejected(kind) => Err(kind.into_error()),
+                    PostOutcome::NeedsCookieConfirm => Err(AppError::PostRejected(
+                        "Cookie 確認の再送でも投稿が通りませんでした".into(),
+                    )),
+                }
             }
-            return Err(AppError::Network(format!(
-                "BBS rejected post after cookie confirmation: {}",
-                text2.chars().take(200).collect::<String>()
-            )));
         }
-        Err(AppError::Network(format!(
-            "BBS rejected post: {}",
-            text1.chars().take(200).collect::<String>()
-        )))
     }
 }
 

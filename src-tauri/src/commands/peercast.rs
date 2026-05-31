@@ -1,11 +1,11 @@
 use crate::channel_polling::ChannelPolling;
 use pst_core::config;
 use pst_core::peercast::{
-    client,
+    client, jsonrpc,
     types::{ChannelInfo, ChannelStatus, PeerCastEndpoint},
     yp::{self, YpEntry},
 };
-use pst_core::util::errors::IpcError;
+use pst_core::util::errors::{AppError, IpcError};
 use tauri::{AppHandle, Runtime, State};
 
 /// Resolve a user-supplied PeerCast URL into the concrete stream URL
@@ -22,6 +22,27 @@ pub async fn resolve_stream_url(url: String) -> Result<String, IpcError> {
 pub fn endpoint_for_url(url: String) -> Result<PeerCastEndpoint, IpcError> {
     let cfg = config::load().map_err(IpcError::from)?;
     client::endpoint_for_with_auth(&url, &cfg.peercast).map_err(Into::into)
+}
+
+/// 起動時の疎通チェック。config の peercast endpoint に対して
+/// `getVersionInfo` JSON-RPC を投げ、応答があるかどうかだけを返す。
+/// 失敗時のエラーコードでフロントが「PeerCast 未起動」と判断できる。
+#[tauri::command]
+pub async fn peercast_ping() -> Result<(), IpcError> {
+    let cfg = config::load().map_err(IpcError::from)?;
+    let endpoint = PeerCastEndpoint {
+        host: cfg.peercast.host.clone(),
+        port: cfg.peercast.port,
+        auth: client::auth_from_cfg(&cfg.peercast),
+    };
+    if jsonrpc::get_version_info(&endpoint).await.is_ok() {
+        return Ok(());
+    }
+    Err(AppError::PeerCastUnreachable(format!(
+        "{}:{} に応答がありません",
+        endpoint.host, endpoint.port
+    ))
+    .into())
 }
 
 #[tauri::command]

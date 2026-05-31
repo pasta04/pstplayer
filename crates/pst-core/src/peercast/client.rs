@@ -137,7 +137,7 @@ pub fn resolve_endpoint(cli: &CliArgs, cfg: &PeerCastConfig) -> PeerCastEndpoint
     }
 }
 
-pub(crate) fn auth_from_cfg(cfg: &PeerCastConfig) -> Option<BasicAuth> {
+pub fn auth_from_cfg(cfg: &PeerCastConfig) -> Option<BasicAuth> {
     match (&cfg.auth_user, &cfg.auth_pass) {
         (Some(u), Some(p)) if !u.is_empty() => Some(BasicAuth {
             user: u.clone(),

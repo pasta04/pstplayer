@@ -82,6 +82,12 @@ export async function endpointForUrl(url: string): Promise<PeerCastEndpoint> {
 	return call<PeerCastEndpoint>('endpoint_for_url', { url });
 }
 
+/** 起動時の疎通チェック。成功 = PeerCast 本体に応答あり。失敗時は
+ * CommandError.code === 'peercast_unreachable'。 */
+export async function peercastPing(): Promise<void> {
+	return call<void>('peercast_ping');
+}
+
 export interface CliArgs {
 	url: string | null;
 	channel_name: string | null;

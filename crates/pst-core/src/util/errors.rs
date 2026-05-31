@@ -5,8 +5,30 @@ pub enum AppError {
     #[error("invalid URL: {0}")]
     InvalidUrl(String),
 
+    /// 汎用ネットワークエラー (タイムアウト / TLS / DNS など)。
+    /// 接続自体ができない場合は `PeerCastUnreachable` のほうが
+    /// ユーザー向けメッセージを出しやすい。
     #[error("network error: {0}")]
     Network(String),
+
+    /// PeerCast 本体に接続できない (起動していない / port が違う /
+    /// firewall に塞がれている)。
+    #[error("PeerCast に接続できません: {0}")]
+    PeerCastUnreachable(String),
+
+    /// スレッドが見つからない (404 / 410)。dat が削除されたか過去
+    /// ログ送りになった場合。
+    #[error("スレッドが見つかりません: {0}")]
+    ThreadGone(String),
+
+    /// BBS への投稿が規制で弾かれた (ホスト規制 / 連投規制 等)。
+    #[error("書き込みが規制されました: {0}")]
+    BoardRegulated(String),
+
+    /// BBS への投稿が拒否された (規制以外。Cookie 確認失敗、フォーム
+    /// 変更等)。
+    #[error("書き込みが拒否されました: {0}")]
+    PostRejected(String),
 
     #[error("decode error: {0}")]
     Decode(String),
@@ -17,7 +39,15 @@ pub enum AppError {
 
 impl From<reqwest::Error> for AppError {
     fn from(e: reqwest::Error) -> Self {
-        AppError::Network(e.to_string())
+        // 接続そのものが拒否された / DNS 失敗 / タイムアウト等は
+        // ユーザー向けに「相手 (主に PeerCast 本体) が見つからない」
+        // メッセージで返す。reqwest::Error の is_connect / is_timeout
+        // は status 系のエラーと区別される。
+        if e.is_connect() || e.is_timeout() {
+            AppError::PeerCastUnreachable(e.to_string())
+        } else {
+            AppError::Network(e.to_string())
+        }
     }
 }
 
@@ -39,6 +69,10 @@ impl From<AppError> for IpcError {
         let code = match e {
             AppError::InvalidUrl(_) => "invalid_url",
             AppError::Network(_) => "network",
+            AppError::PeerCastUnreachable(_) => "peercast_unreachable",
+            AppError::ThreadGone(_) => "thread_gone",
+            AppError::BoardRegulated(_) => "board_regulated",
+            AppError::PostRejected(_) => "post_rejected",
             AppError::Decode(_) => "decode",
             AppError::NotImplemented(_) => "not_implemented",
         };
