@@ -74,6 +74,8 @@
 	// Display mode (plain text vs HTML rendering). Sourced from config
 	// on mount and cached. Defaults to plain.
 	let displayMode = $state<'plain' | 'html'>('plain');
+	// Submit key for the write box. Loaded from config on mount.
+	let submitKey = $state<'ctrl_enter' | 'shift_enter'>('ctrl_enter');
 	// Cache of sanitised HTML per post number to avoid re-fetching on
 	// every render.
 	let sanitizedCache = $state<Map<number, string>>(new Map());
@@ -102,6 +104,7 @@
 	let playerTimer: ReturnType<typeof setInterval> | null = null;
 	let countdownTimer: ReturnType<typeof setInterval> | null = null;
 	let threadSelectedUnlisten: UnlistenFn | null = null;
+	let configSavedUnlisten: UnlistenFn | null = null;
 
 	let shortcutsUnlisten: (() => void) | null = null;
 	let themeUnlisten: (() => void) | null = null;
@@ -109,13 +112,13 @@
 	onMount(async () => {
 		themeUnlisten = initTheme();
 
-		// Load BBS display mode from config (best-effort).
-		try {
-			const cfg = await getConfig();
-			if (cfg?.bbs?.displayMode === 'html') displayMode = 'html';
-		} catch {
-			/* default to plain */
-		}
+		// Load BBS display mode + submit key from config (best-effort).
+		await reloadBbsPrefs();
+
+		// Re-read the same prefs whenever the settings window saves.
+		configSavedUnlisten = await listen('config:saved', () => {
+			reloadBbsPrefs();
+		});
 
 		threadSelectedUnlisten = await listen<{
 			boardUrl: string;
@@ -180,9 +183,20 @@
 		if (playerTimer) clearInterval(playerTimer);
 		if (countdownTimer) clearInterval(countdownTimer);
 		threadSelectedUnlisten?.();
+		configSavedUnlisten?.();
 		shortcutsUnlisten?.();
 		themeUnlisten?.();
 	});
+
+	async function reloadBbsPrefs() {
+		try {
+			const cfg = await getConfig();
+			displayMode = cfg?.bbs?.displayMode === 'html' ? 'html' : 'plain';
+			submitKey = cfg?.bbs?.submitKey === 'shift_enter' ? 'shift_enter' : 'ctrl_enter';
+		} catch {
+			/* defaults */
+		}
+	}
 
 	// ── Derived ──────────────────────────────────────────────────────
 
@@ -505,8 +519,14 @@
 	}
 
 	function onWriteKey(e: KeyboardEvent) {
-		// Ctrl/Cmd + Enter to send (UI design §書き込みテキストボックス).
-		if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+		// Submit key is configurable (bbs.submit_key). Plain Enter is
+		// always a newline so that multi-line posts work naturally.
+		if (e.key !== 'Enter') return;
+		const isCtrl = e.ctrlKey || e.metaKey;
+		const isShift = e.shiftKey && !isCtrl;
+		const match =
+			submitKey === 'shift_enter' ? isShift && !e.altKey : isCtrl && !e.shiftKey && !e.altKey;
+		if (match) {
 			e.preventDefault();
 			onSubmit();
 		}
@@ -753,7 +773,9 @@
 	<!-- Write box (黒) -->
 	<div class="write-box">
 		<textarea
-			placeholder={currentThreadUrl ? 'ここに書き込む  (Ctrl/Cmd+Enter で送信)' : '書き込み欄'}
+			placeholder={currentThreadUrl
+				? `ここに書き込む  (${submitKey === 'shift_enter' ? 'Shift' : 'Ctrl/Cmd'}+Enter で送信)`
+				: '書き込み欄'}
 			bind:value={writeBody}
 			onkeydown={onWriteKey}
 			disabled={!currentThreadUrl || writeSending}

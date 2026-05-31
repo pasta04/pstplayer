@@ -175,6 +175,7 @@ export interface BbsConfig {
 	defaultMail: string;
 	autoRefreshSec: number;
 	displayMode: 'plain' | 'html';
+	submitKey: 'ctrl_enter' | 'shift_enter';
 }
 
 export interface PlayerCfg {

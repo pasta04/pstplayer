@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { emit } from '@tauri-apps/api/event';
 	import {
 		CommandError,
 		clearHistory,
@@ -66,6 +67,7 @@
 		message = null;
 		try {
 			await setConfig(cfg);
+			await emit('config:saved');
 			message = '保存しました。';
 		} catch (e) {
 			message = errMsg(e);
@@ -154,8 +156,15 @@
 				</label>
 				<p class="hint small muted">
 					HTML モードは &lt;b&gt; &lt;i&gt; &lt;font color&gt; などの装飾を反映します。 script / img
-					/ on*属性などは除去されます。次回起動から有効。
+					/ on*属性などは除去されます。
 				</p>
+				<label>
+					書き込み欄の送信キー
+					<select bind:value={cfg.bbs.submitKey}>
+						<option value="ctrl_enter">Ctrl/Cmd+Enter で送信 (Enter は改行)</option>
+						<option value="shift_enter">Shift+Enter で送信 (Enter は改行)</option>
+					</select>
+				</label>
 			{:else if tab === 'player'}
 				<label>
 					初期音量 (0-100)

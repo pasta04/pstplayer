@@ -73,6 +73,10 @@ pub struct BbsConfig {
     /// through the ammonia whitelist sanitiser.
     #[serde(default = "default_display_mode")]
     pub display_mode: String,
+    /// "ctrl_enter" (default; Ctrl/Cmd+Enter で送信) or "shift_enter"
+    /// (Shift+Enter で送信). Plain Enter は常に改行。
+    #[serde(default = "default_submit_key")]
+    pub submit_key: String,
 }
 
 fn default_refresh_sec() -> u32 {
@@ -81,6 +85,10 @@ fn default_refresh_sec() -> u32 {
 
 fn default_display_mode() -> String {
     "plain".to_string()
+}
+
+fn default_submit_key() -> String {
+    "ctrl_enter".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
