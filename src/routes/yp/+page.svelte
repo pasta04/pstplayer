@@ -3,8 +3,8 @@
 	import {
 		CommandError,
 		fetchYpIndex,
-		firstFavoriteMatch,
 		getConfig,
+		matchYpEntry,
 		spawnViewer,
 		type FavoriteRule,
 		type YpEntry,
@@ -31,12 +31,7 @@
 	});
 
 	function matchFor(e: YpEntry): FavoriteRule | null {
-		return firstFavoriteMatch(favorites, {
-			name: e.name,
-			genre: e.genre,
-			desc: e.desc,
-			comment: e.comment,
-		});
+		return matchYpEntry(favorites, e);
 	}
 
 	async function refresh() {

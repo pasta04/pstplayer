@@ -15,10 +15,10 @@
 		stopViewerRecording,
 		effectiveBackground,
 		fetchYpSources,
-		firstFavoriteMatch,
 		getConfig,
 		listActiveViewers,
 		listRecordingViewers,
+		matchYpEntry,
 		peercastPing,
 		spawnViewer,
 		type FavoriteAction,
@@ -220,12 +220,7 @@
 	}
 
 	function matchFor(e: YpEntry): FavoriteRule | null {
-		return firstFavoriteMatch(favorites, {
-			name: e.name,
-			genre: e.genre,
-			desc: e.desc,
-			comment: e.comment,
-		});
+		return matchYpEntry(favorites, e);
 	}
 
 	function actionOf(rule: FavoriteRule | null): FavoriteAction {
@@ -251,7 +246,9 @@
 					const src = ypSources.find((s) => s.name === e.yp_source);
 					if (src && !src.show_in_all) return false;
 				}
-				// Ignore はすべて/お気に入り/新着では非表示にする (専用タブ無いので一旦隠すだけ)
+				// Ignore はメインタブ群 (すべて/お気に入り/新着/録画中/視聴中) では
+				// 非表示。YP 個別タブだけは「その YP の生一覧」を見たい時のために
+				// 表示する。
 				if (actionOf(rule) === 'ignore' && !activeTab.startsWith('yp:')) return false;
 				// テキストフィルタ
 				if (!q) return true;
@@ -304,7 +301,8 @@
 		for (const e of entries) {
 			const rule = matchFor(e);
 			if (actionOf(rule) === 'block') continue;
-			// YP 別カウントは ignore でも数える (専用タブなら表示するため)
+			// YP 個別タブのカウントは ignore も含める (その YP の生一覧として
+			// 見せるため。メインタブのカウントには含めない)。
 			perYp.set(e.yp_source, (perYp.get(e.yp_source) ?? 0) + 1);
 			if (actionOf(rule) === 'ignore') continue;
 			const src = ypSources.find((s) => s.name === e.yp_source);
@@ -691,8 +689,9 @@
 			</thead>
 			<tbody>
 				{#each visible as { e, rule } (e.id + '@' + e.yp_source)}
-					{@const bg = effectiveBackground(rule)}
-					{@const fg = rule?.text_color ?? ''}
+					{@const src = ypSources.find((s) => s.name === e.yp_source)}
+					{@const bg = effectiveBackground(rule) || src?.background || ''}
+					{@const fg = rule?.text_color || src?.text_color || ''}
 					{@const tip = [
 						e.name,
 						e.genre ? `[${e.genre}]` : '',

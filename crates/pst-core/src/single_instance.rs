@@ -51,18 +51,6 @@ const STATE: &[u8] = b"state\n";
 const STOP_RECORD: &[u8] = b"stoprec\n";
 const OK: &[u8] = b"ok\n";
 
-/// 起動時の重複起動ポリシー。`LaunchPolicy::Single` の時のみ実際に
-/// `single_instance::acquire` が呼ばれる想定。`NewWindow` は別 channel
-/// なら常に新規起動、`Replace` は既存を kill して自分が取って代わる。
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum LaunchPolicy {
-    #[default]
-    NewWindow,
-    Replace,
-    Single,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LockInfo {
     pub pid: u32,

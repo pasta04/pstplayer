@@ -440,6 +440,20 @@ export function firstFavoriteMatch(
 	return null;
 }
 
+/** `YpEntry` を `firstFavoriteMatch` の入力形に変換した上で評価する
+ * 薄い helper (hub / yp ページで同じ呼び出しをするため共通化)。 */
+export function matchYpEntry(
+	rules: FavoriteRule[] | undefined,
+	e: { name: string; genre: string; desc: string; comment: string },
+): FavoriteRule | null {
+	return firstFavoriteMatch(rules, {
+		name: e.name,
+		genre: e.genre,
+		desc: e.desc,
+		comment: e.comment,
+	});
+}
+
 export async function getConfig(): Promise<Config> {
 	return call<Config>('get_config');
 }
