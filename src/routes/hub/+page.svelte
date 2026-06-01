@@ -523,10 +523,12 @@
 			const dir = ev.key === 'ArrowDown' ? 1 : -1;
 			const next = idx < 0 ? 0 : Math.min(visible.length - 1, Math.max(0, idx + dir));
 			selectedId = visible[next].e.id;
-			// 選択行を画面内に
-			document
-				.querySelector<HTMLElement>('tr.selected')
-				?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+			// DOM 更新後にスクロール。setTimeout(0) で次マイクロタスクへ遅延。
+			setTimeout(() => {
+				document
+					.querySelector<HTMLElement>('tr.selected')
+					?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+			}, 0);
 		}
 	}
 
