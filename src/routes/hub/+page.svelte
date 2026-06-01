@@ -6,8 +6,8 @@
 	// 設計は docs/design/pstplayer-hub-*.svg, pstplayer-hub-interactions.md,
 	// pstplayer-hub-settings.md を参照。
 
-	import { onMount } from 'svelte';
-	import { emit } from '@tauri-apps/api/event';
+	import { onDestroy, onMount } from 'svelte';
+	import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event';
 	import {
 		CommandError,
 		effectiveBackground,
@@ -95,9 +95,18 @@
 	let menuY = $state(0);
 	let menuTarget = $state<YpEntry | null>(null);
 
+	let configSavedUnlisten: UnlistenFn | null = null;
+
 	onMount(() => {
 		void refresh();
 		void refreshWatching();
+		// 設定ダイアログで保存があったら再 fetch (YP / お気に入りが変わる
+		// 可能性があるので)。
+		void listen('config:saved', () => {
+			void refresh();
+		}).then((u) => {
+			configSavedUnlisten = u;
+		});
 		if (AUTO_REFRESH_SEC > 0) {
 			refreshTimer = setInterval(() => {
 				void refresh();
@@ -112,6 +121,10 @@
 			if (refreshTimer) clearInterval(refreshTimer);
 			if (watchingTimer) clearInterval(watchingTimer);
 		};
+	});
+
+	onDestroy(() => {
+		configSavedUnlisten?.();
 	});
 
 	async function refreshWatching() {
