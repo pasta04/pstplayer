@@ -45,6 +45,32 @@ pub struct HubConfig {
     /// 「視聴中」リストのポーリング間隔 (秒)。0 で無効。既定 5。
     #[serde(default = "default_hub_watching_poll_sec")]
     pub watching_poll_sec: u32,
+    /// ダブルクリック時の動作。既定 `Watch` (視聴)。
+    #[serde(default)]
+    pub double_click: HubClickAction,
+    /// ミドルクリック時の動作。既定 `OpenBbs`。
+    #[serde(default = "default_middle_click")]
+    pub middle_click: HubClickAction,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HubClickAction {
+    /// 何もしない (= 行選択のみ)。
+    None,
+    /// 視聴ウィンドウを別プロセスで開く。
+    #[default]
+    Watch,
+    /// 視聴 + 録画開始。
+    WatchAndRecord,
+    /// BBS としてコンタクト URL を開く。
+    OpenBbs,
+    /// コンタクト URL をブラウザで開く。
+    OpenContact,
+}
+
+fn default_middle_click() -> HubClickAction {
+    HubClickAction::OpenBbs
 }
 
 fn default_hub_refresh_sec() -> u32 {
@@ -60,6 +86,8 @@ impl Default for HubConfig {
         Self {
             refresh_sec: default_hub_refresh_sec(),
             watching_poll_sec: default_hub_watching_poll_sec(),
+            double_click: HubClickAction::default(),
+            middle_click: default_middle_click(),
         }
     }
 }

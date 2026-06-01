@@ -373,9 +373,13 @@ export interface YpCfg {
 	sources: YpSource[];
 }
 
+export type HubClickAction = 'none' | 'watch' | 'watch_and_record' | 'open_bbs' | 'open_contact';
+
 export interface HubCfg {
 	refresh_sec: number;
 	watching_poll_sec: number;
+	double_click: HubClickAction;
+	middle_click: HubClickAction;
 }
 
 export interface Config {

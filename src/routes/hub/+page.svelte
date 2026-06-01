@@ -22,6 +22,7 @@
 		spawnViewer,
 		type FavoriteAction,
 		type FavoriteRule,
+		type HubClickAction,
 		type YpEntry,
 		type YpFetchFailure,
 		type YpSource,
@@ -92,6 +93,8 @@
 	// 0 で無効。
 	let refreshSec = 60;
 	let watchingPollSec = 5;
+	let dblClickAction = $state<HubClickAction>('watch');
+	let middleClickAction = $state<HubClickAction>('open_bbs');
 	let refreshTimer: ReturnType<typeof setInterval> | null = null;
 	let watchingTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -171,6 +174,8 @@
 				watchingPollSec = newPoll;
 				restartTimers();
 			}
+			dblClickAction = cfg?.hub?.double_click ?? 'watch';
+			middleClickAction = cfg?.hub?.middle_click ?? 'open_bbs';
 			try {
 				await peercastPing();
 			} catch (e) {
@@ -391,8 +396,37 @@
 		selectedId = e.id;
 	}
 
+	function performAction(action: HubClickAction, e: YpEntry) {
+		switch (action) {
+			case 'watch':
+				void watchRow(e);
+				break;
+			case 'watch_and_record':
+				void watchRow(e, true);
+				break;
+			case 'open_bbs':
+				void openBbs(e.contact_url);
+				break;
+			case 'open_contact':
+				openInBrowser(e.contact_url);
+				break;
+			case 'none':
+			default:
+				break;
+		}
+	}
+
 	function onRowDblClick(e: YpEntry) {
-		watchRow(e);
+		performAction(dblClickAction, e);
+	}
+
+	function onRowMouseDown(ev: MouseEvent, e: YpEntry) {
+		// マウス中ボタン (button === 1) を判定。click イベントだと
+		// auxclick が必要だがここでは mousedown で簡易ハンドル。
+		if (ev.button === 1) {
+			ev.preventDefault();
+			performAction(middleClickAction, e);
+		}
 	}
 
 	function onRowContextMenu(ev: MouseEvent, e: YpEntry) {
@@ -622,6 +656,7 @@
 						title={tip}
 						onclick={() => onRowClick(e)}
 						ondblclick={() => onRowDblClick(e)}
+						onmousedown={(ev) => onRowMouseDown(ev, e)}
 						oncontextmenu={(ev) => onRowContextMenu(ev, e)}
 					>
 						<td class="col-name">

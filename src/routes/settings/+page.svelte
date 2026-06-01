@@ -14,6 +14,7 @@
 		type Config,
 		type FavoriteRule,
 		type HistoryEntry,
+		type HubClickAction,
 		type YpSource,
 	} from '$lib/api';
 	import { applyTheme, getTheme, setTheme, type Theme } from '$lib/theme';
@@ -254,16 +255,41 @@
 	function setHubRefreshSec(v: number) {
 		if (!cfg) return;
 		if (!Number.isFinite(v) || v < 0) v = 0;
-		cfg.hub = { ...(cfg.hub ?? { refresh_sec: 60, watching_poll_sec: 5 }), refresh_sec: v };
+		cfg.hub = { ...(cfg.hub ?? defaultHubCfg()), refresh_sec: v };
 	}
 
 	function setHubWatchingPollSec(v: number) {
 		if (!cfg) return;
 		if (!Number.isFinite(v) || v < 0) v = 0;
 		cfg.hub = {
-			...(cfg.hub ?? { refresh_sec: 60, watching_poll_sec: 5 }),
+			...(cfg.hub ?? defaultHubCfg()),
 			watching_poll_sec: v,
 		};
+	}
+
+	function setHubDoubleClick(v: string) {
+		if (!cfg) return;
+		cfg.hub = {
+			...(cfg.hub ?? defaultHubCfg()),
+			double_click: v as HubClickAction,
+		};
+	}
+
+	function setHubMiddleClick(v: string) {
+		if (!cfg) return;
+		cfg.hub = {
+			...(cfg.hub ?? defaultHubCfg()),
+			middle_click: v as HubClickAction,
+		};
+	}
+
+	function defaultHubCfg() {
+		return {
+			refresh_sec: 60,
+			watching_poll_sec: 5,
+			double_click: 'watch',
+			middle_click: 'open_bbs',
+		} as const;
 	}
 
 	function applyRecentHost(entry: string) {
@@ -473,6 +499,32 @@
 							value={cfg.hub?.watching_poll_sec ?? 5}
 							oninput={(e) => setHubWatchingPollSec(Number(e.currentTarget.value))}
 						/>
+					</label>
+					<label>
+						ダブルクリックの動作
+						<select
+							value={cfg.hub?.double_click ?? 'watch'}
+							onchange={(e) => setHubDoubleClick(e.currentTarget.value)}
+						>
+							<option value="watch">視聴 (別ウィンドウで開く)</option>
+							<option value="watch_and_record">視聴 + 録画開始</option>
+							<option value="open_bbs">BBS としてコンタクト URL を開く</option>
+							<option value="open_contact">コンタクト URL をブラウザで開く</option>
+							<option value="none">何もしない</option>
+						</select>
+					</label>
+					<label>
+						ミドルクリックの動作
+						<select
+							value={cfg.hub?.middle_click ?? 'open_bbs'}
+							onchange={(e) => setHubMiddleClick(e.currentTarget.value)}
+						>
+							<option value="watch">視聴 (別ウィンドウで開く)</option>
+							<option value="watch_and_record">視聴 + 録画開始</option>
+							<option value="open_bbs">BBS としてコンタクト URL を開く</option>
+							<option value="open_contact">コンタクト URL をブラウザで開く</option>
+							<option value="none">何もしない</option>
+						</select>
 					</label>
 				</fieldset>
 			{:else if tab === 'bbs'}
