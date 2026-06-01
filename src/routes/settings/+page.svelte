@@ -14,14 +14,15 @@
 		type Config,
 		type FavoriteRule,
 		type HistoryEntry,
+		type YpSource,
 	} from '$lib/api';
 	import { applyTheme, getTheme, setTheme, type Theme } from '$lib/theme';
 	import { HOTKEY_DEFS, bindingFromEvent, detectConflicts, type HotkeyDef } from '$lib/shortcuts';
 
 	let cfg = $state<Config | null>(null);
-	let tab = $state<'general' | 'peercast' | 'bbs' | 'player' | 'favorites' | 'hotkeys' | 'history'>(
-		'general',
-	);
+	let tab = $state<
+		'general' | 'peercast' | 'yp' | 'bbs' | 'player' | 'favorites' | 'hotkeys' | 'history'
+	>('general');
 	let saving = $state(false);
 
 	// ── ホットキー編集状態 ──────────────────────────────────────
@@ -195,6 +196,43 @@
 		cfg = { ...cfg! };
 	}
 
+	// ── YP sources ────────────────────────────────────────────────
+	const emptyYpSource = (): YpSource => ({
+		name: '',
+		url: '',
+		namespace: '',
+		show_tab: true,
+		show_in_all: true,
+		text_color: '',
+		background: '',
+	});
+
+	function ensureYpSources(): YpSource[] {
+		if (!cfg) return [];
+		if (!cfg.yp) cfg.yp = { sources: [] };
+		if (!cfg.yp.sources) cfg.yp.sources = [];
+		return cfg.yp.sources;
+	}
+
+	function addYpSource() {
+		ensureYpSources().push(emptyYpSource());
+		cfg = { ...cfg! };
+	}
+
+	function deleteYpSource(i: number) {
+		const list = ensureYpSources();
+		list.splice(i, 1);
+		cfg = { ...cfg! };
+	}
+
+	function moveYpSource(i: number, dir: -1 | 1) {
+		const list = ensureYpSources();
+		const j = i + dir;
+		if (j < 0 || j >= list.length) return;
+		[list[i], list[j]] = [list[j], list[i]];
+		cfg = { ...cfg! };
+	}
+
 	function applyRecentHost(entry: string) {
 		if (!cfg) return;
 		// entry は "host:port" 形式。IPv6 は host:port 表記が曖昧なので
@@ -225,6 +263,7 @@
 		<nav>
 			<button class:active={tab === 'general'} onclick={() => (tab = 'general')}>一般</button>
 			<button class:active={tab === 'peercast'} onclick={() => (tab = 'peercast')}>PeerCast</button>
+			<button class:active={tab === 'yp'} onclick={() => (tab = 'yp')}>YP</button>
 			<button class:active={tab === 'bbs'} onclick={() => (tab = 'bbs')}>BBS</button>
 			<button class:active={tab === 'player'} onclick={() => (tab = 'player')}>プレイヤー</button>
 			<button class:active={tab === 'favorites'} onclick={() => (tab = 'favorites')}>
@@ -307,6 +346,78 @@
 						</p>
 					</fieldset>
 				{/if}
+			{:else if tab === 'yp'}
+				<p class="hint small muted">
+					ハブ画面で表示する YP の登録一覧。複数登録できます。同じチャンネルが 複数の YP
+					に出てきた場合は <strong>上にある YP</strong>
+					のものを採用します (= 上ほど優先)。 各 YP の「文字色 / 背景色」はハブ画面で お気に入りルールに当たらない行のデフォルト色になります。
+				</p>
+				<table class="favorites">
+					<thead>
+						<tr>
+							<th>名前</th>
+							<th>名前空間</th>
+							<th>URL (index.txt)</th>
+							<th title="ハブのタブに表示">タブ</th>
+							<th title="「すべて」タブに混ぜる">すべて</th>
+							<th title="背景色 (CSS 色)">背景</th>
+							<th title="文字色 (CSS 色)">文字</th>
+							<th></th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each ensureYpSources() as src, i (i)}
+							{@const bg = src.background || ''}
+							<tr
+								style={[
+									bg ? `background:${bg};` : '',
+									src.text_color ? `color:${src.text_color};` : '',
+								].join('')}
+							>
+								<td><input type="text" bind:value={src.name} placeholder="SP" /></td>
+								<td><input type="text" bind:value={src.namespace} /></td>
+								<td>
+									<input
+										type="text"
+										class="url"
+										bind:value={src.url}
+										placeholder="http://yp.example/index.txt"
+									/>
+								</td>
+								<td><input type="checkbox" bind:checked={src.show_tab} /></td>
+								<td><input type="checkbox" bind:checked={src.show_in_all} /></td>
+								<td>
+									<input
+										type="text"
+										class="color"
+										bind:value={src.background}
+										placeholder="#ffffff"
+									/>
+								</td>
+								<td>
+									<input
+										type="text"
+										class="color"
+										bind:value={src.text_color}
+										placeholder="#000000"
+									/>
+								</td>
+								<td class="ops">
+									<button type="button" onclick={() => moveYpSource(i, -1)} title="上へ">↑</button>
+									<button type="button" onclick={() => moveYpSource(i, 1)} title="下へ">↓</button>
+									<button type="button" onclick={() => deleteYpSource(i)} title="削除">×</button>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+				<p>
+					<button type="button" onclick={addYpSource}>＋ YP 追加</button>
+				</p>
+				<p class="hint small muted">
+					旧 <code>peercast.yp_url</code> 単体設定もそのまま残っていますが、こちらに 1 件でも登録するとそちらは無視されます
+					(移行用)。
+				</p>
 			{:else if tab === 'bbs'}
 				<label>
 					デフォルト名前
@@ -407,13 +518,21 @@
 							<th>コメント</th>
 							<th title="上位固定">⬆</th>
 							<th title="自動録画">⏺</th>
-							<th title="背景色 (CSS 色)">色</th>
+							<th title="動作: show=表示 / ignore=非表示 / block=完全ブロック">動作</th>
+							<th title="背景色 (CSS 色)">背景</th>
+							<th title="文字色 (CSS 色)">文字</th>
 							<th></th>
 						</tr>
 					</thead>
 					<tbody>
 						{#each ensureFavorites() as rule, i (i)}
-							<tr style={rule.color ? `background:${rule.color};` : undefined}>
+							{@const bgEff = rule.background || rule.color || ''}
+							<tr
+								style={[
+									bgEff ? `background:${bgEff};` : '',
+									rule.text_color ? `color:${rule.text_color};` : '',
+								].join('')}
+							>
 								<td><input type="text" bind:value={rule.name} placeholder="メイン" /></td>
 								<td><input type="text" bind:value={rule.channel_name} /></td>
 								<td><input type="text" bind:value={rule.genre} /></td>
@@ -422,11 +541,26 @@
 								<td><input type="checkbox" bind:checked={rule.pin_top} /></td>
 								<td><input type="checkbox" bind:checked={rule.auto_record} /></td>
 								<td>
+									<select bind:value={rule.action}>
+										<option value="show">表示</option>
+										<option value="ignore">非表示</option>
+										<option value="block">ブロック</option>
+									</select>
+								</td>
+								<td>
 									<input
 										type="text"
 										class="color"
-										bind:value={rule.color}
+										bind:value={rule.background}
 										placeholder="#ff8a3d22"
+									/>
+								</td>
+								<td>
+									<input
+										type="text"
+										class="color"
+										bind:value={rule.text_color}
+										placeholder="#000000"
 									/>
 								</td>
 								<td class="ops">
