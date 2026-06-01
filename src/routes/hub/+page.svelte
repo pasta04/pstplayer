@@ -39,11 +39,41 @@
 	let lastError = $state<string | null>(null);
 	let lastUpdatedAt = $state<Date | null>(null);
 
-	let filter = $state('');
-	let sortKey = $state<SortKey>('listeners');
-	let sortDesc = $state(true);
-	let activeTab = $state<TabKey>('all');
+	let filter = $state(loadStr('hub.filter', ''));
+	let sortKey = $state<SortKey>(loadStr('hub.sortKey', 'listeners') as SortKey);
+	let sortDesc = $state(loadBool('hub.sortDesc', true));
+	let activeTab = $state<TabKey>(loadStr('hub.activeTab', 'all') as TabKey);
 	let selectedId = $state<string | null>(null);
+
+	// localStorage への永続化 (ソート / タブ / フィルタはセッション跨ぎ)。
+	$effect(() => {
+		try {
+			localStorage.setItem('hub.filter', filter);
+			localStorage.setItem('hub.sortKey', sortKey);
+			localStorage.setItem('hub.sortDesc', sortDesc ? '1' : '0');
+			localStorage.setItem('hub.activeTab', activeTab);
+		} catch {
+			/* ignore: 容量超過 / private mode */
+		}
+	});
+
+	function loadStr(key: string, defaultVal: string): string {
+		try {
+			return localStorage.getItem(key) ?? defaultVal;
+		} catch {
+			return defaultVal;
+		}
+	}
+
+	function loadBool(key: string, defaultVal: boolean): boolean {
+		try {
+			const v = localStorage.getItem(key);
+			if (v === null) return defaultVal;
+			return v === '1';
+		} catch {
+			return defaultVal;
+		}
+	}
 
 	// 前回 fetch 時に見えていた channel_id の集合 (新着判定用)。
 	let prevIds = $state<Set<string>>(new Set());
