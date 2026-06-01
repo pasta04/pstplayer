@@ -47,7 +47,7 @@
   <rect y="106" width="1780" height="22" fill="#e6e6e6" stroke="#cfcfcf"/>
   <text x="8"    y="121" fill="#333" font-size="11" font-weight="600">チャンネル名</text>
   <text x="172"  y="121" fill="#333" font-size="11" font-weight="600">ジャンル - 詳細 「コメント」 アーティスト/タイトル/アルバム</text>
-  <text x="658"  y="121" fill="#333" font-size="11" font-weight="600" text-anchor="end">👤 リスナー</text>
+  <text x="658"  y="121" fill="#333" font-size="11" font-weight="600" text-anchor="end">👤 リスナー ▼</text>
   <text x="710"  y="121" fill="#333" font-size="11" font-weight="600" text-anchor="end">kbps</text>
   <text x="716"  y="121" fill="#333" font-size="11" font-weight="600">配信時間</text>
   <text x="768"  y="121" fill="#333" font-size="11" font-weight="600">形式</text>
@@ -409,11 +409,11 @@
   <!-- Legend -->
   <g transform="translate(420,560)">
     <rect width="940" height="124" fill="#f8f8f8" stroke="#ccc"/>
-    <text x="14" y="22" fill="#1a1a1a" font-size="13" font-weight="600">カラム構成 (ウィンドウ幅に応じて表示/非表示・幅をユーザ調整可)</text>
-    <text x="14" y="40" fill="#333" font-size="11">必須: チャンネル名 / 詳細 / 👤 / kbps / 配信時間 / 形式 / フィルタ (= 適用されたルール名) / 録画 / コンタクト</text>
-    <text x="14" y="56" fill="#333" font-size="11">任意 (既定で非表示も可): ステータス (click) / YP / YP URL / channel ID / TIP — デバッグ・上級ユーザ向け</text>
-    <text x="14" y="74" fill="#1a1a1a" font-size="12" font-weight="600">「フィルタ」列が今までで一番のミソ:</text>
-    <text x="14" y="90" fill="#333" font-size="11">行が色付いている時に「どのお気に入りルールに当たって着色されたか」をその場で見せる。色 + ルール名で一目で判別。</text>
-    <text x="14" y="108" fill="#444" font-size="11">録画状態 (● 録画中 / —) は別カラムに完全独立。文字色 / 背景色は favorites.color, favorites.text_color (新規追加予定) で設定。</text>
+    <text x="14" y="22" fill="#1a1a1a" font-size="13" font-weight="600">カラム構成 + ソート + 右クリックメニュー (詳細: pstplayer-hub-interactions.md)</text>
+    <text x="14" y="40" fill="#333" font-size="11">必須カラム: チャンネル名 / 詳細 / 👤 / kbps / 配信時間 / 形式 / フィルタ / 録画 / コンタクト</text>
+    <text x="14" y="56" fill="#333" font-size="11">既定 OFF (上級者向け): ステータス / YP / YP URL / channel ID / TIP — ヘッダ右クリックで ON/OFF</text>
+    <text x="14" y="74" fill="#1a1a1a" font-size="12" font-weight="600">ソート: 任意ヘッダクリックで昇順 ▲、再クリで降順 ▼。既定 = 👤 リスナー降順 (pin_top はソートに優先)</text>
+    <text x="14" y="92" fill="#1a1a1a" font-size="12" font-weight="600">右クリック: 視聴 / BBS / コンタクト URL / 録画 / コピー / お気に入り追加 / ダブル・ミドルクリック動作設定</text>
+    <text x="14" y="108" fill="#444" font-size="11">行色 = favorites.color + favorites.text_color。録画状態 (●/—) は「録画」列で独立表示</text>
   </g>
 </svg>
