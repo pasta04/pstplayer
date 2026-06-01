@@ -250,8 +250,12 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
       - [x] 同一 `channel_id` 二重起動は `pst_core::single_instance`
             (ロックファイル + TCP IPC 方式) で既存ウィンドウへフォーカス
       - [x] 自動録画は `pst-server` 常駐で実現 (Step 1 完了)
-      - 残: pstplayer 側「お気に入り編集 / 履歴」のハブ機能を `pst-server`
-            に寄せる整理 (ADR-0006 Step 3、優先度 中)
+      - [x] Step 3 (役割整理): ハブを pstplayer 側に実装したので機能縮小
+            は不要、代わりに「🌐 pst-server」ボタン + 設定ファイル別管理
+            の注記を追加
+      - [x] Step 5 (常駐 docs): Linux systemd / macOS launchd / Windows
+            スタートアップ folder の OS 別常駐起動手順を
+            `docs/usage/server.md` に追加
       - 詳細設計: [ADR-0006](decisions/0006-auto-record-and-multiview.md)
 - [x] **Desktop ハブ画面 (PeCaRecorder 風)** ← **優先度: 高 / v1 完了**
       - [x] `pstplayer` を引数なしで起動した時のメイン画面を /hub に
