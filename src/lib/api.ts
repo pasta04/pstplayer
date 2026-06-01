@@ -204,6 +204,12 @@ export async function spawnViewer(channelId: string): Promise<SpawnViewerOutcome
 	return call<SpawnViewerOutcome>('spawn_viewer', { channelId });
 }
 
+/// 現在「視聴中」(= single_instance ロックが生きている) チャンネル ID
+/// の配列。ハブ画面で「視聴中」タブを描くのに使う。
+export async function listActiveViewers(): Promise<string[]> {
+	return call<string[]>('list_active_viewers');
+}
+
 // ── BBS ─────────────────────────────────────────────────────────────
 
 export type BoardKind = 'Shitaraba' | 'Ch2Compat';

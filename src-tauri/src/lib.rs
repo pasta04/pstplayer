@@ -126,6 +126,7 @@ pub fn run() {
             commands::peercast::fetch_yp_index,
             commands::peercast::fetch_yp_sources,
             commands::peercast::spawn_viewer,
+            commands::peercast::list_active_viewers,
             commands::config::get_config,
             commands::config::set_config,
             commands::config::config_file_path,

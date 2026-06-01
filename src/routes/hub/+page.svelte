@@ -13,6 +13,7 @@
 		fetchYpSources,
 		firstFavoriteMatch,
 		getConfig,
+		listActiveViewers,
 		peercastPing,
 		spawnViewer,
 		type FavoriteAction,
@@ -41,15 +42,46 @@
 	// 前回 fetch 時に見えていた channel_id の集合 (新着判定用)。
 	let prevIds = $state<Set<string>>(new Set());
 	let newIds = $state<Set<string>>(new Set());
+	let watchingIds = $state<Set<string>>(new Set());
+
+	// 自動再 fetch 間隔 (秒)。0 で無効。将来は config から取る。
+	const AUTO_REFRESH_SEC = 60;
+	const WATCHING_POLL_SEC = 5;
+	let refreshTimer: ReturnType<typeof setInterval> | null = null;
+	let watchingTimer: ReturnType<typeof setInterval> | null = null;
 
 	let menuOpen = $state(false);
 	let menuX = $state(0);
 	let menuY = $state(0);
 	let menuTarget = $state<YpEntry | null>(null);
 
-	onMount(async () => {
-		await refresh();
+	onMount(() => {
+		void refresh();
+		void refreshWatching();
+		if (AUTO_REFRESH_SEC > 0) {
+			refreshTimer = setInterval(() => {
+				void refresh();
+			}, AUTO_REFRESH_SEC * 1000);
+		}
+		if (WATCHING_POLL_SEC > 0) {
+			watchingTimer = setInterval(() => {
+				void refreshWatching();
+			}, WATCHING_POLL_SEC * 1000);
+		}
+		return () => {
+			if (refreshTimer) clearInterval(refreshTimer);
+			if (watchingTimer) clearInterval(watchingTimer);
+		};
 	});
+
+	async function refreshWatching() {
+		try {
+			const ids = await listActiveViewers();
+			watchingIds = new Set(ids);
+		} catch {
+			/* ignore: lock 読み取りエラーは無視して次回再試行 */
+		}
+	}
 
 	async function refresh() {
 		loading = true;
@@ -106,7 +138,7 @@
 				if (activeTab === 'favorites' && !rule) return false;
 				if (activeTab === 'new' && !newIds.has(e.id)) return false;
 				if (activeTab === 'recording') return false; // TODO: 録画中の判定
-				if (activeTab === 'watching') return false; // TODO: 視聴中の判定
+				if (activeTab === 'watching' && !watchingIds.has(e.id)) return false;
 				// Ignore はすべて/お気に入り/新着では非表示にする (専用タブ無いので一旦隠すだけ)
 				if (actionOf(rule) === 'ignore') return false;
 				// テキストフィルタ
@@ -153,7 +185,8 @@
 	const counts = $derived.by(() => {
 		let all = 0,
 			fav = 0,
-			fresh = 0;
+			fresh = 0,
+			watching = 0;
 		for (const e of entries) {
 			const rule = matchFor(e);
 			if (actionOf(rule) === 'block') continue;
@@ -161,8 +194,9 @@
 			all++;
 			if (rule) fav++;
 			if (newIds.has(e.id)) fresh++;
+			if (watchingIds.has(e.id)) watching++;
 		}
-		return { all, fav, fresh };
+		return { all, fav, fresh, watching };
 	});
 
 	function toggleSort(k: SortKey) {
@@ -294,7 +328,7 @@
 			● 録画中 (—)
 		</button>
 		<button class:active={activeTab === 'watching'} onclick={() => (activeTab = 'watching')}>
-			視聴中 (—)
+			視聴中 ({counts.watching})
 		</button>
 	</nav>
 
@@ -343,7 +377,10 @@
 						oncontextmenu={(ev) => onRowContextMenu(ev, e)}
 					>
 						<td class="col-name">
-							{#if rule}<span class="star">★</span>{/if}{e.name}
+							{#if rule}<span class="star">★</span>{/if}{e.name}{#if watchingIds.has(e.id)}
+								<span class="watching-badge" title="このチャンネルは視聴ウィンドウで開いています"
+									>▶</span
+								>{/if}
 						</td>
 						<td class="col-desc">
 							{#if e.genre}[{e.genre}]{/if}
@@ -611,6 +648,12 @@
 	.star {
 		color: #ff8a3d;
 		margin-right: 0.2rem;
+	}
+
+	.watching-badge {
+		color: #2c7;
+		margin-left: 0.3rem;
+		font-weight: 600;
 	}
 
 	.empty {

@@ -202,6 +202,34 @@ pub fn read_existing(channel_id: &str) -> Option<LockInfo> {
     }
 }
 
+/// 現在生きている (probe で応答する) ロック全部の一覧を返す。死んでる
+/// stale ロックは best-effort で削除する。ハブ画面の「視聴中」タブ表示用。
+pub fn list_active() -> Vec<LockInfo> {
+    let dir = lock_dir();
+    let Ok(read) = fs::read_dir(&dir) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for entry in read.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|s| s.to_str()) != Some("lock") {
+            continue;
+        }
+        let Ok(s) = fs::read_to_string(&path) else {
+            continue;
+        };
+        let Ok(info) = toml::from_str::<LockInfo>(&s) else {
+            continue;
+        };
+        if probe_alive(info.ipc_addr) {
+            out.push(info);
+        } else {
+            let _ = fs::remove_file(&path);
+        }
+    }
+    out
+}
+
 /// `acquire` で受け取った `TcpListener` をブロッキングループで処理する。
 /// `on_focus` は `focus\n` を受け取った時に呼ばれる (UI スレッド外なので
 /// 内部で `app.run_on_main_thread` 等を使うこと)。

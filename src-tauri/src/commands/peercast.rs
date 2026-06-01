@@ -136,6 +136,14 @@ pub enum SpawnViewerOutcome {
     Spawned,
 }
 
+/// 現在「視聴中」(= single_instance ロックが生きている) チャンネル ID
+/// の一覧を返す。ハブ画面の「視聴中」タブ用。stale lock は best-effort
+/// でこの呼び出しで掃除される。
+#[tauri::command]
+pub fn list_active_viewers() -> Vec<String> {
+    single_instance::list_active().into_iter().map(|i| i.channel_id).collect()
+}
+
 /// YP / お気に入り行クリックから呼ばれる「視聴用 pstplayer プロセスを
 /// 立ち上げる」コマンド。
 ///
