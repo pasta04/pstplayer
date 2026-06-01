@@ -8,9 +8,10 @@ PSTPlayer は PeerCast 配信を視聴しながら関連 BBS (したらば / 2ch
 1. [インストール](install.md) — Windows / macOS / Linux でのダウンロードと初回起動
 2. [初回セットアップ](first-setup.md) — PeerCast 接続先 / YP URL / 名前 等の設定
 3. [基本操作](basic.md) — URL 貼り付け / YP 経由視聴 / BBS 読み書き
-4. [ショートカット一覧](shortcuts.md) — キーボード操作
-5. [トラブルシューティング](troubleshooting.md) — よくある問題と対処
-6. [pst-server](server.md) — Raspberry Pi 等の常駐サーバを LAN に置いて、
+4. [ハブ画面](hub.md) — 複数 YP テーブル + お気に入り + 視聴管理 (PeCaRecorder 風)
+5. [ショートカット一覧](shortcuts.md) — キーボード操作
+6. [トラブルシューティング](troubleshooting.md) — よくある問題と対処
+7. [pst-server](server.md) — Raspberry Pi 等の常駐サーバを LAN に置いて、
    モバイル端末のブラウザから視聴 + BBS 書き込みする
 
 ## 動作要件
