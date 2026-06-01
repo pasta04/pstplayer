@@ -103,11 +103,19 @@ pub fn lock_dir() -> PathBuf {
 }
 
 fn lock_path(channel_id: &str) -> PathBuf {
+    // ASCII 英数のみに正規化 (path traversal / 制御文字対策)。空文字に
+    // なった場合は別個のサニタイズ済みフォルダ名に逃がして、複数の不正
+    // channel_id が同じ `ch-.lock` を奪い合うのを防ぐ。
     let safe: String = channel_id
         .chars()
         .filter(|c| c.is_ascii_alphanumeric())
         .collect();
-    lock_dir().join(format!("ch-{safe}.lock"))
+    let filename = if safe.is_empty() {
+        "ch-invalid.lock".to_string()
+    } else {
+        format!("ch-{safe}.lock")
+    };
+    lock_dir().join(filename)
 }
 
 /// 指定 `channel_id` のロックを取りにいく。
@@ -165,9 +173,13 @@ fn probe_alive(addr: SocketAddr) -> bool {
     if stream.write_all(PING).is_err() {
         return false;
     }
-    let mut buf = [0u8; 8];
-    let n = stream.read(&mut buf).unwrap_or(0);
-    n >= PONG.len() && buf.starts_with(PONG)
+    // PONG = b"pong\n" (5 バイト)。たまたまポートを掴んでいる別プロセスが
+    // 任意のバイト列を返してきても誤判定しないよう、厳密に一致を要求する。
+    let mut buf = [0u8; PONG.len()];
+    match stream.read(&mut buf) {
+        Ok(n) => n == PONG.len() && buf == *PONG,
+        Err(_) => false,
+    }
 }
 
 /// 既存プロセスにフォーカス要求を送る。OK 応答 (`ok\n`) を確認するまで
@@ -517,6 +529,36 @@ mod tests {
 
         drop(h_rec);
         drop(h_off);
+    }
+
+    #[test]
+    fn lock_path_normalises_dangerous_chars() {
+        // path traversal / 制御文字を含む channel_id が来ても
+        // フィルタリングされる (ASCII 英数のみ)。
+        let p = lock_path("../../../etc/passwd");
+        let name = p.file_name().unwrap().to_str().unwrap();
+        assert_eq!(name, "ch-etcpasswd.lock");
+
+        let p = lock_path("abc\0def");
+        let name = p.file_name().unwrap().to_str().unwrap();
+        assert_eq!(name, "ch-abcdef.lock");
+    }
+
+    #[test]
+    fn lock_path_empty_uses_invalid_marker() {
+        // 全部削られて空になる場合は別個のファイルへ。複数の不正
+        // channel_id が同じ lock ファイルを取り合うのを防ぐ。
+        let p = lock_path("");
+        let name = p.file_name().unwrap().to_str().unwrap();
+        assert_eq!(name, "ch-invalid.lock");
+
+        let p = lock_path("..");
+        let name = p.file_name().unwrap().to_str().unwrap();
+        assert_eq!(name, "ch-invalid.lock");
+
+        let p = lock_path("///");
+        let name = p.file_name().unwrap().to_str().unwrap();
+        assert_eq!(name, "ch-invalid.lock");
     }
 
     #[test]

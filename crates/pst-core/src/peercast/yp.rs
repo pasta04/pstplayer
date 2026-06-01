@@ -92,6 +92,14 @@ pub async fn fetch_index(yp_url: &str) -> AppResult<Vec<YpEntry>> {
     if url.is_empty() {
         return Err(AppError::InvalidUrl("YP URL is empty".into()));
     }
+    // SSRF 対策: file:// や gopher:// 等で内部リソースを舐められないよう
+    // http(s) のみ許可。reqwest 単体は scheme 制限がないので呼び出し側で
+    // 弾く必要がある。
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err(AppError::InvalidUrl(format!(
+            "YP URL must start with http:// or https://: {url}"
+        )));
+    }
     let resp = CLIENT.get(url).send().await?;
     if !resp.status().is_success() {
         return Err(AppError::Network(format!(
@@ -214,5 +222,28 @@ mod tests {
     #[test]
     fn skips_short_lines() {
         assert!(parse_line("too<>few<>fields").is_none());
+    }
+
+    #[tokio::test]
+    async fn fetch_index_rejects_non_http_schemes() {
+        for url in [
+            "file:///etc/passwd",
+            "gopher://internal/x",
+            "ftp://yp.example/index.txt",
+            "javascript:alert(1)",
+        ] {
+            let err = fetch_index(url).await.expect_err(url);
+            assert!(matches!(err, AppError::InvalidUrl(_)), "{url}: {err:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn fetch_index_accepts_http_and_https_prefix() {
+        // 実際にネットワークに繋がる URL は使わない。scheme チェックを
+        // 通過すると、次の接続フェーズで Network error を返すはず。
+        let err = fetch_index("http://127.0.0.1:0/index.txt")
+            .await
+            .expect_err("expected connect error");
+        assert!(!matches!(err, AppError::InvalidUrl(_)), "{err:?}");
     }
 }

@@ -243,10 +243,19 @@ pub fn spawn_viewer(
     channel_id: String,
     record: Option<bool>,
 ) -> Result<SpawnViewerOutcome, IpcError> {
+    // channel_id は 32 桁 hex 想定。YP の `id` フィールドをそのまま
+    // 受け取るため、改行や URL フラグメント・パス区切り文字が紛れ込んだ
+    // 場合に URL injection / path traversal を防ぐ。
+    let channel_id = pst_core::peercast::types::ChannelId::parse(&channel_id).map_err(|e| {
+        IpcError::from(AppError::InvalidUrl(format!(
+            "spawn_viewer: invalid channel_id ({e}): {channel_id}"
+        )))
+    })?;
+    let channel_id = channel_id.as_str();
     // 既存ロックがあれば focus 要求を送る。送信に成功した場合のみ
     // Focused を返す。失敗 (= viewer プロセスが probe → focus の間に
     // 落ちた、ファイアウォール等) なら新規 spawn にフォールバック。
-    if let Some(info) = single_instance::read_existing(&channel_id) {
+    if let Some(info) = single_instance::read_existing(channel_id) {
         if single_instance::request_focus(info.ipc_addr).is_ok() {
             return Ok(SpawnViewerOutcome::Focused);
         }

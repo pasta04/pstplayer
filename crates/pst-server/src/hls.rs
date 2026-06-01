@@ -37,6 +37,18 @@ async fn upstream_segment_url(state: &AppState, channel_id: &str, segment: &str)
     format!("http://{host}:{port}/hls/{channel_id}/{segment}")
 }
 
+/// パストラバーサル等を防ぐため、id / segment に許容しない文字が
+/// 混ざっていないかチェックする。`..` や `/`, `\` を含む値は上流の
+/// URL 解釈次第で別パスに逃げる可能性があるので拒否。
+fn is_safe_path_component(s: &str) -> bool {
+    !s.is_empty()
+        && !s.contains("..")
+        && !s.contains('/')
+        && !s.contains('\\')
+        && !s.contains('\0')
+        && s.chars().all(|c| !c.is_control())
+}
+
 async fn upstream_host_port(state: &AppState) -> (String, u16) {
     let cfg = state.cfg.read().await;
     (cfg.peercast.host.clone(), cfg.peercast.port)
@@ -114,6 +126,13 @@ pub async fn playlist(
 ) -> ApiResult<Response> {
     // `.m3u8` 拡張子付きで来た場合に剥がす (`open()` 側で固定で付けている)。
     let id = id.strip_suffix(".m3u8").unwrap_or(&id).to_string();
+    if !is_safe_path_component(&id) {
+        return Err(ApiError {
+            status: StatusCode::BAD_REQUEST,
+            code: "invalid_channel_id",
+            message: format!("不正な channel_id: {id}"),
+        });
+    }
     let url = upstream_playlist_url(&s, &id).await;
     proxy_get(url, headers, &s).await
 }
@@ -124,6 +143,44 @@ pub async fn segment(
     Path((id, segment)): Path<(String, String)>,
     headers: HeaderMap,
 ) -> ApiResult<Response> {
+    if !is_safe_path_component(&id) {
+        return Err(ApiError {
+            status: StatusCode::BAD_REQUEST,
+            code: "invalid_channel_id",
+            message: format!("不正な channel_id: {id}"),
+        });
+    }
+    if !is_safe_path_component(&segment) {
+        return Err(ApiError {
+            status: StatusCode::BAD_REQUEST,
+            code: "invalid_segment",
+            message: format!("不正な segment 名: {segment}"),
+        });
+    }
     let url = upstream_segment_url(&s, &id, &segment).await;
     proxy_get(url, headers, &s).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_safe_path_component;
+
+    #[test]
+    fn accepts_normal_ids_and_segments() {
+        assert!(is_safe_path_component("0123456789abcdef0123456789abcdef"));
+        assert!(is_safe_path_component("seg-1.ts"));
+        assert!(is_safe_path_component("index.m3u8"));
+    }
+
+    #[test]
+    fn rejects_path_traversal() {
+        assert!(!is_safe_path_component(""));
+        assert!(!is_safe_path_component(".."));
+        assert!(!is_safe_path_component("../etc/passwd"));
+        assert!(!is_safe_path_component("a/b"));
+        assert!(!is_safe_path_component("a\\b"));
+        assert!(!is_safe_path_component("a\0b"));
+        assert!(!is_safe_path_component("a\nb"));
+        assert!(!is_safe_path_component("a\rb"));
+    }
 }
