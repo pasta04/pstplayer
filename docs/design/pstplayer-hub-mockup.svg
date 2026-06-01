@@ -1,0 +1,270 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1050 720" width="1050" height="720" font-family="Meiryo,'Yu Gothic UI','MS Gothic',sans-serif">
+  <!-- Window background -->
+  <rect width="1050" height="720" fill="#ffffff"/>
+
+  <!-- Title bar (Windows-ish) -->
+  <rect width="1050" height="28" fill="#f0f0f0" stroke="#d8d8d8"/>
+  <rect x="6" y="6" width="16" height="16" rx="2" fill="#46a3ff"/>
+  <text x="26" y="20" fill="#202020" font-size="13">PSTPlayer · YP / 録画 ハブ</text>
+  <text x="980" y="20" fill="#202020" font-size="14">—  ▢  ×</text>
+
+  <!-- Menu bar -->
+  <rect y="28" width="1050" height="22" fill="#fafafa" stroke="#e0e0e0"/>
+  <text x="10" y="44" fill="#1a1a1a" font-size="12">ファイル(F)</text>
+  <text x="86" y="44" fill="#1a1a1a" font-size="12">表示(V)</text>
+  <text x="138" y="44" fill="#1a1a1a" font-size="12">録画(R)</text>
+  <text x="198" y="44" fill="#1a1a1a" font-size="12">オプション(O)</text>
+
+  <!-- Toolbar -->
+  <rect y="50" width="1050" height="32" fill="#f4f4f4" stroke="#e0e0e0"/>
+  <rect x="8" y="58" width="60" height="20" rx="2" fill="#fff" stroke="#bbb"/>
+  <text x="14" y="72" fill="#333" font-size="11">↻ 更新</text>
+  <rect x="76" y="58" width="74" height="20" rx="2" fill="#fff" stroke="#bbb"/>
+  <text x="83" y="72" fill="#333" font-size="11">★ お気に入り</text>
+  <rect x="158" y="58" width="70" height="20" rx="2" fill="#fff" stroke="#bbb"/>
+  <text x="166" y="72" fill="#333" font-size="11">⏺ 録画一覧</text>
+  <rect x="236" y="58" width="64" height="20" rx="2" fill="#fff" stroke="#bbb"/>
+  <text x="244" y="72" fill="#333" font-size="11">⚙ 設定</text>
+  <text x="324" y="72" fill="#666" font-size="11">フィルタ:</text>
+  <rect x="372" y="58" width="260" height="20" rx="2" fill="#fff" stroke="#bbb"/>
+  <text x="380" y="72" fill="#999" font-size="11">名前 / ジャンル / 詳細 / コメント…</text>
+  <text x="650" y="72" fill="#666" font-size="11">新着のみ:</text>
+  <rect x="710" y="60" width="14" height="14" rx="2" fill="#fff" stroke="#888"/>
+  <text x="744" y="72" fill="#666" font-size="11">通知:</text>
+  <rect x="784" y="60" width="14" height="14" rx="2" fill="#46a3ff" stroke="#1f7adb"/>
+  <text x="786" y="71" fill="#fff" font-size="10">✓</text>
+
+  <!-- Tab bar -->
+  <rect y="82" width="1050" height="24" fill="#ececec" stroke="#d4d4d4"/>
+  <rect x="0" y="84" width="120" height="22" fill="#ffffff" stroke="#d4d4d4"/>
+  <text x="20" y="100" fill="#000" font-size="12" font-weight="600">すべて (47)</text>
+  <text x="138" y="100" fill="#555" font-size="12">お気に入り (8)</text>
+  <text x="242" y="100" fill="#c0392b" font-size="12" font-weight="600">● 録画中 (3)</text>
+  <text x="340" y="100" fill="#555" font-size="12">視聴中 (1)</text>
+  <text x="416" y="100" fill="#555" font-size="12">新着 (5)</text>
+
+  <!-- Column headers -->
+  <rect y="106" width="1050" height="22" fill="#e6e6e6" stroke="#cfcfcf"/>
+  <text x="8" y="121" fill="#333" font-size="11" font-weight="600">チャンネル名</text>
+  <text x="178" y="121" fill="#333" font-size="11" font-weight="600">ジャンル - 詳細 「コメント」</text>
+  <text x="652" y="121" fill="#333" font-size="11" font-weight="600" text-anchor="end">👤</text>
+  <text x="712" y="121" fill="#333" font-size="11" font-weight="600" text-anchor="end">kbps</text>
+  <text x="772" y="121" fill="#333" font-size="11" font-weight="600">配信時間</text>
+  <text x="832" y="121" fill="#333" font-size="11" font-weight="600">形式</text>
+  <text x="880" y="121" fill="#333" font-size="11" font-weight="600">録画</text>
+  <text x="928" y="121" fill="#333" font-size="11" font-weight="600">コンタクト</text>
+
+  <!-- ===== Rows ===== -->
+  <!-- Row 1: イベント告知 (黄色) -->
+  <rect y="128" width="1050" height="22" fill="#fff5b8" stroke="#f0e0a0"/>
+  <text x="8" y="143" fill="#0a4cad" font-size="11" text-decoration="underline">EventCh1</text>
+  <text x="178" y="143" fill="#333" font-size="11">[イベント告知 - 06/06(土) 21:00] サイハテ &lt;Free&gt;</text>
+  <text x="652" y="143" fill="#888" font-size="11" text-anchor="end">- / 2</text>
+  <text x="712" y="143" fill="#666" font-size="11" text-anchor="end">0</text>
+  <text x="772" y="143" fill="#888" font-size="11">00:00</text>
+  <text x="832" y="143" fill="#555" font-size="11">RAW</text>
+  <text x="880" y="143" fill="#888" font-size="11">—</text>
+  <text x="928" y="143" fill="#0a4cad" font-size="11" text-decoration="underline">https://…</text>
+
+  <!-- Row 2: イベント告知 -->
+  <rect y="150" width="1050" height="22" fill="#fff5b8" stroke="#f0e0a0"/>
+  <text x="8" y="165" fill="#0a4cad" font-size="11" text-decoration="underline">EventCh2</text>
+  <text x="178" y="165" fill="#333" font-size="11">[イベント告知 - 06/13(土) 21:00] LK &lt;Free&gt;</text>
+  <text x="652" y="165" fill="#888" font-size="11" text-anchor="end">- / 2</text>
+  <text x="712" y="165" fill="#666" font-size="11" text-anchor="end">0</text>
+  <text x="772" y="165" fill="#888" font-size="11">00:00</text>
+  <text x="832" y="165" fill="#555" font-size="11">RAW</text>
+  <text x="880" y="165" fill="#888" font-size="11">—</text>
+  <text x="928" y="165" fill="#0a4cad" font-size="11" text-decoration="underline">https://…</text>
+
+  <!-- Row 3: お気に入り + 録画中 (シアン) -->
+  <rect y="172" width="1050" height="22" fill="#9be8df" stroke="#7fd0c6"/>
+  <text x="8" y="187" fill="#0a4cad" font-size="11" text-decoration="underline" font-weight="600">★ inatami</text>
+  <text x="178" y="187" fill="#1a1a1a" font-size="11" font-weight="600">[STG - 怒首領蜂大往生EGクライアス] &lt;Free&gt; 「2 周目トレモ中」</text>
+  <text x="652" y="187" fill="#222" font-size="11" text-anchor="end" font-weight="600">15 / 28</text>
+  <text x="712" y="187" fill="#222" font-size="11" text-anchor="end">1528</text>
+  <text x="772" y="187" fill="#222" font-size="11">00:39</text>
+  <text x="832" y="187" fill="#222" font-size="11">FLV</text>
+  <text x="880" y="187" fill="#c0392b" font-size="11" font-weight="600">● 確実に録</text>
+  <text x="928" y="187" fill="#0a4cad" font-size="11" text-decoration="underline">https://…</text>
+
+  <!-- Row 4: 通常 -->
+  <rect y="194" width="1050" height="22" fill="#ffffff"/>
+  <text x="8" y="209" fill="#0a4cad" font-size="11" text-decoration="underline">ちゃんまん</text>
+  <text x="178" y="209" fill="#333" font-size="11">[Game - FF16 - &lt;Free&gt;] 「らじいり!! (暗くない)」</text>
+  <text x="652" y="209" fill="#444" font-size="11" text-anchor="end">31 / 36</text>
+  <text x="712" y="209" fill="#444" font-size="11" text-anchor="end">2160</text>
+  <text x="772" y="209" fill="#666" font-size="11">01:55</text>
+  <text x="832" y="209" fill="#444" font-size="11">FLV</text>
+  <text x="880" y="209" fill="#888" font-size="11">—</text>
+  <text x="928" y="209" fill="#0a4cad" font-size="11" text-decoration="underline">http://…</text>
+
+  <!-- Row 5: お気に入り (薄緑) -->
+  <rect y="216" width="1050" height="22" fill="#c9f0c5" stroke="#b0dca8"/>
+  <text x="8" y="231" fill="#0a4cad" font-size="11" text-decoration="underline" font-weight="600">★ しまぱん先生</text>
+  <text x="178" y="231" fill="#1a1a1a" font-size="11" font-weight="600">[Game - 僕のヒーローアカデミア ULTRA RUMBLE 短時間] 「どこか出かけたい」</text>
+  <text x="652" y="231" fill="#222" font-size="11" text-anchor="end">11 / 11</text>
+  <text x="712" y="231" fill="#222" font-size="11" text-anchor="end">1928</text>
+  <text x="772" y="231" fill="#444" font-size="11">02:23</text>
+  <text x="832" y="231" fill="#222" font-size="11">FLV</text>
+  <text x="880" y="231" fill="#888" font-size="11">専 録</text>
+  <text x="928" y="231" fill="#0a4cad" font-size="11" text-decoration="underline">https://…</text>
+
+  <!-- Row 6: お気に入り + 録画中 (シアン) -->
+  <rect y="238" width="1050" height="22" fill="#9be8df" stroke="#7fd0c6"/>
+  <text x="8" y="253" fill="#0a4cad" font-size="11" text-decoration="underline" font-weight="600">★ ニャム</text>
+  <text x="178" y="253" fill="#1a1a1a" font-size="11" font-weight="600">[Game - エンドフィールド - &lt;Free&gt;] 「エリア開放しつつ電柱、ジップライン業者」</text>
+  <text x="652" y="253" fill="#222" font-size="11" text-anchor="end">11 / 11</text>
+  <text x="712" y="253" fill="#222" font-size="11" text-anchor="end">2127</text>
+  <text x="772" y="253" fill="#222" font-size="11">02:27</text>
+  <text x="832" y="253" fill="#222" font-size="11">FLV</text>
+  <text x="880" y="253" fill="#c0392b" font-size="11" font-weight="600">● 録画中</text>
+  <text x="928" y="253" fill="#0a4cad" font-size="11" text-decoration="underline">https://…</text>
+
+  <!-- Row 7-15: normal rows -->
+  <!-- Row 7 -->
+  <rect y="260" width="1050" height="22" fill="#ffffff"/>
+  <text x="8" y="275" fill="#0a4cad" font-size="11" text-decoration="underline">野獣ch</text>
+  <text x="178" y="275" fill="#333" font-size="11">[Steam - ELDEN RING NIGHTREIGN - &lt;Open&gt;] 「一周目おめでとう(遅)」</text>
+  <text x="652" y="275" fill="#444" font-size="11" text-anchor="end">- / 1</text>
+  <text x="712" y="275" fill="#444" font-size="11" text-anchor="end">2500</text>
+  <text x="772" y="275" fill="#666" font-size="11">01:14</text>
+  <text x="832" y="275" fill="#444" font-size="11">FLV</text>
+  <text x="880" y="275" fill="#888" font-size="11">—</text>
+  <text x="928" y="275" fill="#0a4cad" font-size="11" text-decoration="underline">https://…</text>
+
+  <!-- Row 8 (お気に入り 薄緑) -->
+  <rect y="282" width="1050" height="22" fill="#c9f0c5" stroke="#b0dca8"/>
+  <text x="8" y="297" fill="#0a4cad" font-size="11" text-decoration="underline" font-weight="600">★ キング</text>
+  <text x="178" y="297" fill="#1a1a1a" font-size="11">[プログラミング - &lt;Free&gt;] 「Unity と AI の連携がどこまで出来るのか知りたい/調べたい」</text>
+  <text x="652" y="297" fill="#222" font-size="11" text-anchor="end">106 / 110</text>
+  <text x="712" y="297" fill="#222" font-size="11" text-anchor="end">2127</text>
+  <text x="772" y="297" fill="#444" font-size="11">05:30</text>
+  <text x="832" y="297" fill="#222" font-size="11">FLV</text>
+  <text x="880" y="297" fill="#888" font-size="11">専 録</text>
+  <text x="928" y="297" fill="#0a4cad" font-size="11" text-decoration="underline">http://…</text>
+
+  <!-- Row 9 (お気に入り + 録画 シアン) -->
+  <rect y="304" width="1050" height="22" fill="#9be8df" stroke="#7fd0c6"/>
+  <text x="8" y="319" fill="#0a4cad" font-size="11" text-decoration="underline" font-weight="600">★ 依存症</text>
+  <text x="178" y="319" fill="#1a1a1a" font-size="11" font-weight="600">[石積 - FF11 - &lt;Free&gt;] 「見れない方はこちら https://www.twitch.tv/nice_bacon おつまみ…」</text>
+  <text x="652" y="319" fill="#222" font-size="11" text-anchor="end">6 / 6</text>
+  <text x="712" y="319" fill="#222" font-size="11" text-anchor="end">948</text>
+  <text x="772" y="319" fill="#222" font-size="11">02:43</text>
+  <text x="832" y="319" fill="#222" font-size="11">FLV</text>
+  <text x="880" y="319" fill="#c0392b" font-size="11" font-weight="600">● 本人録</text>
+  <text x="928" y="319" fill="#0a4cad" font-size="11" text-decoration="underline">https://…</text>
+
+  <!-- Row 10 (通常) -->
+  <rect y="326" width="1050" height="22" fill="#ffffff"/>
+  <text x="8" y="341" fill="#0a4cad" font-size="11" text-decoration="underline">SP◆アップロード帯域</text>
+  <text x="178" y="341" fill="#666" font-size="11">[No data]お知らせは通常運転 測定はコンタクト URL から</text>
+  <text x="652" y="341" fill="#888" font-size="11" text-anchor="end">- / 9</text>
+  <text x="712" y="341" fill="#888" font-size="11" text-anchor="end">0</text>
+  <text x="772" y="341" fill="#888" font-size="11">00:00</text>
+  <text x="832" y="341" fill="#555" font-size="11">RAW</text>
+  <text x="880" y="341" fill="#888" font-size="11">—</text>
+  <text x="928" y="341" fill="#0a4cad" font-size="11" text-decoration="underline">http://…</text>
+
+  <!-- Row 11-15 (compact) -->
+  <rect y="348" width="1050" height="22" fill="#ffffff"/>
+  <text x="8" y="363" fill="#0a4cad" font-size="11" text-decoration="underline">p@◆Status</text>
+  <text x="178" y="363" fill="#666" font-size="11">[平常運転] 「Uptime:0:14:22:31 Updated:2026-06-01T22:52:13+09:00」</text>
+  <text x="652" y="363" fill="#888" font-size="11" text-anchor="end">- / 9</text>
+  <text x="712" y="363" fill="#888" font-size="11" text-anchor="end">0</text>
+  <text x="772" y="363" fill="#888" font-size="11">00:00</text>
+  <text x="832" y="363" fill="#555" font-size="11">RAW</text>
+  <text x="880" y="363" fill="#888" font-size="11">—</text>
+  <text x="928" y="363" fill="#0a4cad" font-size="11" text-decoration="underline">http://…</text>
+
+  <rect y="370" width="1050" height="22" fill="#ffffff"/>
+  <text x="8" y="385" fill="#0a4cad" font-size="11" text-decoration="underline">to@ch</text>
+  <text x="178" y="385" fill="#333" font-size="11">[自由 - きょうやすみｗ - &lt;Free&gt;] 「133.106.162.137 via Peercast Gateway」</text>
+  <text x="652" y="385" fill="#444" font-size="11" text-anchor="end">- / 1</text>
+  <text x="712" y="385" fill="#444" font-size="11" text-anchor="end">1296</text>
+  <text x="772" y="385" fill="#666" font-size="11">05:25</text>
+  <text x="832" y="385" fill="#444" font-size="11">FLV</text>
+  <text x="880" y="385" fill="#888" font-size="11">—</text>
+  <text x="928" y="385" fill="#0a4cad" font-size="11" text-decoration="underline">https://…</text>
+
+  <rect y="392" width="1050" height="22" fill="#ffffff"/>
+  <text x="8" y="407" fill="#0a4cad" font-size="11" text-decoration="underline">おさかな</text>
+  <text x="178" y="407" fill="#333" font-size="11">[&lt;Free&gt;] 「ファイナルファンタジー 6」</text>
+  <text x="652" y="407" fill="#444" font-size="11" text-anchor="end">- / 1</text>
+  <text x="712" y="407" fill="#444" font-size="11" text-anchor="end">1760</text>
+  <text x="772" y="407" fill="#666" font-size="11">09:32</text>
+  <text x="832" y="407" fill="#444" font-size="11">FLV</text>
+  <text x="880" y="407" fill="#888" font-size="11">—</text>
+  <text x="928" y="407" fill="#0a4cad" font-size="11" text-decoration="underline">https://…</text>
+
+  <rect y="414" width="1050" height="22" fill="#ffffff"/>
+  <text x="8" y="429" fill="#0a4cad" font-size="11" text-decoration="underline">おるch</text>
+  <text x="178" y="429" fill="#333" font-size="11">[&lt;Free&gt;] 「台風一過で即終了、女性視点からの戦国恋愛ゲーム」</text>
+  <text x="652" y="429" fill="#444" font-size="11" text-anchor="end">3 / 4</text>
+  <text x="712" y="429" fill="#444" font-size="11" text-anchor="end">2660</text>
+  <text x="772" y="429" fill="#666" font-size="11">01:14</text>
+  <text x="832" y="429" fill="#444" font-size="11">FLV</text>
+  <text x="880" y="429" fill="#888" font-size="11">—</text>
+  <text x="928" y="429" fill="#0a4cad" font-size="11" text-decoration="underline">https://…</text>
+
+  <rect y="436" width="1050" height="22" fill="#ffffff"/>
+  <text x="8" y="451" fill="#0a4cad" font-size="11" text-decoration="underline">ニュ</text>
+  <text x="178" y="451" fill="#333" font-size="11">[18x AI - 初音ミクちゃんが我々を応援してくれる - &lt;Free&gt;] 「ちょっとエッチかもしれない…」</text>
+  <text x="652" y="451" fill="#444" font-size="11" text-anchor="end">7 / 7</text>
+  <text x="712" y="451" fill="#444" font-size="11" text-anchor="end">2160</text>
+  <text x="772" y="451" fill="#666" font-size="11">10:39</text>
+  <text x="832" y="451" fill="#444" font-size="11">FLV</text>
+  <text x="880" y="451" fill="#888" font-size="11">—</text>
+  <text x="928" y="451" fill="#0a4cad" font-size="11" text-decoration="underline">https://…</text>
+
+  <!-- Selected row highlight (薄青) -->
+  <rect y="458" width="1050" height="22" fill="#cce0ff" stroke="#7faaff"/>
+  <text x="8" y="473" fill="#0a4cad" font-size="11" text-decoration="underline">ゆべし</text>
+  <text x="178" y="473" fill="#1a1a1a" font-size="11">[18x絵 - ゴラミー - &lt;Open&gt;]</text>
+  <text x="652" y="473" fill="#222" font-size="11" text-anchor="end">- / 1</text>
+  <text x="712" y="473" fill="#222" font-size="11" text-anchor="end">900</text>
+  <text x="772" y="473" fill="#444" font-size="11">01:43</text>
+  <text x="832" y="473" fill="#222" font-size="11">FLV</text>
+  <text x="880" y="473" fill="#888" font-size="11">—</text>
+  <text x="928" y="473" fill="#0a4cad" font-size="11" text-decoration="underline">http://…</text>
+
+  <!-- Right-click menu mock (popup) -->
+  <g transform="translate(180,478)">
+    <rect width="200" height="170" fill="#ffffff" stroke="#888" stroke-width="1"/>
+    <text x="12" y="20" fill="#1a1a1a" font-size="12" font-weight="600">▶ 視聴 (別ウィンドウ)</text>
+    <text x="12" y="40" fill="#1a1a1a" font-size="12">⏺ 録画開始</text>
+    <text x="12" y="60" fill="#888" font-size="12">⏹ 録画停止</text>
+    <line x1="6" y1="68" x2="194" y2="68" stroke="#ddd"/>
+    <text x="12" y="84" fill="#1a1a1a" font-size="12">★ お気に入りに追加…</text>
+    <text x="12" y="104" fill="#1a1a1a" font-size="12">⚙ お気に入りルール編集</text>
+    <line x1="6" y1="112" x2="194" y2="112" stroke="#ddd"/>
+    <text x="12" y="128" fill="#1a1a1a" font-size="12">📋 コンタクト URL をコピー</text>
+    <text x="12" y="148" fill="#1a1a1a" font-size="12">🌐 コンタクトをブラウザで開く</text>
+    <text x="12" y="166" fill="#888" font-size="11">右クリックメニュー (実装イメージ)</text>
+  </g>
+
+  <!-- Status bar -->
+  <rect y="694" width="1050" height="26" fill="#f0f0f0" stroke="#d4d4d4"/>
+  <text x="10" y="711" fill="#333" font-size="11">★ お気に入り 8 / 全 47 ch · 録画 3 本進行中</text>
+  <text x="540" y="711" fill="#0a4cad" font-size="11" text-decoration="underline">peercast.lan:7144</text>
+  <text x="720" y="711" fill="#666" font-size="11">YP: pcyp.org/index.txt</text>
+  <text x="920" y="711" fill="#333" font-size="11">22:53 · UP 02:58</text>
+
+  <!-- ===== Legend (off-canvas annotation) ===== -->
+  <g transform="translate(420,478)">
+    <rect width="616" height="200" fill="#f8f8f8" stroke="#ccc"/>
+    <text x="14" y="26" fill="#1a1a1a" font-size="13" font-weight="600">色分けルール (お気に入りルール + 録画状態で決まる)</text>
+    <rect x="14" y="40" width="22" height="16" fill="#fff5b8" stroke="#f0e0a0"/>
+    <text x="44" y="53" fill="#333" font-size="12">favorites.color = 黄色 (例: イベント告知)</text>
+    <rect x="14" y="62" width="22" height="16" fill="#c9f0c5" stroke="#b0dca8"/>
+    <text x="44" y="75" fill="#333" font-size="12">favorites.color = 緑 (★ pin_top のみ、auto_record=false)</text>
+    <rect x="14" y="84" width="22" height="16" fill="#9be8df" stroke="#7fd0c6"/>
+    <text x="44" y="97" fill="#333" font-size="12">favorites.color = シアン (★ + 録画中。状態が動的に重畳)</text>
+    <rect x="14" y="106" width="22" height="16" fill="#cce0ff" stroke="#7faaff"/>
+    <text x="44" y="119" fill="#333" font-size="12">選択中 (フォーカス) のハイライト</text>
+    <rect x="14" y="128" width="22" height="16" fill="#fff" stroke="#bbb"/>
+    <text x="44" y="141" fill="#333" font-size="12">通常 (お気に入り未マッチ)</text>
+    <text x="14" y="166" fill="#1a1a1a" font-size="12" font-weight="600">行クリック動作</text>
+    <text x="14" y="184" fill="#444" font-size="11">単押 = 視聴ウィンドウを別プロセスで開く (Step 4 と同じ) / 右クリ = メニュー (左に表示)</text>
+  </g>
+</svg>
