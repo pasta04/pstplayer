@@ -550,7 +550,17 @@
 				{#if visible.length === 0}
 					<tr>
 						<td colspan="9" class="empty">
-							{loading ? '読み込み中…' : 'チャンネルがありません'}
+							{#if loading}
+								読み込み中…
+							{:else if ypSources.length === 0}
+								<div>YP が登録されていません。</div>
+								<button onclick={openSettings} class="empty-cta">⚙ 設定で YP を追加する</button>
+							{:else if entries.length === 0 && failures.length > 0}
+								<div>全 YP の取得に失敗しています。</div>
+								<button onclick={refresh} class="empty-cta">↻ 再試行</button>
+							{:else}
+								チャンネルがありません (絞り込み / タブの設定を確認してください)
+							{/if}
 						</td>
 					</tr>
 				{/if}
@@ -829,6 +839,20 @@
 		text-align: center;
 		color: #888;
 		padding: 1rem;
+	}
+
+	.empty .empty-cta {
+		margin-top: 0.5rem;
+		padding: 0.3rem 0.8rem;
+		background: var(--bg-elev, #fff);
+		border: 1px solid #bbb;
+		border-radius: 3px;
+		cursor: pointer;
+		font: inherit;
+	}
+
+	.empty .empty-cta:hover {
+		background: #f0f7ff;
 	}
 
 	.statusbar {
