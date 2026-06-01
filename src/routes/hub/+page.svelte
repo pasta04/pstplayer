@@ -147,6 +147,7 @@
 	}
 
 	async function refresh() {
+		if (loading) return; // 並行 refresh 防止 (前回完了前に次が走らない)
 		loading = true;
 		lastError = null;
 		try {
