@@ -354,6 +354,27 @@
 		}
 	}
 
+	async function watchUrl() {
+		const url = prompt(
+			'視聴したい PeerCast URL を入力 (例: http://localhost:7144/pls/abc...)',
+		)?.trim();
+		if (!url) return;
+		// URL から channel_id を抽出 (簡易: 末尾セグメント)
+		const match = url.match(/\/(?:pls|stream)\/([0-9a-fA-F]{32})/);
+		if (!match) {
+			lastError = `URL から channel_id を抽出できません: ${url}`;
+			return;
+		}
+		try {
+			await spawnViewer(match[1]);
+			setTimeout(() => {
+				void refreshWatching();
+			}, 800);
+		} catch (err) {
+			lastError = err instanceof Error ? err.message : String(err);
+		}
+	}
+
 	function onRowClick(e: YpEntry) {
 		selectedId = e.id;
 	}
@@ -484,6 +505,7 @@
 <main onclick={() => closeMenu()}>
 	<header class="toolbar">
 		<button onclick={refresh} disabled={loading}>{loading ? '更新中…' : '↻ 更新'}</button>
+		<button onclick={watchUrl} title="URL を直接入力して視聴する">🔗 URL から開く</button>
 		<button onclick={openSettings}>⚙ 設定</button>
 		<button
 			onclick={closeAll}
