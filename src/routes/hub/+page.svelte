@@ -21,7 +21,7 @@
 		type YpEntry,
 		type YpFetchFailure,
 	} from '$lib/api';
-	import { openSettings } from '$lib/windows';
+	import { openSettings, openThreadList } from '$lib/windows';
 
 	type SortKey = 'name' | 'genre' | 'listeners' | 'bitrate' | 'uptime' | 'yp_source';
 	type TabKey = 'all' | 'favorites' | 'recording' | 'watching' | 'new';
@@ -260,6 +260,12 @@
 		closeMenu();
 	}
 
+	async function openBbs(url: string) {
+		if (!url) return;
+		await openThreadList(url);
+		closeMenu();
+	}
+
 	function plsUrlFor(e: YpEntry, host: string, port: number) {
 		return `http://${host}:${port}/pls/${e.id}`;
 	}
@@ -276,6 +282,43 @@
 			/* defaults */
 		}
 	});
+
+	function onKeydown(ev: KeyboardEvent) {
+		// テキスト入力中はショートカット無効
+		const target = ev.target as HTMLElement | null;
+		const tag = target?.tagName?.toLowerCase();
+		if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+			// ただし Esc はメニュー閉じる用途で受ける
+			if (ev.key === 'Escape') {
+				if (menuOpen) closeMenu();
+			}
+			return;
+		}
+		if (ev.key === 'F5' || ((ev.ctrlKey || ev.metaKey) && ev.key === 'r')) {
+			ev.preventDefault();
+			void refresh();
+		} else if ((ev.ctrlKey || ev.metaKey) && ev.key === 'f') {
+			ev.preventDefault();
+			const inp = document.querySelector<HTMLInputElement>('input.filter');
+			inp?.focus();
+		} else if (ev.key === 'Escape') {
+			if (menuOpen) closeMenu();
+		} else if (ev.key === 'Enter') {
+			const e = visible.find((v) => v.e.id === selectedId)?.e;
+			if (e) void watchRow(e);
+		} else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+			if (visible.length === 0) return;
+			ev.preventDefault();
+			const idx = visible.findIndex((v) => v.e.id === selectedId);
+			const dir = ev.key === 'ArrowDown' ? 1 : -1;
+			const next = idx < 0 ? 0 : Math.min(visible.length - 1, Math.max(0, idx + dir));
+			selectedId = visible[next].e.id;
+			// 選択行を画面内に
+			document
+				.querySelector<HTMLElement>('tr.selected')
+				?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+		}
+	}
 
 	function fmtTime(d: Date | null) {
 		if (!d) return '';
@@ -294,6 +337,7 @@
 	onclick={() => {
 		if (menuOpen) closeMenu();
 	}}
+	onkeydown={onKeydown}
 />
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -428,7 +472,12 @@
 	>
 		<button onclick={() => watchRow(t)} class="primary">▶ 視聴 (別ウィンドウで開く)</button>
 		<hr />
-		<button onclick={() => openInBrowser(t.contact_url)}>🌐 コンタクト URL をブラウザで開く</button>
+		<button onclick={() => openBbs(t.contact_url)} disabled={!t.contact_url}
+			>📺 BBS としてコンタクト URL を開く</button
+		>
+		<button onclick={() => openInBrowser(t.contact_url)} disabled={!t.contact_url}
+			>🌐 コンタクト URL をブラウザで開く</button
+		>
 		<hr />
 		<div class="submenu-label">📋 コピー</div>
 		<button class="indent" onclick={() => copy(t.name)}>チャンネル名</button>
