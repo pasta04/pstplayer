@@ -217,6 +217,13 @@ export async function listActiveViewers(): Promise<string[]> {
 	return call<string[]>('list_active_viewers');
 }
 
+/// 現在「録画中」の channel_id 配列。視聴中の中でさらに状態問い合わせを
+/// 投げ、`state` IPC で true 応答が返ったものだけを含む。ハブ画面の
+/// 「録画中」タブ表示用。
+export async function listRecordingViewers(): Promise<string[]> {
+	return call<string[]>('list_recording_viewers');
+}
+
 /// 指定 channel_id の視聴ウィンドウを閉じる。
 export async function closeViewer(channelId: string): Promise<boolean> {
 	return call<boolean>('close_viewer', { channelId });

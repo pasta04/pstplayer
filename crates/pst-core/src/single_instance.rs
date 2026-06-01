@@ -47,6 +47,7 @@ const PING: &[u8] = b"ping\n";
 const PONG: &[u8] = b"pong\n";
 const FOCUS: &[u8] = b"focus\n";
 const CLOSE: &[u8] = b"close\n";
+const STATE: &[u8] = b"state\n";
 const OK: &[u8] = b"ok\n";
 
 /// 起動時の重複起動ポリシー。`LaunchPolicy::Single` の時のみ実際に
@@ -202,6 +203,18 @@ pub fn request_close(addr: SocketAddr) -> std::io::Result<()> {
     Ok(())
 }
 
+/// 既存プロセスに状態問い合わせを送り、録画中なら true を返す。
+/// 応答が `1\n` なら true、それ以外は false。
+pub fn query_recording(addr: SocketAddr) -> std::io::Result<bool> {
+    let mut stream = TcpStream::connect_timeout(&addr, Duration::from_secs(2))?;
+    stream.set_write_timeout(Some(Duration::from_secs(2)))?;
+    stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+    stream.write_all(STATE)?;
+    let mut buf = [0u8; 8];
+    let n = stream.read(&mut buf).unwrap_or(0);
+    Ok(n >= 1 && buf[0] == b'1')
+}
+
 /// 既存ロックファイルを読む (なければ None)。スポーン側で「既に視聴
 /// ウィンドウがあるか?」をチェックするための read-only 操作。
 pub fn read_existing(channel_id: &str) -> Option<LockInfo> {
@@ -247,13 +260,19 @@ pub fn list_active() -> Vec<LockInfo> {
 }
 
 /// `acquire` で受け取った `TcpListener` をブロッキングループで処理する。
-/// `on_focus` は `focus\n` を、`on_close` は `close\n` を受け取った時に
-/// 呼ばれる (UI スレッド外なので内部で `app.run_on_main_thread` 等を
-/// 使うこと)。
-pub fn serve<F, C>(listener: TcpListener, on_focus: F, on_close: C)
+///
+/// - `on_focus`: `focus\n` 受信時に呼ぶ (ウィンドウを前面化する想定)
+/// - `on_close`: `close\n` 受信時に呼ぶ (プロセス終了する想定)
+/// - `is_recording`: `state\n` 受信時に呼ばれ、現在の録画状態を返す。
+///   true なら `1\n`、false なら `0\n` を応答する
+///
+/// すべてのコールバックは UI スレッド外で呼ばれるので、内部で
+/// `app.run_on_main_thread` 等を使うこと。
+pub fn serve<F, C, S>(listener: TcpListener, on_focus: F, on_close: C, is_recording: S)
 where
     F: Fn() + Send + 'static,
     C: Fn() + Send + 'static,
+    S: Fn() -> bool + Send + Sync + 'static,
 {
     for incoming in listener.incoming() {
         let Ok(mut stream) = incoming else { continue };
@@ -273,6 +292,9 @@ where
         } else if req.starts_with(CLOSE) {
             let _ = stream.write_all(OK);
             on_close();
+        } else if req.starts_with(STATE) {
+            let body: &[u8] = if is_recording() { b"1\n" } else { b"0\n" };
+            let _ = stream.write_all(body);
         }
     }
 }
@@ -310,6 +332,7 @@ mod tests {
                     focused_c.fetch_add(1, Ordering::SeqCst);
                 },
                 || {},
+                || false,
             );
         });
         // 同じ channel_id で 2 度目 acquire → Conflict
@@ -384,6 +407,7 @@ mod tests {
                 move || {
                     closed_c.fetch_add(1, Ordering::SeqCst);
                 },
+                || false,
             );
         });
         // 別「プロセス」から close 要求 (= read_existing で addr 取得)
@@ -403,7 +427,7 @@ mod tests {
         };
         let mut h = owned;
         let listener = h.take_listener().unwrap();
-        thread::spawn(move || serve(listener, || {}, || {}));
+        thread::spawn(move || serve(listener, || {}, || {}, || false));
 
         // 偽の死んだロックも 1 つ書く
         let ch_dead = unique_id("f");
@@ -432,6 +456,39 @@ mod tests {
     }
 
     #[test]
+    fn query_recording_returns_true_or_false() {
+        // 録画 ON 状態のロック
+        let ch_rec = unique_id("h");
+        let owned_rec = match acquire(&ch_rec).unwrap() {
+            AcquireResult::Owned(h) => h,
+            _ => panic!(),
+        };
+        let mut h_rec = owned_rec;
+        let listener_rec = h_rec.take_listener().unwrap();
+        thread::spawn(move || serve(listener_rec, || {}, || {}, || true));
+
+        // 録画 OFF 状態のロック
+        let ch_off = unique_id("i");
+        let owned_off = match acquire(&ch_off).unwrap() {
+            AcquireResult::Owned(h) => h,
+            _ => panic!(),
+        };
+        let mut h_off = owned_off;
+        let listener_off = h_off.take_listener().unwrap();
+        thread::spawn(move || serve(listener_off, || {}, || {}, || false));
+
+        thread::sleep(Duration::from_millis(50));
+
+        let info_rec = read_existing(&ch_rec).expect("alive");
+        let info_off = read_existing(&ch_off).expect("alive");
+        assert!(query_recording(info_rec.ipc_addr).unwrap());
+        assert!(!query_recording(info_off.ipc_addr).unwrap());
+
+        drop(h_rec);
+        drop(h_off);
+    }
+
+    #[test]
     fn read_existing_finds_live_owner() {
         let ch = unique_id("d");
         let owned = match acquire(&ch).unwrap() {
@@ -442,7 +499,7 @@ mod tests {
         let listener = h.take_listener().unwrap();
         let stop = Arc::new(Mutex::new(false));
         let _stop_c = stop.clone();
-        thread::spawn(move || serve(listener, || {}, || {}));
+        thread::spawn(move || serve(listener, || {}, || {}, || false));
         let info = read_existing(&ch).expect("live owner not found");
         assert_eq!(info.channel_id, ch);
         drop(h);

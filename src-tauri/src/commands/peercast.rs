@@ -144,6 +144,20 @@ pub fn list_active_viewers() -> Vec<String> {
     single_instance::list_active().into_iter().map(|i| i.channel_id).collect()
 }
 
+/// 現在録画中の channel_id 一覧を返す。各 active viewer の IPC に
+/// `state\n` を投げて録画中なら返答 `1\n` をもらう。失敗 / not recording
+/// なら無視。ハブ画面の「録画中」タブ表示用。
+#[tauri::command]
+pub fn list_recording_viewers() -> Vec<String> {
+    let mut out = Vec::new();
+    for info in single_instance::list_active() {
+        if let Ok(true) = single_instance::query_recording(info.ipc_addr) {
+            out.push(info.channel_id);
+        }
+    }
+    out
+}
+
 /// 指定 channel_id の視聴ウィンドウを閉じる。lock がなければ no-op。
 /// 失敗してもエラーにはせず false を返す (already closed 等の race を想定)。
 #[tauri::command]

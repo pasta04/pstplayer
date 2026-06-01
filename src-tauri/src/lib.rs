@@ -58,7 +58,8 @@ enum AcquireOutcome {
 fn start_focus_listener<R: Runtime>(mut handle: LockHandle, app: AppHandle<R>) -> LockHandle {
     if let Some(listener) = handle.take_listener() {
         let app_focus = app.clone();
-        let app_close = app;
+        let app_close = app.clone();
+        let app_state = app;
         std::thread::spawn(move || {
             single_instance::serve(
                 listener,
@@ -74,6 +75,11 @@ fn start_focus_listener<R: Runtime>(mut handle: LockHandle, app: AppHandle<R>) -
                 move || {
                     // ハブ側からの close 要求。app を exit させる。
                     app_close.exit(0);
+                },
+                move || {
+                    // ハブ側からの state 問い合わせ。PlayerEngine の
+                    // stream-record プロパティが空でなければ録画中。
+                    app_state.try_state::<PlayerEngine>().and_then(|e| e.record_path()).is_some()
                 },
             );
         });
@@ -136,6 +142,7 @@ pub fn run() {
             commands::peercast::fetch_yp_sources,
             commands::peercast::spawn_viewer,
             commands::peercast::list_active_viewers,
+            commands::peercast::list_recording_viewers,
             commands::peercast::close_viewer,
             commands::peercast::close_all_viewers,
             commands::config::get_config,

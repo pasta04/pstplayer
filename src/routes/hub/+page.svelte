@@ -17,6 +17,7 @@
 		firstFavoriteMatch,
 		getConfig,
 		listActiveViewers,
+		listRecordingViewers,
 		peercastPing,
 		spawnViewer,
 		type FavoriteAction,
@@ -81,6 +82,7 @@
 	let prevIds = $state<Set<string>>(new Set());
 	let newIds = $state<Set<string>>(new Set());
 	let watchingIds = $state<Set<string>>(new Set());
+	let recordingIds = $state<Set<string>>(new Set());
 	// 既に通知済みの新着 ID。重複通知防止 (同じセッションで何度も
 	// 「新着 X」を出さない)。
 	let notifiedIds = new Set<string>();
@@ -141,6 +143,14 @@
 		try {
 			const ids = await listActiveViewers();
 			watchingIds = new Set(ids);
+			// 録画中チェック (各 viewer に IPC 投げる)。視聴中 0 件なら
+			// 録画中も 0 件なので呼び出し省略。
+			if (ids.length > 0) {
+				const recIds = await listRecordingViewers();
+				recordingIds = new Set(recIds);
+			} else {
+				recordingIds = new Set();
+			}
 		} catch {
 			/* ignore: lock 読み取りエラーは無視して次回再試行 */
 		}
@@ -224,7 +234,7 @@
 				// タブフィルタ
 				if (activeTab === 'favorites' && !rule) return false;
 				if (activeTab === 'new' && !newIds.has(e.id)) return false;
-				if (activeTab === 'recording') return false; // TODO: 録画中の判定
+				if (activeTab === 'recording' && !recordingIds.has(e.id)) return false;
 				if (activeTab === 'watching' && !watchingIds.has(e.id)) return false;
 				if (activeTab.startsWith('yp:')) {
 					const wanted = activeTab.slice(3);
@@ -281,7 +291,8 @@
 		let all = 0,
 			fav = 0,
 			fresh = 0,
-			watching = 0;
+			watching = 0,
+			recording = 0;
 		const perYp = new Map<string, number>();
 		for (const e of entries) {
 			const rule = matchFor(e);
@@ -297,9 +308,10 @@
 				if (rule) fav++;
 				if (newIds.has(e.id)) fresh++;
 				if (watchingIds.has(e.id)) watching++;
+				if (recordingIds.has(e.id)) recording++;
 			}
 		}
-		return { all, fav, fresh, watching, perYp };
+		return { all, fav, fresh, watching, recording, perYp };
 	});
 
 	function toggleSort(k: SortKey) {
@@ -537,7 +549,7 @@
 			新着 ({counts.fresh})
 		</button>
 		<button class:active={activeTab === 'recording'} onclick={() => (activeTab = 'recording')}>
-			● 録画中 (—)
+			● 録画中 ({counts.recording})
 		</button>
 		<button class:active={activeTab === 'watching'} onclick={() => (activeTab = 'watching')}>
 			視聴中 ({counts.watching})
@@ -616,7 +628,9 @@
 							{#if rule}<span class="star">★</span>{/if}{e.name}{#if watchingIds.has(e.id)}
 								<span class="watching-badge" title="このチャンネルは視聴ウィンドウで開いています"
 									>▶</span
-								>{/if}
+								>{/if}{#if recordingIds.has(e.id)}
+								<span class="recording-badge" title="このチャンネルは録画中です">●</span>
+							{/if}
 						</td>
 						<td class="col-desc">
 							{#if e.genre}[{e.genre}]{/if}
@@ -927,6 +941,23 @@
 		color: #2c7;
 		margin-left: 0.3rem;
 		font-weight: 600;
+	}
+
+	.recording-badge {
+		color: #c0392b;
+		margin-left: 0.3rem;
+		font-weight: 600;
+		animation: pulse 1.6s ease-in-out infinite;
+	}
+
+	@keyframes pulse {
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.4;
+		}
 	}
 
 	.empty {
