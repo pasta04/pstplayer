@@ -253,6 +253,22 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
       - 残: pstplayer 側「お気に入り編集 / 履歴」のハブ機能を `pst-server`
             に寄せる整理 (ADR-0006 Step 3、優先度 中)
       - 詳細設計: [ADR-0006](decisions/0006-auto-record-and-multiview.md)
+- [ ] **Desktop ハブ画面 (PeCaRecorder 風)** ← **優先度: 高**
+      - `pstplayer` を引数なしで起動した時のメイン画面を、PeCaRecorder
+        相当の「YP テーブル + お気に入り + 録画一覧」型 UI に置き換える
+      - **複数 YP 対応は必須**。PeerCastStation には YP のチャンネル一覧
+        を返す API が無いため、`index.txt` を直接 HTTP GET する以外の
+        手段が無い。1 つしか登録できない現状 (`peercast.yp_url`) を
+        `[[yp.sources]]` 配列に拡張
+      - お気に入りルールに `text_color` / `background` / `action`
+        (show / ignore / block) を新設。色は録画状態と独立 (PeCaRecorder
+        の色設定をフル取り込み)
+      - カラムソート / 右クリックメニュー / ダブル&ミドルクリック設定
+      - 詳細設計:
+        [pstplayer-hub-mockup.svg](design/pstplayer-hub-mockup.svg) /
+        [pstplayer-hub-mockup-wide.svg](design/pstplayer-hub-mockup-wide.svg) /
+        [pstplayer-hub-interactions.md](design/pstplayer-hub-interactions.md) /
+        [pstplayer-hub-settings.md](design/pstplayer-hub-settings.md)
 
 ### 4.B その他
 

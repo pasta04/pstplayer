@@ -12,7 +12,7 @@ PeCaRecorder の「全般の設定」ダイアログ (PeerCast / YP / 通信 / �
 | PeCaRecorder のタブ | pstplayer での扱い | 備考 |
 | --- | --- | --- |
 | PeerCast | ✓ 採用 (一部) | host:port / basic auth / 自動起動 (低優先)。再生タブ連動は採用せず |
-| YP | ✓ 採用 (拡張) | 複数 YP 登録 + 名前 / 名前空間 / URL / 表示色 / タブ表示有無 |
+| YP | ✓ 採用 (**必須・優先度: 高**) | 複数 YP 登録 + 名前 / 名前空間 / URL / 表示色 / タブ表示有無。PeerCastStation には YP のチャンネル一覧を返す API が無いので、複数 YP を直接フェッチして並べる以外の方法が無い |
 | 通信 | ✓ 採用 | タイムアウト / UserAgent / gzip。Proxy は低優先 |
 | プレイヤー | ✗ 不採用 | libmpv 固定。外部プレイヤー登録 UI は持たない |
 | ツール | ✗ 不採用 | 外部ツール登録は採用せず (前回確定済み) |
@@ -57,6 +57,12 @@ PeCaRecorder の「再生タブ」関連設定は不採用 (pstplayer は視聴 
 
 ### YP
 
+**必須 / 優先度: 高**。PeerCastStation には「YP X に登録されている全
+チャンネル」を返す API が存在しない (`getChannels` は PeerCast 自身が
+リレー / ブロードキャスト中のチャンネルしか返さない)。したがって YP の
+チャンネル一覧表示は **YP の `index.txt` を直接 HTTP GET する以外の
+手段が無い**。PeCaRecorder と同じアーキテクチャを取る。
+
 複数 YP 登録に対応 (現状の `peercast.yp_url` 単体から拡張):
 
 ```toml
@@ -80,8 +86,21 @@ show_in_all = true
 追加)。お気に入りルールの色 + YP 由来の色は **お気に入り > YP 既定** の
 優先度で適用。
 
-優先度: 中。v1 はまず単一 YP (現状の `peercast.yp_url`) で動かしてから
-拡張する。
+**実装メモ**:
+
+- `pst_core::peercast::yp::fetch_index(url)` を YP ソースの数だけ並行
+  呼び出し (tokio join), マージしてハブに渡す
+- 同一 `channel_id` が複数 YP に出てきた場合は最初に見つかった方を採用
+  (= YP ソースの並び順が優先度)、「YP」カラムにはマージ元の名前を表示
+- YP fetch 失敗は他の YP に影響させない (Option::None で除外)。失敗
+  したまま放置しないようステータスバーに「YP X: 取得失敗 (再試行)」を
+  出す
+
+**PeerCast `getChannels` でのリアルタイム augment は採用しない**。
+理由: 大量のチャンネルの中で自分がリレーしている数本だけリスナー数が
+リアルタイム更新されてもユーザーメリットが無く、実装の複雑度に見合わ
+ない。リスナー数は YP の `index.txt` を再フェッチした時点のスナップ
+ショットで足りる。
 
 ### 通信
 
