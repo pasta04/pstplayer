@@ -302,6 +302,11 @@
 		closeMenu();
 		try {
 			await spawnViewer(e.id);
+			// 即座に「視聴中」リストを更新 (5 秒待たずにバッジが付く)。
+			// spawn 直後は lock が完了していないかもしれないので少し待つ。
+			setTimeout(() => {
+				void refreshWatching();
+			}, 800);
 		} catch (err) {
 			lastError = err instanceof Error ? err.message : String(err);
 		}
