@@ -123,22 +123,25 @@ PSTPlayer (Desktop) と pst-server (LAN 内中継サーバ) を組み合わせ�
 ### UC-08: 自動配信録画 (Desktop 同居運用)
 
 - アクター: U1 / U3
-- トリガ: Desktop と同じ PC 上で `pst-server` を常駐サービスとして
-  起動しておく
+- トリガ: Desktop と同じ PC 上で `pst-server` を常駐させておく
 - 採用方針 (ADR-0006): **`pst-server` を Desktop に同居させる**
   (新規 Tauri ハブを作らず、既存 `pst-server` をそのまま流用)
 - 主シナリオ:
-  1. PC 起動と同時に `pst-server` が常駐 (Windows サービス / Linux
-     systemd / macOS launchd)
+  1. ログイン時に `pst-server` が起動する
+     - Linux: systemd ユーザ unit
+     - macOS: launchd plist (`~/Library/LaunchAgents/`)
+     - **Windows**: スタートアップ folder (`shell:startup`) に
+       コンソール非表示の `.vbs` ラッパー経由のショートカット
+       (**サービス方式は採用しない**)
   2. `pst-server.toml` の `[[favorites.rules]]` で `auto_record=true`
      を設定済
   3. `pst-server` の AutoRecorder task が `getChannels` を polling し、
      新規にマッチした配信を自動で録画開始
   4. 配信終了 (grace 期間経過) で stop
-- 期待: ウィンドウは増えない (サービスは画面に出ない)、視聴したい時は
-  別アプリ `pstplayer` で / 必要なら同じ PC のブラウザで `/`
-- インストール: Windows サービス登録例 / Linux systemd ユーザ unit
-  例を `docs/usage/server.md` に整備予定 (Step 5)
+- 期待: ウィンドウは増えない (常駐プロセスは画面に出ない)、視聴したい時
+  は別アプリ `pstplayer` で / 必要なら同じ PC のブラウザで `/`
+- インストール: 上記 3 OS 分の起動設定例を `docs/usage/server.md`
+  に整備予定 (Step 5)
 
 ### UC-09: 設定編集
 

@@ -59,7 +59,7 @@
 | 想定環境 | ハブの動かし方 | ビューア |
 | --- | --- | --- |
 | Pi / NAS で常駐録画したい | Pi に `pst-server` を systemd 等で常駐 | PC から `pstplayer` で視聴 / モバイルから Web UI |
-| Desktop 単機運用 | 同じ PC で `pst-server` を Windows サービス / Linux systemd ユーザ unit / macOS launchd で常駐 (ウィンドウなし) | 同じ PC で `pstplayer` で視聴 |
+| Desktop 単機運用 | 同じ PC で `pst-server` を常駐 (Linux systemd ユーザ unit / macOS launchd / Windows はスタートアップ起動。**Windows サービスは使わない**) | 同じ PC で `pstplayer` で視聴 |
 | ライト用途 (自動録画不要) | `pst-server` 立てない | `pstplayer` だけで URL ペースト視聴 |
 
 メリット:
@@ -69,8 +69,9 @@
 - ✅ ビューア (`pstplayer`) は視聴専用なので大改造不要 (= ハブ機能 /
   YP / 自動録画ロジックを既存 Tauri 側に増やさなくて良い)
 - ✅ 自動録画は `pst-server` の常駐で実現 → 「ウィンドウが増えるのは
-  邪魔」要件に合致 (常駐は systemd 等のサービス、Windows サービスや
-  Linux daemon は通常画面に出ない)
+  邪魔」要件に合致 (Linux/macOS は systemd ユーザ unit / launchd で
+  バックグラウンド起動、Windows はスタートアップ folder のショート
+  カットで非表示起動)
 - ✅ 複数視聴は **`pstplayer` を複数起動するだけ** (ウィンドウを増やす)
   → 別途実装する必要が小さい
 
@@ -80,10 +81,12 @@
   意識する必要がある
   → 「自動録画したい人だけ pst-server を立てる、しない人は今まで通り」
   という運用で OK
-- ❌ Pi なし環境で pst-server を Windows サービスとしてインストール
-  する手順が必要
-  → docs/usage/server.md に Windows サービス / Linux systemd の設置
-  例を追記する
+- ❌ Pi なし環境で pst-server を OS 起動時に立ち上げる手順が必要
+  → docs/usage/server.md にスタートアップ folder (Windows) /
+  systemd ユーザ unit (Linux) / launchd plist (macOS) の設置例を追記する。
+  Windows サービス方式は採用しない (UAC / 権限 / 録画先パスの扱いが
+  煩雑なため。スタートアップ folder の vbs ラッパーでコンソール非表示
+  起動するのが最も簡単)
 
 ### Server (現状の構造をそのまま役割分離)
 
@@ -343,11 +346,21 @@ Desktop ビューア (`pstplayer`) は視聴専用とする。複数チャンネ
 
 - `docs/usage/server.md` を強化:
   - Pi での systemd unit 例 (既出)
-  - **Windows サービスとしての登録例** (sc create / nssm / WinSW)
-  - **Linux systemd ユーザ unit 例**
-  - **macOS launchd plist 例**
+  - **Linux systemd ユーザ unit 例** (Desktop 同居用)
+  - **macOS launchd plist 例** (`~/Library/LaunchAgents/`)
+  - **Windows スタートアップ folder ショートカット例**
+    (`shell:startup` に `.vbs` ラッパー経由の非表示起動)
 - 「自動録画したいだけのライト Desktop 利用者」が迷わず立てられる
   ように
+
+**Windows サービス方式は採用しない**。理由:
+
+- サービス登録は管理者権限必須 (sc create / nssm / WinSW どれも UAC が
+  走る)
+- サービスは SYSTEM ユーザで動くため、録画先 (ユーザ HOME 配下や
+  外付け USB) のパス・パーミッションが煩雑
+- 自動録画は「個人 PC で気軽に」が想定用途なので、ログインユーザの
+  権限で動くスタートアップ folder 方式の方が運用にあっている
 
 ### Step 6: 自動グリッド (任意 / 後回し可)
 
