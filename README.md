@@ -44,7 +44,7 @@ pstplayer/
 ### 必要なツール
 
 - **Rust stable** (1.78+) — `rustup install stable`
-- **Node.js 22 LTS**
+- **Node.js 24 LTS** (Active LTS、Node 22 は Maintenance フェーズなのでこちらを推奨)
 - **OS 別の Tauri + libmpv 依存**:
   - **Linux (Debian/Ubuntu 24.04)**:
     ```sh
