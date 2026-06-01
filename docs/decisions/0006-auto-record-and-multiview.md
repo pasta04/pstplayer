@@ -266,22 +266,30 @@ Desktop ビューア (`pstplayer`) は視聴専用とする。複数チャンネ
 - [x] BBS ペインはグリッドモードでは非表示。タイル→単独モード遷移で復活
 - 設計図: [web-grid-mockup.svg](../design/web-grid-mockup.svg)
 
-### Step 3: Desktop ビューアを「視聴専用」に整理
+### Step 3: Desktop ビューアと pst-server の使い分け整理 — ✅ 完了
 
-`pstplayer` (Tauri 側) から「ハブ機能」を縮小:
+**当初プラン (= pstplayer をビューア専用に縮小して機能を pst-server
+に集約) は破棄。** 理由: Step 4 で `pstplayer` 内に Desktop ハブ
+(`/hub` route、PeCaRecorder 風 UI) を実装した結果、Desktop ユーザは
+pst-server が無くても完結する。
 
-- 残す: 動画再生 / BBS / 書き込み / 手動録画 / URL ペースト / CLI 引数
-  受け取り / 視聴ホットキー / 設定 (ローカルの視聴系のみ)
-- 撤去 or 軽量化: YP ウィンドウ / お気に入り編集 / 視聴履歴 一覧 /
-  自動録画ロジック → 「pst-server がある場合はそちらに任せる、無くて
-  も最低限動く」設計に
+実装した方針:
 
-具体的には:
-
-- 設定ダイアログから「お気に入り」「履歴」「YP URL」タブを残しつつ、
-  「ハブ機能は pst-server に同等以上の機能あり」と注記
-- メイン UI に「pst-server に接続して YP を見る」ボタン (= ブラウザを
-  pst-server のホストで起動)
+- [x] **`pstplayer` 側は pst-server 無しでも完結**: ハブ画面 (`/hub`) +
+      お気に入り編集 + YP / 履歴 / 設定 / 録画 / BBS まで全部 Desktop で
+      動く。Web グリッドが欲しい時 / モバイルから視聴したい時のみ
+      `pst-server` を併用する役割分担
+- [x] **設定ファイルが分かれることを docs に明記**: pstplayer の
+      `config.toml` と `pst-server.toml` は別物。お気に入りルール /
+      YP ソースをそれぞれ独立に持つ。両方で同じ自動録画をしたい時は
+      2 か所に書く運用 (将来は片方を同期する仕組みも検討可)
+- [x] **ハブのツールバーに「🌐 pst-server を開く」ボタン**: pst-server
+      が同居している場合に `http://localhost:8080/` を OS デフォルト
+      ブラウザで開ける (Web グリッドや モバイル UI を Desktop でも
+      使いたい時のショートカット)
+- 設定ダイアログから「お気に入り」「履歴」「YP URL」タブは引き続き
+  残す (ハブが使うので必須)。pst-server に同等機能がある旨は
+  `docs/usage/hub.md` で言及済み
 
 ### Step 4: 複数視聴 (`pstplayer` 複数プロセス起動) — ✅ コア部分完了
 

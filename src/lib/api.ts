@@ -385,6 +385,7 @@ export interface HubCfg {
 	watching_poll_sec: number;
 	double_click: HubClickAction;
 	middle_click: HubClickAction;
+	pst_server_url: string;
 }
 
 export interface Config {

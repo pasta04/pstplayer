@@ -177,6 +177,7 @@
 			}
 			dblClickAction = cfg?.hub?.double_click ?? 'watch';
 			middleClickAction = cfg?.hub?.middle_click ?? 'open_bbs';
+			pstServerUrl = cfg?.hub?.pst_server_url ?? '';
 			try {
 				await peercastPing();
 			} catch (e) {
@@ -485,6 +486,15 @@
 		closeMenu();
 	}
 
+	function openPstServer() {
+		// pst-server URL は config.toml の `pst_server_url` を使う (空なら
+		// localhost:8080)。同居運用が主な想定なので localhost が既定。
+		const url = (pstServerUrl || 'http://localhost:8080/').trim();
+		void import('@tauri-apps/plugin-opener').then((m) => m.openUrl(url)).catch(() => undefined);
+	}
+
+	let pstServerUrl = $state('');
+
 	async function openBbs(url: string) {
 		if (!url) return;
 		await openThreadList(url);
@@ -594,6 +604,12 @@
 		<button onclick={refresh} disabled={loading}>{loading ? '更新中…' : '↻ 更新'}</button>
 		<button onclick={watchUrl} title="URL を直接入力して視聴する">🔗 URL から開く</button>
 		<button onclick={openSettings}>⚙ 設定</button>
+		<button
+			onclick={openPstServer}
+			title="pst-server の Web UI (Web グリッド / モバイル UI) をブラウザで開く"
+		>
+			🌐 pst-server
+		</button>
 		<button
 			onclick={closeAll}
 			disabled={watchingIds.size === 0}

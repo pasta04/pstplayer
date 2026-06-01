@@ -289,7 +289,13 @@
 			watching_poll_sec: 5,
 			double_click: 'watch',
 			middle_click: 'open_bbs',
+			pst_server_url: '',
 		} as const;
+	}
+
+	function setPstServerUrl(v: string) {
+		if (!cfg) return;
+		cfg.hub = { ...(cfg.hub ?? defaultHubCfg()), pst_server_url: v };
 	}
 
 	function applyRecentHost(entry: string) {
@@ -526,6 +532,21 @@
 							<option value="none">何もしない</option>
 						</select>
 					</label>
+					<label>
+						pst-server URL (ハブの「🌐 pst-server」ボタンが開く先)
+						<input
+							type="text"
+							placeholder="http://localhost:8080/  (空なら同左を使う)"
+							value={cfg.hub?.pst_server_url ?? ''}
+							oninput={(e) => setPstServerUrl(e.currentTarget.value)}
+						/>
+					</label>
+					<p class="hint small muted">
+						<strong>注意:</strong> pst-server を併用する場合、お気に入りルール / YP ソース /
+						録画設定は <code>config.toml</code> (pstplayer 用) と
+						<code>pst-server.toml</code> で別管理になります。両方で同じ自動録画を したい時は 2 か所に書く必要があります
+						(将来同期検討)。
+					</p>
 				</fieldset>
 			{:else if tab === 'bbs'}
 				<label>

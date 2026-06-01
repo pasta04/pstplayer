@@ -51,6 +51,10 @@ pub struct HubConfig {
     /// ミドルクリック時の動作。既定 `OpenBbs`。
     #[serde(default = "default_middle_click")]
     pub middle_click: HubClickAction,
+    /// 「🌐 pst-server」ボタンが開く URL。空なら `http://localhost:8080/`。
+    /// 同居運用 (localhost) と別マシン (192.168.x.y:8080) の切替用。
+    #[serde(default)]
+    pub pst_server_url: String,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -88,6 +92,7 @@ impl Default for HubConfig {
             watching_poll_sec: default_hub_watching_poll_sec(),
             double_click: HubClickAction::default(),
             middle_click: default_middle_click(),
+            pst_server_url: String::new(),
         }
     }
 }
