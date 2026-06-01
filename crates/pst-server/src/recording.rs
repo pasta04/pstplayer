@@ -133,7 +133,22 @@ impl RecordingState {
         let raw_ext = rec_cfg.ext.trim().trim_start_matches('.');
         let ext = if raw_ext.is_empty() { "flv" } else { raw_ext };
         let filename = make_filename(&channel_name, ext);
-        let path = dir.join(&filename);
+        // 同じファイル名のパスが既に存在する場合は `_2` `_3` ... を
+        // 付けて衝突回避。stop()→start() を 500ms 以内に同 channel_id で
+        // 連打した時、graceful shutdown 中の旧録画がまだ flush 中で
+        // ファイル inode が生きているため、新規 File::create で truncate
+        // すると旧データが消える。秒精度のタイムスタンプだと衝突しやすい
+        // のでファイル単位で uniqueness を保証する。
+        let path = {
+            let mut p = dir.join(&filename);
+            let mut counter = 2;
+            while p.exists() && counter < 100 {
+                let base = filename.trim_end_matches(&format!(".{ext}"));
+                p = dir.join(format!("{base}_{counter}.{ext}"));
+                counter += 1;
+            }
+            p
+        };
 
         let mut guard = self.inner.lock().await;
         if guard.contains_key(&channel_id) {
@@ -196,11 +211,15 @@ impl RecordingState {
         if let Some(task) = guard.remove(channel_id) {
             task.stop_flag
                 .store(true, std::sync::atomic::Ordering::SeqCst);
-            // 一定時間 graceful 完了を待つ余裕を与えてから abort
-            // (上流が stuck していた場合のみ abort が実効する)。
+            // graceful 完了を待ってから abort。is_finished() を見て、
+            // 既に graceful 終了済みなら abort は no-op。disk I/O 遅延で
+            // flush に時間がかかる場合に途中で abort して flush 中断する
+            // 事故を防ぐため 1 秒に延長。
             tokio::spawn(async move {
-                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                task.handle.abort();
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                if !task.handle.is_finished() {
+                    task.handle.abort();
+                }
             });
             true
         } else {
@@ -216,8 +235,10 @@ impl RecordingState {
             task.stop_flag
                 .store(true, std::sync::atomic::Ordering::SeqCst);
             tokio::spawn(async move {
-                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                task.handle.abort();
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                if !task.handle.is_finished() {
+                    task.handle.abort();
+                }
             });
         }
         n

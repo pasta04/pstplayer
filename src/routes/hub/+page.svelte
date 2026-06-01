@@ -198,6 +198,12 @@
 			dblClickAction = cfg?.hub?.double_click ?? 'watch';
 			middleClickAction = cfg?.hub?.middle_click ?? 'open_bbs';
 			pstServerUrl = cfg?.hub?.pst_server_url ?? '';
+			// localStorage から復元された YP タブが、現 ypSources に
+			// 存在しない (= ユーザが YP を削除した) 場合は 'all' に戻す
+			if (activeTab.startsWith('yp:')) {
+				const wanted = activeTab.slice(3);
+				if (!ypSources.some((s) => s.name === wanted)) activeTab = 'all';
+			}
 			try {
 				await peercastPing();
 			} catch (e) {

@@ -170,27 +170,17 @@ fn probe_alive(addr: SocketAddr) -> bool {
     n >= PONG.len() && buf.starts_with(PONG)
 }
 
-/// 既存プロセスにフォーカス要求を送る。
+/// 既存プロセスにフォーカス要求を送る。OK 応答 (`ok\n`) を確認するまで
+/// 待ち、応答が無い / 違う場合は Err を返す (= 呼び出し側が死亡判定可)。
 pub fn request_focus(addr: SocketAddr) -> std::io::Result<()> {
-    let mut stream = TcpStream::connect_timeout(&addr, Duration::from_secs(2))?;
-    stream.set_write_timeout(Some(Duration::from_secs(2)))?;
-    stream.set_read_timeout(Some(Duration::from_secs(2)))?;
-    stream.write_all(FOCUS)?;
-    let mut buf = [0u8; 8];
-    let _ = stream.read(&mut buf);
-    Ok(())
+    send_op(addr, FOCUS)
 }
 
 /// 既存プロセスにクローズ要求を送る。受け取った viewer 側は `serve`
 /// の `on_close` コールバックでウィンドウを閉じる (= プロセス終了)。
+/// OK 応答を確認 (close 後にプロセスが死ぬので、OK だけ受け取れれば成功)。
 pub fn request_close(addr: SocketAddr) -> std::io::Result<()> {
-    let mut stream = TcpStream::connect_timeout(&addr, Duration::from_secs(2))?;
-    stream.set_write_timeout(Some(Duration::from_secs(2)))?;
-    stream.set_read_timeout(Some(Duration::from_secs(2)))?;
-    stream.write_all(CLOSE)?;
-    let mut buf = [0u8; 8];
-    let _ = stream.read(&mut buf);
-    Ok(())
+    send_op(addr, CLOSE)
 }
 
 /// 既存プロセスに状態問い合わせを送り、録画中なら true を返す。
@@ -206,28 +196,36 @@ pub fn query_recording(addr: SocketAddr) -> std::io::Result<bool> {
 }
 
 /// 既存プロセスに録画停止要求を送る。viewer 側で stream-record を空に
-/// 設定する。録画していない時は no-op。
+/// 設定する。録画していない時は no-op。OK 応答 (`ok\n`) を待つ。
 pub fn request_stop_recording(addr: SocketAddr) -> std::io::Result<()> {
-    let mut stream = TcpStream::connect_timeout(&addr, Duration::from_secs(2))?;
-    stream.set_write_timeout(Some(Duration::from_secs(2)))?;
-    stream.set_read_timeout(Some(Duration::from_secs(2)))?;
-    stream.write_all(STOP_RECORD)?;
-    let mut buf = [0u8; 8];
-    let _ = stream.read(&mut buf);
-    Ok(())
+    send_op(addr, STOP_RECORD)
 }
 
 /// 既存プロセスに録画開始要求を送る。viewer 側で stream-record を
 /// `<recording_dir>/<timestamp>_<channel_name>.<ext>` に設定する。
-/// 既に録画中の時は no-op (重複起動は viewer 側で防ぐ)。
+/// 既に録画中の時は no-op (重複起動は viewer 側で防ぐ)。OK 応答を待つ。
 pub fn request_start_recording(addr: SocketAddr) -> std::io::Result<()> {
+    send_op(addr, START_RECORD)
+}
+
+/// 共通の「opcode を送って OK 応答を待つ」ヘルパ。応答が無い / `ok\n`
+/// 以外なら Err を返す。これにより呼び出し側 (`spawn_viewer` の
+/// request_focus 等) は IPC が本当に成立したかを判定できる。
+fn send_op(addr: SocketAddr, op: &[u8]) -> std::io::Result<()> {
     let mut stream = TcpStream::connect_timeout(&addr, Duration::from_secs(2))?;
     stream.set_write_timeout(Some(Duration::from_secs(2)))?;
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
-    stream.write_all(START_RECORD)?;
+    stream.write_all(op)?;
     let mut buf = [0u8; 8];
-    let _ = stream.read(&mut buf);
-    Ok(())
+    let n = stream.read(&mut buf)?;
+    if n >= OK.len() && buf.starts_with(OK) {
+        Ok(())
+    } else {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::UnexpectedEof,
+            "viewer did not return ok",
+        ))
+    }
 }
 
 /// 既存ロックファイルを読む (なければ None)。スポーン側で「既に視聴

@@ -83,26 +83,46 @@ fn start_focus_listener<R: Runtime>(mut handle: LockHandle, app: AppHandle<R>) -
                     // ファイル名に使い、設定の recording_dir に保存する。
                     // libmpv の stream-record property を設定するだけなので
                     // 既に録画中の時は no-op (上書きはしない)。
-                    let Some(engine) = app_start.try_state::<PlayerEngine>() else { return };
+                    // 各失敗パスで stderr ログを残す (silent fail で
+                    // ハブの ● 録画中 badge が付かない → 原因不明
+                    // という UX を避ける)。
+                    let Some(engine) = app_start.try_state::<PlayerEngine>() else {
+                        eprintln!(
+                            "start_record IPC: PlayerEngine not initialised (libmpv 未起動?)"
+                        );
+                        return;
+                    };
                     if engine.record_path().is_some() {
                         return; // 既に録画中
                     }
                     let cli = app_start.try_state::<CliArgs>();
                     let channel_name = cli.and_then(|c| c.channel_name.clone()).unwrap_or_default();
-                    let Ok(cfg) = pst_core::config::load() else { return };
+                    let cfg = match pst_core::config::load() {
+                        Ok(c) => c,
+                        Err(e) => {
+                            eprintln!("start_record IPC: config load failed: {e}");
+                            return;
+                        }
+                    };
                     let exe_dir = std::env::current_exe()
                         .ok()
                         .and_then(|p| p.parent().map(Path::to_path_buf));
                     let resolved =
                         pst_core::snapshot::resolve_record_dir(&cfg.player, exe_dir.as_deref());
-                    if std::fs::create_dir_all(&resolved.dir).is_err() {
+                    if let Err(e) = std::fs::create_dir_all(&resolved.dir) {
+                        eprintln!(
+                            "start_record IPC: recording dir create failed ({}): {e}",
+                            resolved.dir.display()
+                        );
                         return;
                     }
                     let raw_ext = cfg.player.recording_ext.trim().trim_start_matches('.');
                     let ext = if raw_ext.is_empty() { "flv" } else { raw_ext };
                     let name = pst_core::snapshot::make_filename(&channel_name, ext);
                     let full = resolved.dir.join(&name);
-                    let _ = engine.start_record(&full.to_string_lossy());
+                    if let Err(e) = engine.start_record(&full.to_string_lossy()) {
+                        eprintln!("start_record IPC: libmpv start_record failed: {e}");
+                    }
                 },
                 move || {
                     // ハブ側からの録画停止要求。
