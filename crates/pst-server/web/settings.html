@@ -57,6 +57,14 @@
 						同時録画上限 (0 = 既定 8)
 						<input type="number" name="recording.max_concurrent" min="0" max="64" />
 					</label>
+					<label>
+						自動録画 polling 間隔 (秒、0 = 既定 60)
+						<input type="number" name="recording.auto_poll_interval_sec" min="0" max="3600" />
+					</label>
+					<label>
+						配信消滅後の停止猶予 (秒、0 = 既定 30)
+						<input type="number" name="recording.auto_stop_grace_sec" min="0" max="3600" />
+					</label>
 				</section>
 
 				<section>

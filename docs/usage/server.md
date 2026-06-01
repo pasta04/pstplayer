@@ -67,9 +67,11 @@ dir = ""
 # SD カードに書きたくない場合は外付け USB / SSD のマウント先を指定。
 [recording]
 enabled = false
-dir = ""             # 例: "/mnt/usb/recordings"
-ext = ""             # 空なら flv
-max_concurrent = 0   # 0 = 既定 (8 本)。同時録画の上限
+dir = ""                       # 例: "/mnt/usb/recordings"
+ext = ""                       # 空なら flv
+max_concurrent = 0             # 0 = 既定 (8 本)。同時録画の上限
+auto_poll_interval_sec = 0     # 0 = 既定 (60 秒)。自動録画 polling 間隔
+auto_stop_grace_sec = 0        # 0 = 既定 (30 秒)。配信消滅後の停止猶予
 
 # お気に入りルール。複数定義可、上から評価。フィールドは部分一致
 # (大文字小文字無視)、空欄ワイルドカード、複数記述で AND。
@@ -142,6 +144,21 @@ color = "#ff8a3d22"
 Web フロント (`/`) では視聴中に右上の **⏺ 録画** ボタンで開始 /
 停止できます。サーバ側で機能が無効な場合 (`enabled = false`) は
 ボタン自体が隠れます。
+
+### 自動配信録画
+
+`favorites.rules` のうち `auto_record = true` のものは「該当する
+配信が現れた瞬間に自動で録画開始」になります。
+
+- `pst-server` 起動と同時にバックグラウンドで polling task が
+  走り、`auto_poll_interval_sec` (既定 60 秒) 間隔で `getChannels`
+  を取得します
+- 一致した配信が既に録画中なら何もしません (毎周期 409 を吐かない)
+- 一致した配信が `getChannels` から消えると `auto_stop_grace_sec`
+  (既定 30 秒) 後に停止します。短時間の瞬断ではファイルが分割
+  されません
+- `[recording] enabled = false` または `auto_record = true` の
+  ルールが 1 つも無いときは polling 自体走りません (待機ループのみ)
 
 ## Web UI からの設定変更
 

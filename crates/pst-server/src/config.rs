@@ -42,6 +42,16 @@ pub struct RecordingConfig {
     /// 抑えるための上限。
     #[serde(default)]
     pub max_concurrent: u32,
+    /// 自動録画タスクの polling 間隔 (秒)。0 (既定) は 60 として扱う。
+    /// `favorites.rules` のうち `auto_record = true` のルールにマッチ
+    /// する配信が `getChannels` に現れた瞬間、録画を自動で開始する。
+    #[serde(default)]
+    pub auto_poll_interval_sec: u64,
+    /// 自動録画した配信が `getChannels` から消えてから停止するまでの
+    /// 猶予 (秒)。0 (既定) は 30 として扱う。短時間の瞬断で録画が
+    /// プツプツ切れるのを防ぐためのバッファ。
+    #[serde(default)]
+    pub auto_stop_grace_sec: u64,
 }
 
 /// ログ出力の制御。Raspberry Pi 等の SD カード環境を想定し、

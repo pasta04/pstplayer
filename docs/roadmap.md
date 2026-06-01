@@ -217,13 +217,17 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
 
 ### 4.A 高優先度 — 自動 / 並行系の拡張
 
-- [ ] **自動配信録画 (お気に入りで配信開始を自動検知)** ← **優先度: 高**
-      - pst-server が定期的に紐付け先 PeerCastStation の `getChannels`
-        (および任意で YP) を polling
-      - 出現したチャンネルが `[[favorites.rules]]` に `auto_record = true`
-        でマッチしたら自動で録画開始 (現状は人が視聴開始した時のみ)
-      - チャンネルが消えたら自動で録画停止 (現状は手動 stop のみ)
-      - max_concurrent / dir 等は既存の `[recording]` を継承
+- [x] **自動配信録画 (お気に入りで配信開始を自動検知)** ← **優先度: 高 / Step 1 完了**
+      - [x] pst-server に AutoRecorder task (`auto_record::spawn`) を組み込み、
+            起動と同時に `recording.auto_poll_interval_sec` 間隔 (既定 60 秒)
+            で `getChannels` を polling
+      - [x] 出現したチャンネルが `[[favorites.rules]]` に `auto_record = true`
+            でマッチしたら自動で録画開始 (`RecordingState::start` を再利用)
+      - [x] チャンネルが `getChannels` から消えたら `auto_stop_grace_sec`
+            (既定 30 秒) 後に自動停止。短い瞬断ではファイルが分割されない
+      - [x] max_concurrent / dir 等は既存の `[recording]` を継承
+      - [x] `[recording] enabled = false` / `auto_record=true` ルール無しの
+            時は polling 自体走らず (CPU 浪費防止)
       - 詳細設計: [ADR-0006](decisions/0006-auto-record-and-multiview.md)
 - [ ] **役割分離: pst-server (ハブ) + pstplayer (ビューア複数プロセス)** ← **優先度: 高**
       - Desktop も Server も「ハブ」は `pst-server` に集約 (新規 Tauri

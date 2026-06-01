@@ -27,11 +27,17 @@ dir = ""
 # enabled = true かつ dir 指定で /api/record/start が動く。
 # SD カードへの書き込みを避けるには dir を USB / SSD マウント先にする。
 # 同時録画は max_concurrent 本まで (0 で既定 8)。
+#
+# auto_poll_interval_sec / auto_stop_grace_sec は自動配信録画
+# (favorites.rules の auto_record = true) で使う。それぞれ 0 で
+# 既定 (60 秒 / 30 秒)。短くしすぎると getChannels への負荷が増える。
 [recording]
 enabled = false
 dir = ""             # 例: "/mnt/usb/recordings"
 ext = ""             # 空なら flv
 max_concurrent = 0
+auto_poll_interval_sec = 0
+auto_stop_grace_sec = 0
 
 # お気に入りルール (複数記述可)。上から評価され、最初にマッチしたもの
 # が採用。pin_top でチャンネル一覧の上位に固定、auto_record で視聴

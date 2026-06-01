@@ -228,16 +228,26 @@ Desktop ビューア (`pstplayer`) は視聴専用とする。複数チャンネ
 採用方針 (Desktop は `pst-server` (ハブ) + `pstplayer` (ビューア複数
 プロセス)、Server は `pst-server` だけ) を踏まえると、実装は次の順:
 
-### Step 1: pst-server に自動配信録画タスク
+### Step 1: pst-server に自動配信録画タスク — ✅ 完了
 
-- 既存の `RecordingState` を再利用
-- 新しい AutoRecorder task を spawn
-- 30-60 秒間隔で `getChannels` → `firstFavoriteMatch(rules, info)`
-  → `RecordingState.start` を発火
-- 配信が消えたら grace 期間後に自動 stop
-- config に `auto_poll_interval_sec` / `auto_stop_grace_sec` を追加
+- [x] 既存の `RecordingState` を再利用 (HashMap で同時複数本録画)
+- [x] 新しい AutoRecorder task (`crates/pst-server/src/auto_record.rs`)
+      を `main.rs` で `tokio::spawn`
+- [x] `auto_poll_interval_sec` (既定 60) 秒間隔で `getChannels` →
+      `pst_core::favorites::first_match(rules, &ch.info)` →
+      `auto_record = true` なら `RecordingState::start` を発火
+- [x] 配信が消えたら `auto_stop_grace_sec` (既定 30) 秒の grace 経過後
+      に `RecordingState::stop` で自動停止
+- [x] config (`RecordingConfig`) に `auto_poll_interval_sec` /
+      `auto_stop_grace_sec` を追加
+- [x] `[recording] enabled = false` または `auto_record=true` ルール
+      が 0 件のときは polling 自体走らせない (待機ループのみ。Pi の
+      CPU を浪費しない)
+- [x] 重複起動を防ぐため `RecordingState::is_recording` を追加 (毎
+      周期 409 ログを吐かない)
 
-これだけで Pi / Desktop 同居運用の両方で自動録画が動く。
+これで Pi / Desktop 同居運用の両方で自動録画が動く状態。次は実機での
+動作確認 + Step 2 (Web グリッド) へ進む。
 
 ### Step 2: Web グリッド視聴 (`pst-server` Web)
 

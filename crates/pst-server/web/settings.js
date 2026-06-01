@@ -51,6 +51,8 @@ function applyToForm(cfg) {
 	set(f, 'recording.dir', cfg.recording?.dir);
 	set(f, 'recording.ext', cfg.recording?.ext);
 	set(f, 'recording.max_concurrent', cfg.recording?.max_concurrent ?? 0);
+	set(f, 'recording.auto_poll_interval_sec', cfg.recording?.auto_poll_interval_sec ?? 0);
+	set(f, 'recording.auto_stop_grace_sec', cfg.recording?.auto_stop_grace_sec ?? 0);
 	renderFavorites(cfg.favorites?.rules ?? []);
 }
 
@@ -161,6 +163,8 @@ function collectFromForm() {
 	const f = refs.form;
 	const port = Number(f['peercast.port'].value) || 7144;
 	const maxCon = Number(f['recording.max_concurrent'].value) || 0;
+	const pollInt = Number(f['recording.auto_poll_interval_sec'].value) || 0;
+	const grace = Number(f['recording.auto_stop_grace_sec'].value) || 0;
 	// 既存設定をベースに差分を上書き (touched 以外を保ちたい)。
 	const next = JSON.parse(JSON.stringify(current ?? {}));
 	next.peercast = next.peercast ?? {};
@@ -179,6 +183,8 @@ function collectFromForm() {
 	next.recording.dir = f['recording.dir'].value || '';
 	next.recording.ext = f['recording.ext'].value || '';
 	next.recording.max_concurrent = maxCon;
+	next.recording.auto_poll_interval_sec = pollInt;
+	next.recording.auto_stop_grace_sec = grace;
 	next.favorites = { rules: collectFavorites() };
 	return next;
 }

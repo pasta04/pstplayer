@@ -53,6 +53,12 @@ async fn main() -> ExitCode {
 
     let bind = cfg.server.bind;
     let state = AppState::new(cfg, cfg_path);
+
+    // 自動配信録画タスク。recording.enabled + favorites.rules に
+    // auto_record=true のルールがあれば polling して録画開始する。
+    // task 内で都度設定を読み直すので、ここで条件分岐はしない。
+    pst_server::auto_record::spawn(state.clone());
+
     // 静的フロントの場所: ① CLI 引数 `--web <dir>` ② 環境変数
     // `PST_SERVER_WEB_DIR` ③ exe 隣の `web/` ④ ソースツリーの
     // `crates/pst-server/web/` (開発時)。

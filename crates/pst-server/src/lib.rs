@@ -6,6 +6,7 @@
 //! * したらば / 2ch 互換 BBS の取得 / 投稿をプロキシ
 //! * 静的フロント (Svelte の Web ビルド) と HLS 配信は次フェーズ
 
+pub mod auto_record;
 pub mod config;
 pub mod error;
 pub mod handlers;

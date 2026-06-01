@@ -73,6 +73,12 @@ impl RecordingState {
         RecordingList { recordings }
     }
 
+    /// 指定 channel_id の録画が進行中か。自動録画タスクが「既に録画中
+    /// なら start を投げない」判定に使う。
+    pub async fn is_recording(&self, channel_id: &str) -> bool {
+        self.inner.lock().await.contains_key(channel_id)
+    }
+
     /// 録画開始。同 channel_id が既に進行中なら 409。最大本数 (config
     /// `max_concurrent`) を超えていたら 429。
     pub async fn start(
