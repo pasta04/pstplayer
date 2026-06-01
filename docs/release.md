@@ -19,30 +19,40 @@ PSTPlayer の配布バイナリのバージョニング、命名、リリース�
 - **MINOR**: 後方互換な機能追加 (新ホットキー、新タブ、対応 BBS 追加など)
 - **PATCH**: 後方互換なバグ修正のみ
 
-プレリリースは `-rc.N` / `-beta.N` を付けて表記する (`v0.2.0-rc.1`)。
+プレリリースは `-rc.N` / `-beta.N` を付けて表記する (`0.2.0-rc.1`)。
+
+> **タグの形式**: `v` プレフィクスは **付けない**。SemVer 2.0.0 FAQ で
+> 「v1.2.3 is not a semantic version」と明言されており、`Cargo.toml` /
+> `package.json` / `tauri.conf.json` の `version` フィールドも `v` 無し
+> なので、タグもこれに揃える。
 
 ### 1.2 マイルストーン対応
 
 | バージョン | フェーズ                          | 内容                                                |
 | ---------- | --------------------------------- | --------------------------------------------------- |
-| v0.0.x     | 開発中 (現在)                     | 公開リリースしない                                  |
-| v0.1.0     | フェーズ 1 完了 (MVP)             | 3 OS で「再生 + したらば視聴 + 書き込み」が成立     |
-| v0.5.0     | フェーズ 2 完了                   | PCRPlayer 主要機能の網羅、日常使いに耐える状態      |
-| v1.0.0     | フェーズ 3 完了                   | 安定化 + ドキュメント + コード署名 / 公証 (任意)    |
+| 0.0.x      | 開発中 (現在)                     | 公開リリースしない                                  |
+| 0.1.0      | フェーズ 1 完了 (MVP)             | 3 OS で「再生 + したらば視聴 + 書き込み」が成立     |
+| 0.5.0      | フェーズ 2 完了                   | PCRPlayer 主要機能の網羅、日常使いに耐える状態      |
+| 1.0.0      | フェーズ 3 完了                   | 安定化 + ドキュメント + コード署名 / 公証 (任意)    |
 
 ### 1.3 単一情報源 (SSOT)
 
-バージョン番号は **`Cargo.toml` (workspace) を SSOT** とし、その他の
-ファイルは bump スクリプトで同期する。手動同期する場合は以下:
+バージョン番号は **workspace 直下の `Cargo.toml` の
+`workspace.package.version` のみ** で管理する。bump 時に編集するのは
+このフィールド **1 か所だけ**:
 
 | ファイル                          | 設定行                  | 同期方針 |
 | --------------------------------- | ----------------------- | -------- |
-| `Cargo.toml` (workspace.package) | `version = "X.Y.Z"`    | SSOT     |
-| `package.json`                    | `"version": "X.Y.Z"`    | 追従     |
-| `src-tauri/tauri.conf.json`       | `"version": "X.Y.Z"`    | 追従     |
+| `Cargo.toml` (workspace.package) | `version = "X.Y.Z"`    | **SSOT (これだけ編集)** |
+| `crates/pst-core/Cargo.toml`     | `version.workspace = true` | 自動継承 |
+| `crates/pst-server/Cargo.toml`   | `version.workspace = true` | 自動継承 |
+| `src-tauri/Cargo.toml`           | `version.workspace = true` | 自動継承 |
+| `src-tauri/tauri.conf.json`      | (`version` フィールド削除) | Tauri が `src-tauri/Cargo.toml` から自動取得 |
+| `package.json`                   | `"version": "0.0.0"`    | 固定 placeholder。`private: true` なので npm 公開せず、コード内も参照無し |
 
-`pst-core` / `pstplayer` クレートは `version.workspace = true` で
-SSOT を自動継承する。
+Tauri 2 は `tauri.conf.json` から `version` を省略すると、同じ crate の
+`Cargo.toml` (この場合 `src-tauri/Cargo.toml`、それは workspace 継承) を
+読みに行く仕様。これで配布バイナリの「About」表示も自動連動する。
 
 ---
 
@@ -56,27 +66,28 @@ SSOT を自動継承する。
 
 ### 2.2 タグ命名
 
-- 形式: `v{semver}` (例: `v0.1.0`, `v0.2.0-rc.1`)
+- 形式: `{semver}` (例: `0.1.0`, `0.2.0-rc.1`)。`v` プレフィクスは
+  付けない (§1.1 参照)
 - リリースタグは **annotated tag** (`git tag -a`) を使う
-- タグの prefix `v` 必須 (CI ワークフローが `v*` でフィルタするため)
+- CI ワークフローは `[0-9]*.[0-9]*.[0-9]*` でフィルタ
 
-### 2.3 リリース手順 (将来、実装後)
+### 2.3 リリース手順
 
 ```bash
-# 1. ローカル
-vim Cargo.toml package.json src-tauri/tauri.conf.json   # version を bump
+# 1. ローカル — Cargo.toml の workspace.package.version だけを bump
+vim Cargo.toml                                           # version = "0.1.0"
 cargo update -w                                          # Cargo.lock 反映
-git commit -am "chore: release v0.1.0"
-git tag -a v0.1.0 -m "MVP release"
-git push origin main v0.1.0
+git commit -am "chore: release 0.1.0"
+git tag -a 0.1.0 -m "MVP release"
+git push origin main 0.1.0
 
-# 2. GitHub Actions
-#    - build.yml が v* タグトリガで起動 (★未実装)
-#    - artifacts を生成し、release.yml が GitHub Releases にアップロード (★未実装)
+# 2. GitHub Actions が自動で
+#    - build.yml の build job が 3 OS で artifacts を生成
+#    - release job が前回タグ以降の PR マージを箇条書きでまとめ、
+#      タグ番号 (= "0.1.0") をタイトルとして GitHub Releases に発行
 
-# 3. 公開後
-#    - リリースページの本文を手で整える (Highlights / Known issues)
-#    - 必要なら release notes に CHANGELOG を貼る
+# 3. 公開後 (任意)
+#    - リリースページの本文を手で整える (Highlights / Known issues 追記)
 ```
 
 ---
@@ -143,7 +154,7 @@ PSTPlayer.app/
 
 ### 4.1 現状
 
-**v0.0.x: 専用アイコン (メガホン + 放射波) に差し替え済**。配色は
+**0.0.x: 専用アイコン (メガホン + 放射波) に差し替え済**。配色は
 `#1e2126` (ダーク背景) + `#ff8a3d` (アクセントオレンジ、スレッド
 タイトル帯と同色) + `#f3f5f7` (放射波の白)。`src-tauri/icons/icon.png`
 を 512×512 ベースとし、`tauri icon` で各サイズ + `.ico` + `.icns` を
@@ -224,14 +235,16 @@ Windows libmpv ビルドの ffmpeg が GPL 構成になっていないか毎回�
 
 ### 6.1 現状の `.github/workflows/build.yml`
 
-- トリガ: `push` (main + 開発ブランチ + `v*` タグ) / `workflow_dispatch`
+- トリガ: `push` (main / master + 開発ブランチ + `[0-9]*.[0-9]*.[0-9]*`
+  タグ) / `workflow_dispatch`
 - ジョブ: 3 OS マトリクスで artifacts 生成 (14 日保持)
 - リリース連携: **タグ駆動で release ジョブが動く** (詳細は §6.2)
 
 ### 6.2 release ジョブ (実装済)
 
 `build.yml` の末尾に `release` ジョブを追加。`startsWith(github.ref,
-'refs/tags/v')` でフィルタしているのでブランチ push では走らない。
+'refs/tags/')` でフィルタしているのでブランチ push では走らない (タグ
+駆動はブランチ非依存なので main / master どちらにタグを切っても発火)。
 
 実行内容:
 
@@ -245,8 +258,24 @@ Windows libmpv ビルドの ffmpeg が GPL 構成になっていないか毎回�
    - Windows: portable ディレクトリを `pstplayer-{ver}-windows-x64-portable`
      に rename してから zip
 4. `sha256sum * > SHA256SUMS.txt` でチェックサム集約
-5. `gh release create "$TAG" staging/* --generate-notes --title "PSTPlayer $TAG"`
+5. `gh release create "$TAG" staging/* --generate-notes --title "$TAG"`
    (prerelease の時は `--prerelease` を追加)
+
+### 6.2.1 リリースタイトルとリリースノート
+
+- **タイトル**: タグ番号そのまま (例: `0.1.0`)。`--title "$TAG"` で固定
+- **本文**: `--generate-notes` で GitHub が前回タグ以降の **PR マージ分
+  を箇条書きで自動生成**。書式は [`.github/release.yml`](../.github/release.yml)
+  で整形:
+  - 🚀 機能追加 / 🐛 バグ修正 / 📝 ドキュメント / 🔧 その他 の 4 カテゴリ
+  - `feature` / `bug` / `documentation` 等の標準ラベルで自動分類、未付与
+    PR は「その他」に集約
+  - `skip-changelog` / `dependencies` ラベルの PR と dependabot 由来の
+    PR はノートから除外
+
+ノート整形を変更したい場合は `.github/release.yml` のカテゴリ定義を
+触ること。タイトル / prerelease 判定を変えたい場合は build.yml の
+`Create GitHub Release` ステップを触る。
 
 ### 6.3 (任意) 将来のロジック分割
 
@@ -281,10 +310,11 @@ build と release を 1 ファイルにまとめている。将来 release 周�
 - [ ] `cargo clippy --workspace --all-targets -- -D warnings` クリア
 - [ ] `cargo test --workspace` 全 pass
 - [ ] `npm run check` / `npm run lint` クリア
-- [ ] バージョン番号を 3 ファイル (Cargo.toml / package.json / tauri.conf.json) 全部 bump
+- [ ] workspace 直下の `Cargo.toml` の `workspace.package.version` を bump
+      (他のファイルは自動継承、編集不要)
 - [ ] `cargo update -w` で Cargo.lock 反映
 - [ ] 3 OS で実際にバイナリを動かして起動・PeerCast 視聴・BBS 投稿を確認
-- [ ] アイコンが PSTPlayer 専用のものに差し替え済み (v0.1.0 以降)
+- [ ] アイコンが PSTPlayer 専用のものに差し替え済み (0.1.0 以降)
 - [ ] CHANGELOG / リリースノート下書き準備
 - [ ] LICENSE と THIRD-PARTY が最新の依存に追従
 

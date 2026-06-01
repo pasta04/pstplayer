@@ -1,7 +1,7 @@
 {
 	"name": "pstplayer",
-	"version": "0.0.1",
-	"description": "Cross-platform PeerCast viewer with integrated BBS support",
+	"version": "0.0.0",
+	"description": "Cross-platform PeerCast viewer with integrated BBS support. SSOT for the application version is Cargo.toml (workspace.package.version); this field is a placeholder required by npm and is intentionally not synced.",
 	"private": true,
 	"type": "module",
 	"scripts": {

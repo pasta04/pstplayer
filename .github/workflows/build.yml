@@ -7,13 +7,17 @@ on:
   push:
     branches:
       - main
+      - master
       # 開発ブランチでも artifact を取れるよう一時的に許可。
-      # main マージ後はこの行を削除し、main + workflow_dispatch のみに戻す。
+      # main マージ後はこの行を削除し、main / master + workflow_dispatch のみに戻す。
       - claude/focused-mendel-rvEAd
     tags:
-      # `v0.1.0` 等の SemVer タグで release ジョブも走る。
+      # `0.1.0` 等の SemVer タグで release ジョブも走る。
+      # SemVer 2.0.0 に従い `v` プレフィクスは付けない (FAQ で
+      # 「v1.2.3 is not a semantic version」と明言されているため)。
+      # タグ駆動はブランチ非依存 (main / master どちらにタグを切っても発火)。
       # 詳細は docs/release.md §6.2 を参照。
-      - 'v*'
+      - '[0-9]*.[0-9]*.[0-9]*'
   workflow_dispatch:
 
 concurrency:
@@ -276,7 +280,9 @@ jobs:
     name: Publish GitHub Release
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    # タグ push 以外 (= ブランチ push, workflow_dispatch) では release
+    # ジョブを skip。タグは SemVer (`0.1.0` 等) を期待。
+    if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
     steps:
@@ -309,10 +315,12 @@ jobs:
         shell: bash
         run: |
           set -eu
+          # タグは `v` 接頭辞なしの SemVer (例: `0.1.0`, `0.2.0-rc.1`)。
+          # TAG と VERSION が同一になる。
           TAG="${GITHUB_REF#refs/tags/}"
-          VERSION="${TAG#v}"
+          VERSION="$TAG"
           IS_PRERELEASE=false
-          # v0.2.0-rc.1 / -beta.1 / -alpha.1 は prerelease 扱い。
+          # 0.2.0-rc.1 / -beta.1 / -alpha.1 は prerelease 扱い。
           case "$TAG" in
             *-rc.*|*-beta.*|*-alpha.*) IS_PRERELEASE=true ;;
           esac
@@ -366,7 +374,11 @@ jobs:
         run: |
           set -eu
           TAG="${{ steps.meta.outputs.tag }}"
-          FLAGS=(--generate-notes --title "PSTPlayer $TAG")
+          # タイトルはタグ番号そのまま (例: "0.1.0")。
+          # 本文 (release notes) は --generate-notes で GitHub が
+          # 前回タグ以降の PR を箇条書きで自動生成。整形ルールは
+          # .github/release.yml を参照。
+          FLAGS=(--generate-notes --title "$TAG")
           if [ "${{ steps.meta.outputs.prerelease }}" = "true" ]; then
             FLAGS+=(--prerelease)
           fi
