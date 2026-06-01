@@ -21,16 +21,20 @@
 		type FavoriteRule,
 		type YpEntry,
 		type YpFetchFailure,
+		type YpSource,
 	} from '$lib/api';
 	import { openSettings, openThreadList } from '$lib/windows';
 	import { notify } from '$lib/notifications';
 
 	type SortKey = 'name' | 'genre' | 'listeners' | 'bitrate' | 'uptime' | 'yp_source';
-	type TabKey = 'all' | 'favorites' | 'recording' | 'watching' | 'new';
+	type BuiltinTab = 'all' | 'favorites' | 'recording' | 'watching' | 'new';
+	// 動的タブは "yp:<source_name>" の prefix で識別。
+	type TabKey = BuiltinTab | `yp:${string}`;
 
 	let entries = $state<YpEntry[]>([]);
 	let failures = $state<YpFetchFailure[]>([]);
 	let favorites = $state<FavoriteRule[]>([]);
+	let ypSources = $state<YpSource[]>([]);
 	let loading = $state(false);
 	let lastError = $state<string | null>(null);
 	let lastUpdatedAt = $state<Date | null>(null);
@@ -95,6 +99,7 @@
 		try {
 			const cfg = await getConfig();
 			favorites = cfg?.favorites?.rules ?? [];
+			ypSources = cfg?.yp?.sources ?? [];
 			try {
 				await peercastPing();
 			} catch (e) {
@@ -160,8 +165,16 @@
 				if (activeTab === 'new' && !newIds.has(e.id)) return false;
 				if (activeTab === 'recording') return false; // TODO: 録画中の判定
 				if (activeTab === 'watching' && !watchingIds.has(e.id)) return false;
+				if (activeTab.startsWith('yp:')) {
+					const wanted = activeTab.slice(3);
+					if (e.yp_source !== wanted) return false;
+				} else if (activeTab === 'all') {
+					// 「すべて」タブで show_in_all=false の YP は非表示
+					const src = ypSources.find((s) => s.name === e.yp_source);
+					if (src && !src.show_in_all) return false;
+				}
 				// Ignore はすべて/お気に入り/新着では非表示にする (専用タブ無いので一旦隠すだけ)
-				if (actionOf(rule) === 'ignore') return false;
+				if (actionOf(rule) === 'ignore' && !activeTab.startsWith('yp:')) return false;
 				// テキストフィルタ
 				if (!q) return true;
 				return (
@@ -208,16 +221,24 @@
 			fav = 0,
 			fresh = 0,
 			watching = 0;
+		const perYp = new Map<string, number>();
 		for (const e of entries) {
 			const rule = matchFor(e);
 			if (actionOf(rule) === 'block') continue;
+			// YP 別カウントは ignore でも数える (専用タブなら表示するため)
+			perYp.set(e.yp_source, (perYp.get(e.yp_source) ?? 0) + 1);
 			if (actionOf(rule) === 'ignore') continue;
-			all++;
-			if (rule) fav++;
-			if (newIds.has(e.id)) fresh++;
-			if (watchingIds.has(e.id)) watching++;
+			const src = ypSources.find((s) => s.name === e.yp_source);
+			if (src && !src.show_in_all) {
+				// 「すべて」からは外す。カウントには含めない
+			} else {
+				all++;
+				if (rule) fav++;
+				if (newIds.has(e.id)) fresh++;
+				if (watchingIds.has(e.id)) watching++;
+			}
 		}
-		return { all, fav, fresh, watching };
+		return { all, fav, fresh, watching, perYp };
 	});
 
 	function toggleSort(k: SortKey) {
@@ -402,6 +423,16 @@
 		<button class:active={activeTab === 'watching'} onclick={() => (activeTab = 'watching')}>
 			視聴中 ({counts.watching})
 		</button>
+		{#each ypSources.filter((s) => s.show_tab) as src (src.name)}
+			{@const key = `yp:${src.name}` as TabKey}
+			<button
+				class:active={activeTab === key}
+				onclick={() => (activeTab = key)}
+				style:border-bottom-color={activeTab === key ? src.background || '#46a3ff' : 'transparent'}
+			>
+				{src.name} ({counts.perYp.get(src.name) ?? 0})
+			</button>
+		{/each}
 	</nav>
 
 	{#if lastError}

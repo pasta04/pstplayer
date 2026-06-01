@@ -8,18 +8,18 @@
 
 設計完了、フェーズ 1 (MVP) + フェーズ 2 (ハブ画面) 実装済。
 
-| フェーズ                 | 状況                                                                            |
-| ------------------------ | ------------------------------------------------------------------------------- |
-| 1.1 スケルトン           | ✅ Tauri 2 + Svelte 5 + Vite + CI + lint 一式                                   |
-| 1.2 PeerCast 連携        | ✅ URL/playlist パーサ、JSON-RPC、legacy admin、戦略選択、接続先解決            |
-| 1.3 動画再生             | ⚠ libmpv 統合まで完了。ウィンドウ埋め込み (`wid` プロパティ) のみ残             |
-| 1.4 BBS 連携             | ✅ したらば / 2ch 互換、subject/dat、差分取得、投稿、HTML サニタイズ            |
-| 1.5 UI                   | ✅ 2 ペインレイアウト、URL ペーストから視聴/書き込みまで疎通                    |
-| 1.6 設定                 | ✅ TOML 永続化 + コマンド + 設定ダイアログ (一般 / PeerCast / YP / BBS / …)     |
-| 2.1 ハブ画面             | ✅ PeCaRecorder 風テーブル UI、複数 YP、ソート、フィルタ、右クリックメニュー    |
-| 2.2 別プロセス視聴       | ✅ ハブから行クリックで `pstplayer.exe <url>` を spawn、channel_id 単位 lock    |
-| 2.3 自動配信録画         | ✅ pst-server に AutoRecorder task (お気に入りルール `auto_record=true` で発火) |
-| 2.4 Web グリッド (Server) | ✅ pst-server Web に `<video>` × N のグリッド表示                              |
+| フェーズ                  | 状況                                                                            |
+| ------------------------- | ------------------------------------------------------------------------------- |
+| 1.1 スケルトン            | ✅ Tauri 2 + Svelte 5 + Vite + CI + lint 一式                                   |
+| 1.2 PeerCast 連携         | ✅ URL/playlist パーサ、JSON-RPC、legacy admin、戦略選択、接続先解決            |
+| 1.3 動画再生              | ⚠ libmpv 統合まで完了。ウィンドウ埋め込み (`wid` プロパティ) のみ残             |
+| 1.4 BBS 連携              | ✅ したらば / 2ch 互換、subject/dat、差分取得、投稿、HTML サニタイズ            |
+| 1.5 UI                    | ✅ 2 ペインレイアウト、URL ペーストから視聴/書き込みまで疎通                    |
+| 1.6 設定                  | ✅ TOML 永続化 + コマンド + 設定ダイアログ (一般 / PeerCast / YP / BBS / …)     |
+| 2.1 ハブ画面              | ✅ PeCaRecorder 風テーブル UI、複数 YP、ソート、フィルタ、右クリックメニュー    |
+| 2.2 別プロセス視聴        | ✅ ハブから行クリックで `pstplayer.exe <url>` を spawn、channel_id 単位 lock    |
+| 2.3 自動配信録画          | ✅ pst-server に AutoRecorder task (お気に入りルール `auto_record=true` で発火) |
+| 2.4 Web グリッド (Server) | ✅ pst-server Web に `<video>` × N のグリッド表示                               |
 
 Rust テスト 108 件 (pst-core 105 / pstplayer-lib 1 / pst-server 2)、全 pass。
 
