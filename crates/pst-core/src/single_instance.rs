@@ -364,6 +364,34 @@ mod tests {
     }
 
     #[test]
+    fn request_close_triggers_on_close_callback() {
+        let ch = unique_id("g");
+        let owned = match acquire(&ch).unwrap() {
+            AcquireResult::Owned(h) => h,
+            AcquireResult::Conflict(_) => panic!(),
+        };
+        let mut h = owned;
+        let listener = h.take_listener().unwrap();
+        let closed = Arc::new(AtomicU32::new(0));
+        let closed_c = closed.clone();
+        thread::spawn(move || {
+            serve(
+                listener,
+                || {},
+                move || {
+                    closed_c.fetch_add(1, Ordering::SeqCst);
+                },
+            );
+        });
+        // 別「プロセス」から close 要求 (= read_existing で addr 取得)
+        let info = read_existing(&ch).expect("alive");
+        request_close(info.ipc_addr).unwrap();
+        thread::sleep(Duration::from_millis(150));
+        assert_eq!(closed.load(Ordering::SeqCst), 1);
+        drop(h);
+    }
+
+    #[test]
     fn list_active_finds_live_owners_only() {
         let ch_alive = unique_id("e");
         let owned = match acquire(&ch_alive).unwrap() {
