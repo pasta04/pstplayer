@@ -372,7 +372,8 @@ export interface Config {
 
 /** お気に入りルールでチャンネル系のオブジェクトを判定する。
  * 全フィールド空欄ならワイルドカード、複数指定は AND。
- * pst-core::favorites::matches とロジックを揃える。 */
+ * `|` 区切りで OR (例: "foo|bar|baz")。pst-core::favorites::matches と
+ * ロジックを揃える。 */
 export function ruleMatches(
 	rule: FavoriteRule,
 	t: { name: string; genre: string; desc: string; comment: string },
@@ -380,7 +381,12 @@ export function ruleMatches(
 	const part = (needle: string, hay: string) => {
 		const n = (needle ?? '').trim();
 		if (!n) return true;
-		return (hay ?? '').toLowerCase().includes(n.toLowerCase());
+		const hayLc = (hay ?? '').toLowerCase();
+		return n
+			.split('|')
+			.map((s) => s.trim())
+			.filter(Boolean)
+			.some((alt) => hayLc.includes(alt.toLowerCase()));
 	};
 	return (
 		part(rule.channel_name, t.name) &&

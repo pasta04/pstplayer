@@ -123,13 +123,21 @@ impl MatchTarget for crate::peercast::types::ChannelInfo {
 
 /// 1 ルールに対する判定。全フィールド AND。空欄ワイルドカード。
 /// 部分一致 / 大文字小文字無視 / Unicode は素のまま。
+///
+/// パイプ区切りの OR をサポート: `"foo|bar|baz"` は「foo か bar か baz の
+/// どれかを含む」。PeCaRecorder の検索パターンの最頻形式に合わせる。
 pub fn matches<T: MatchTarget + ?Sized>(rule: &FavoriteRule, t: &T) -> bool {
     fn part(needle: &str, hay: &str) -> bool {
         let n = needle.trim();
         if n.is_empty() {
             return true;
         }
-        hay.to_lowercase().contains(&n.to_lowercase())
+        let hay_lc = hay.to_lowercase();
+        // `|` 区切りで OR (PeCaRecorder 互換)。
+        n.split('|')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .any(|alt| hay_lc.contains(&alt.to_lowercase()))
     }
     part(&rule.channel_name, t.ch_name())
         && part(&rule.genre, t.ch_genre())
@@ -174,6 +182,29 @@ mod tests {
         assert!(matches(&r, &yp("MOXch", "")));
         assert!(matches(&r, &yp("mox-ch", "")));
         assert!(!matches(&r, &yp("other", "")));
+    }
+
+    #[test]
+    fn name_or_pattern() {
+        let r = FavoriteRule {
+            channel_name: "foo|bar|baz".into(),
+            ..Default::default()
+        };
+        assert!(matches(&r, &yp("foobar", "")));
+        assert!(matches(&r, &yp("just bar inside", "")));
+        assert!(matches(&r, &yp("BAZTASTIC", "")));
+        assert!(!matches(&r, &yp("qux", "")));
+    }
+
+    #[test]
+    fn or_pattern_trims_whitespace() {
+        let r = FavoriteRule {
+            channel_name: " foo | bar ".into(),
+            ..Default::default()
+        };
+        assert!(matches(&r, &yp("FoO", "")));
+        assert!(matches(&r, &yp("bar", "")));
+        assert!(!matches(&r, &yp("baz", "")));
     }
 
     #[test]
