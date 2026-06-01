@@ -148,4 +148,17 @@ mod tests {
         let a = parse(&argv(&["-h"]));
         assert!(a.show_help);
     }
+
+    #[test]
+    fn record_on_start_flag() {
+        let a = parse(&argv(&["http://h/pls/x", "--record-on-start"]));
+        assert!(a.record_on_start);
+        assert_eq!(a.url.as_deref(), Some("http://h/pls/x"));
+    }
+
+    #[test]
+    fn record_on_start_default_off() {
+        let a = parse(&argv(&["http://h/pls/x"]));
+        assert!(!a.record_on_start);
+    }
 }
