@@ -158,8 +158,14 @@ impl RecordingState {
         let stop_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let stop_flag_task = stop_flag.clone();
         let handle = tokio::spawn(async move {
-            if let Err(e) =
-                run_recording(upstream, path_for_task, auth_user, auth_pass, stop_flag_task).await
+            if let Err(e) = run_recording(
+                upstream,
+                path_for_task,
+                auth_user,
+                auth_pass,
+                stop_flag_task,
+            )
+            .await
             {
                 eprintln!("recording task failed: {e}");
             }
@@ -188,7 +194,8 @@ impl RecordingState {
     pub async fn stop(&self, channel_id: &str) -> bool {
         let mut guard = self.inner.lock().await;
         if let Some(task) = guard.remove(channel_id) {
-            task.stop_flag.store(true, std::sync::atomic::Ordering::SeqCst);
+            task.stop_flag
+                .store(true, std::sync::atomic::Ordering::SeqCst);
             // 一定時間 graceful 完了を待つ余裕を与えてから abort
             // (上流が stuck していた場合のみ abort が実効する)。
             tokio::spawn(async move {
@@ -206,7 +213,8 @@ impl RecordingState {
         let mut guard = self.inner.lock().await;
         let n = guard.len();
         for (_, task) in guard.drain() {
-            task.stop_flag.store(true, std::sync::atomic::Ordering::SeqCst);
+            task.stop_flag
+                .store(true, std::sync::atomic::Ordering::SeqCst);
             tokio::spawn(async move {
                 tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                 task.handle.abort();

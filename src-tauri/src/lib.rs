@@ -88,15 +88,13 @@ fn start_focus_listener<R: Runtime>(mut handle: LockHandle, app: AppHandle<R>) -
                         return; // 既に録画中
                     }
                     let cli = app_start.try_state::<CliArgs>();
-                    let channel_name =
-                        cli.and_then(|c| c.channel_name.clone()).unwrap_or_default();
+                    let channel_name = cli.and_then(|c| c.channel_name.clone()).unwrap_or_default();
                     let Ok(cfg) = pst_core::config::load() else { return };
-                    let exe_dir =
-                        std::env::current_exe().ok().and_then(|p| p.parent().map(Path::to_path_buf));
-                    let resolved = pst_core::snapshot::resolve_record_dir(
-                        &cfg.player,
-                        exe_dir.as_deref(),
-                    );
+                    let exe_dir = std::env::current_exe()
+                        .ok()
+                        .and_then(|p| p.parent().map(Path::to_path_buf));
+                    let resolved =
+                        pst_core::snapshot::resolve_record_dir(&cfg.player, exe_dir.as_deref());
                     if std::fs::create_dir_all(&resolved.dir).is_err() {
                         return;
                     }
