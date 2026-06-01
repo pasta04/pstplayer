@@ -513,7 +513,17 @@
 	<footer class="statusbar">
 		<span>★ {counts.fav} / 全 {counts.all} ch</span>
 		<span class="sep">·</span>
+		<span>視聴中 {counts.watching}</span>
+		<span class="sep">·</span>
+		<span>YP {ypSources.length} 件{failures.length > 0 ? ` (失敗 ${failures.length})` : ''}</span>
+		<span class="sep">·</span>
 		<span>PeerCast: {currentPeerHost}:{currentPeerPort}</span>
+		<span class="filler"></span>
+		{#if loading}
+			<span class="loading-indicator">⟳ 更新中…</span>
+		{:else if lastUpdatedAt}
+			<span class="muted">最終更新: {fmtTime(lastUpdatedAt)}</span>
+		{/if}
 	</footer>
 </main>
 
@@ -784,6 +794,29 @@
 
 	.statusbar .sep {
 		color: #aaa;
+	}
+
+	.statusbar .filler {
+		flex: 1;
+	}
+
+	.statusbar .muted {
+		color: #888;
+	}
+
+	.statusbar .loading-indicator {
+		color: #0a4cad;
+		animation: spin 1s linear infinite;
+		display: inline-block;
+	}
+
+	@keyframes spin {
+		from {
+			transform: rotate(0);
+		}
+		to {
+			transform: rotate(360deg);
+		}
 	}
 
 	.menu {
