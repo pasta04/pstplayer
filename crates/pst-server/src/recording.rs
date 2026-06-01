@@ -81,15 +81,26 @@ impl RecordingState {
         channel_id: String,
         channel_name: String,
     ) -> Result<RecordingEntry, ApiError> {
-        let cfg = &state.cfg.recording;
-        if !cfg.enabled {
+        // クリティカルセクションを短く保つため、必要な設定だけ clone
+        // してから RwLock を解放する。
+        let (rec_cfg, peercast_host, peercast_port, auth_user, auth_pass) = {
+            let cfg = state.cfg.read().await;
+            (
+                cfg.recording.clone(),
+                cfg.peercast.host.clone(),
+                cfg.peercast.port,
+                cfg.peercast.auth_user.clone(),
+                cfg.peercast.auth_pass.clone(),
+            )
+        };
+        if !rec_cfg.enabled {
             return Err(ApiError {
                 status: axum::http::StatusCode::SERVICE_UNAVAILABLE,
                 code: "recording_disabled",
                 message: "[recording] enabled = false なので録画機能は無効です".into(),
             });
         }
-        let dir = cfg.dir.trim();
+        let dir = rec_cfg.dir.trim();
         if dir.is_empty() {
             return Err(ApiError {
                 status: axum::http::StatusCode::SERVICE_UNAVAILABLE,
@@ -97,10 +108,10 @@ impl RecordingState {
                 message: "[recording] dir が空なので録画機能は無効です".into(),
             });
         }
-        let max = if cfg.max_concurrent == 0 {
+        let max = if rec_cfg.max_concurrent == 0 {
             DEFAULT_MAX_CONCURRENT
         } else {
-            cfg.max_concurrent
+            rec_cfg.max_concurrent
         };
         let dir = PathBuf::from(dir);
         tokio::fs::create_dir_all(&dir)
@@ -110,7 +121,7 @@ impl RecordingState {
                 code: "recording_dir_create_failed",
                 message: format!("録画ディレクトリを作れません ({}): {e}", dir.display()),
             })?;
-        let raw_ext = cfg.ext.trim().trim_start_matches('.');
+        let raw_ext = rec_cfg.ext.trim().trim_start_matches('.');
         let ext = if raw_ext.is_empty() { "flv" } else { raw_ext };
         let filename = make_filename(&channel_name, ext);
         let path = dir.join(&filename);
@@ -133,12 +144,7 @@ impl RecordingState {
             });
         }
 
-        let upstream = format!(
-            "http://{}:{}/stream/{}.{}",
-            state.cfg.peercast.host, state.cfg.peercast.port, channel_id, ext
-        );
-        let auth_user = state.cfg.peercast.auth_user.clone();
-        let auth_pass = state.cfg.peercast.auth_pass.clone();
+        let upstream = format!("http://{peercast_host}:{peercast_port}/stream/{channel_id}.{ext}");
         let path_for_task = path.clone();
         let handle = tokio::spawn(async move {
             if let Err(e) = run_recording(upstream, path_for_task, auth_user, auth_pass).await {

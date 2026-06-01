@@ -69,7 +69,13 @@ pub fn build_router(state: AppState, web_dir: Option<PathBuf>) -> Router {
         .route("/api/record/stop", routing::post(handlers::record_stop))
         .route("/api/record/list", routing::get(handlers::record_list))
         // Favorites (frontend に config の rules を流すだけの read-only)
-        .route("/api/favorites", routing::get(handlers::favorites_list));
+        .route("/api/favorites", routing::get(handlers::favorites_list))
+        // Config (Web UI の設定画面から GET / PUT)
+        .route(
+            "/api/config",
+            routing::get(handlers::get_config).put(handlers::put_config),
+        )
+        .route("/api/config/path", routing::get(handlers::config_path));
 
     if let Some(dir) = web_dir.filter(|p| p.is_dir()) {
         // `/` 以下はすべて静的フロント (ServeDir)。API ルートが既に上で

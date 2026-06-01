@@ -108,28 +108,49 @@ pub fn default_config_path() -> Option<PathBuf> {
 }
 
 /// 指定パス (なければデフォルト) から TOML を読む。存在しない場合は
-/// `Config::default()` を返す。
-pub fn load(explicit: Option<&Path>) -> Result<Config, ConfigError> {
-    let path = explicit.map(Path::to_path_buf).or_else(default_config_path);
-    let Some(path) = path else {
-        return Ok(Config::default());
-    };
+/// `Config::default()` を返す。返り値の `PathBuf` は実際に読み書き
+/// 対象とするファイルパス (将来 PUT /api/config で同じ場所に書き戻す)。
+pub fn load(explicit: Option<&Path>) -> Result<(Config, PathBuf), ConfigError> {
+    let path = explicit
+        .map(Path::to_path_buf)
+        .or_else(default_config_path)
+        .unwrap_or_else(|| PathBuf::from("pst-server.toml"));
     if !path.exists() {
-        return Ok(Config::default());
+        return Ok((Config::default(), path));
     }
     let raw = fs::read_to_string(&path).map_err(|e| ConfigError::Io {
         path: path.clone(),
         source: e,
     })?;
-    toml::from_str(&raw).map_err(|e| ConfigError::Parse {
-        path,
+    let cfg = toml::from_str(&raw).map_err(|e| ConfigError::Parse {
+        path: path.clone(),
         source: Box::new(e),
+    })?;
+    Ok((cfg, path))
+}
+
+/// `Config` を TOML として `path` に書き出す。親ディレクトリが
+/// 無ければ作る。
+pub fn save_to(path: &Path, cfg: &Config) -> Result<(), ConfigError> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| ConfigError::Io {
+            path: parent.to_path_buf(),
+            source: e,
+        })?;
+    }
+    let body = toml::to_string_pretty(cfg).map_err(|e| ConfigError::Serialize {
+        path: path.to_path_buf(),
+        source: Box::new(e),
+    })?;
+    fs::write(path, body).map_err(|e| ConfigError::Io {
+        path: path.to_path_buf(),
+        source: e,
     })
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
-    #[error("config read failed: {path}: {source}")]
+    #[error("config IO failed: {path}: {source}")]
     Io {
         path: PathBuf,
         #[source]
@@ -140,6 +161,12 @@ pub enum ConfigError {
         path: PathBuf,
         #[source]
         source: Box<toml::de::Error>,
+    },
+    #[error("config serialise failed: {path}: {source}")]
+    Serialize {
+        path: PathBuf,
+        #[source]
+        source: Box<toml::ser::Error>,
     },
 }
 

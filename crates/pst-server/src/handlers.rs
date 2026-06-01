@@ -20,7 +20,7 @@ pub struct ChannelsResp {
 }
 
 pub async fn channels(State(s): State<AppState>) -> ApiResult<Json<ChannelsResp>> {
-    let ep = s.endpoint();
+    let ep = s.endpoint().await;
     let channels = pst_core::peercast::jsonrpc::get_channels(&ep).await?;
     Ok(Json(ChannelsResp { channels }))
 }
@@ -29,7 +29,7 @@ pub async fn channel_info(
     State(s): State<AppState>,
     Path(id): Path<String>,
 ) -> ApiResult<Json<pst_core::peercast::types::ChannelInfo>> {
-    let ep = s.endpoint();
+    let ep = s.endpoint().await;
     let info = client::fetch_info(&ep, &id).await?;
     Ok(Json(info))
 }
@@ -38,7 +38,7 @@ pub async fn channel_status(
     State(s): State<AppState>,
     Path(id): Path<String>,
 ) -> ApiResult<Json<pst_core::peercast::types::ChannelStatus>> {
-    let ep = s.endpoint();
+    let ep = s.endpoint().await;
     let status = client::fetch_status(&ep, &id).await?;
     Ok(Json(status))
 }
@@ -50,7 +50,7 @@ pub async fn channel_bump(
     State(s): State<AppState>,
     Path(id): Path<String>,
 ) -> ApiResult<Json<Empty>> {
-    let ep = s.endpoint();
+    let ep = s.endpoint().await;
     client::bump(&ep, &id).await?;
     Ok(Json(Empty {}))
 }
@@ -59,7 +59,7 @@ pub async fn channel_stop(
     State(s): State<AppState>,
     Path(id): Path<String>,
 ) -> ApiResult<Json<Empty>> {
-    let ep = s.endpoint();
+    let ep = s.endpoint().await;
     client::stop(&ep, &id).await?;
     Ok(Json(Empty {}))
 }
@@ -263,7 +263,39 @@ pub async fn record_list(State(s): State<AppState>) -> Json<crate::recording::Re
 pub async fn favorites_list(
     State(s): State<AppState>,
 ) -> Json<pst_core::favorites::FavoritesConfig> {
-    Json(s.cfg.favorites.clone())
+    Json(s.cfg.read().await.favorites.clone())
+}
+
+// ── Config (Web UI から読み書き) ──────────────────────────────
+
+pub async fn get_config(State(s): State<AppState>) -> Json<crate::config::Config> {
+    Json(s.cfg.read().await.clone())
+}
+
+pub async fn put_config(
+    State(s): State<AppState>,
+    Json(new): Json<crate::config::Config>,
+) -> ApiResult<Json<crate::config::Config>> {
+    // 先にディスクに書き出す。失敗したらメモリは触らない。
+    crate::config::save_to(&s.config_path, &new).map_err(|e| ApiError {
+        status: axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+        code: "config_save_failed",
+        message: e.to_string(),
+    })?;
+    *s.cfg.write().await = new.clone();
+    Ok(Json(new))
+}
+
+/// 設定ファイルのパスを返す (UI に「保存先 ファイル」を出すため)。
+pub async fn config_path(State(s): State<AppState>) -> Json<ConfigPathResp> {
+    Json(ConfigPathResp {
+        path: s.config_path.to_string_lossy().into_owned(),
+    })
+}
+
+#[derive(Serialize)]
+pub struct ConfigPathResp {
+    pub path: String,
 }
 
 // ── Index ──────────────────────────────────────────────────────

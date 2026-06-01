@@ -20,8 +20,8 @@ async fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let explicit_config = parse_config_arg(&args);
 
-    let cfg = match config::load(explicit_config.as_deref()) {
-        Ok(c) => c,
+    let (cfg, cfg_path) = match config::load(explicit_config.as_deref()) {
+        Ok(pair) => pair,
         Err(ConfigError::Io { path, source }) => {
             // 起動前のクリティカルなエラーは stderr に 1 行だけ出す。
             eprintln!("config read error: {} ({})", source, path.display());
@@ -29,6 +29,10 @@ async fn main() -> ExitCode {
         }
         Err(ConfigError::Parse { path, source }) => {
             eprintln!("config parse error: {} ({})", source, path.display());
+            return ExitCode::from(2);
+        }
+        Err(ConfigError::Serialize { path, source }) => {
+            eprintln!("config serialise error: {} ({})", source, path.display());
             return ExitCode::from(2);
         }
     };
@@ -40,14 +44,15 @@ async fn main() -> ExitCode {
     let _log_guard = init_tracing(&cfg);
 
     tracing::info!(
-        "starting pst-server: bind={} upstream={}:{}",
+        "starting pst-server: bind={} upstream={}:{} config={}",
         cfg.server.bind,
         cfg.peercast.host,
-        cfg.peercast.port
+        cfg.peercast.port,
+        cfg_path.display()
     );
 
     let bind = cfg.server.bind;
-    let state = AppState::new(cfg);
+    let state = AppState::new(cfg, cfg_path);
     // 静的フロントの場所: ① CLI 引数 `--web <dir>` ② 環境変数
     // `PST_SERVER_WEB_DIR` ③ exe 隣の `web/` ④ ソースツリーの
     // `crates/pst-server/web/` (開発時)。

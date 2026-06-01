@@ -6,12 +6,15 @@
 
 // hls.js を新版に差し替える時 (例: 1.6.16 → 1.7.0) は CACHE のバージョン
 // 番号を bump して旧キャッシュを破棄させること。
-const CACHE = 'pstplayer-web-v2';
+const CACHE = 'pstplayer-web-v3';
 const STATIC = [
 	'/',
 	'/index.html',
 	'/app.js',
 	'/style.css',
+	'/settings.css',
+	'/settings.html',
+	'/settings.js',
 	'/manifest.webmanifest',
 	'/vendor/hls.min.js',
 ];

@@ -26,18 +26,27 @@ use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
 /// 上流 PeerCastStation の HLS playlist URL を組み立てる。
-fn upstream_playlist_url(state: &AppState, channel_id: &str) -> String {
-    format!(
-        "http://{}:{}/hls/{}/index.m3u8",
-        state.cfg.peercast.host, state.cfg.peercast.port, channel_id
-    )
+async fn upstream_playlist_url(state: &AppState, channel_id: &str) -> String {
+    let (host, port) = upstream_host_port(state).await;
+    format!("http://{host}:{port}/hls/{channel_id}/index.m3u8")
 }
 
 /// 上流 HLS の TS セグメント URL を組み立てる。
-fn upstream_segment_url(state: &AppState, channel_id: &str, segment: &str) -> String {
-    format!(
-        "http://{}:{}/hls/{}/{}",
-        state.cfg.peercast.host, state.cfg.peercast.port, channel_id, segment
+async fn upstream_segment_url(state: &AppState, channel_id: &str, segment: &str) -> String {
+    let (host, port) = upstream_host_port(state).await;
+    format!("http://{host}:{port}/hls/{channel_id}/{segment}")
+}
+
+async fn upstream_host_port(state: &AppState) -> (String, u16) {
+    let cfg = state.cfg.read().await;
+    (cfg.peercast.host.clone(), cfg.peercast.port)
+}
+
+async fn upstream_auth(state: &AppState) -> (Option<String>, Option<String>) {
+    let cfg = state.cfg.read().await;
+    (
+        cfg.peercast.auth_user.clone(),
+        cfg.peercast.auth_pass.clone(),
     )
 }
 
@@ -51,10 +60,8 @@ async fn proxy_get(url: String, headers: HeaderMap, state: &AppState) -> ApiResu
             req = req.header(h, v);
         }
     }
-    if let (Some(u), Some(p)) = (
-        state.cfg.peercast.auth_user.as_deref(),
-        state.cfg.peercast.auth_pass.as_deref(),
-    ) {
+    let (auth_user, auth_pass) = upstream_auth(state).await;
+    if let (Some(u), Some(p)) = (auth_user.as_deref(), auth_pass.as_deref()) {
         if !u.is_empty() {
             req = req.basic_auth(u, Some(p));
         }
@@ -107,7 +114,7 @@ pub async fn playlist(
 ) -> ApiResult<Response> {
     // `.m3u8` 拡張子付きで来た場合に剥がす (`open()` 側で固定で付けている)。
     let id = id.strip_suffix(".m3u8").unwrap_or(&id).to_string();
-    let url = upstream_playlist_url(&s, &id);
+    let url = upstream_playlist_url(&s, &id).await;
     proxy_get(url, headers, &s).await
 }
 
@@ -117,6 +124,6 @@ pub async fn segment(
     Path((id, segment)): Path<(String, String)>,
     headers: HeaderMap,
 ) -> ApiResult<Response> {
-    let url = upstream_segment_url(&s, &id, &segment);
+    let url = upstream_segment_url(&s, &id, &segment).await;
     proxy_get(url, headers, &s).await
 }

@@ -118,6 +118,9 @@ color = "#ff8a3d22"
 | `POST /api/record/start` (JSON)     | 録画開始 (`{id, name}`)。既定 OFF                          |
 | `POST /api/record/stop` (JSON)      | 録画停止 (`{id}` で指定、省略時は全停止)                   |
 | `GET  /api/favorites`               | 設定 `[[favorites.rules]]` を JSON で返す (read-only)      |
+| `GET  /api/config`                  | 設定 (`pst-server.toml` 全体) を JSON で返す               |
+| `PUT  /api/config` (JSON)           | 設定を書き戻し (ディスクに保存 + メモリ反映)               |
+| `GET  /api/config/path`             | 現在使っている `pst-server.toml` のパス                    |
 
 エラー応答は `application/json` で `{ "code": "...", "message": "..." }`
 の形式 (デスクトップ版と統一)。
@@ -139,6 +142,17 @@ color = "#ff8a3d22"
 Web フロント (`/`) では視聴中に右上の **⏺ 録画** ボタンで開始 /
 停止できます。サーバ側で機能が無効な場合 (`enabled = false`) は
 ボタン自体が隠れます。
+
+## Web UI からの設定変更
+
+ヘッダ右上の **⚙** ボタン (または `/settings.html` を直接開く) で
+`pst-server.toml` を編集できます。PeerCastStation Linux 版の Web
+UI と似た形で、PeerCast 接続先 / サーバ / ログ / 録画 / お気に入り
+ルールの全項目を編集して **💾 保存** でディスクと実行中プロセスの
+両方に反映されます。
+
+> ⚠ 現状認証が無いため、LAN 内に公開する時のみ使う想定です。WAN
+> 公開時の認証 / 公開モードは別途実装予定 (ロードマップ参照)。
 
 ## HLS と「ディスク不使用」方針
 
