@@ -21,7 +21,7 @@
 | 2.3 自動配信録画          | ✅ pst-server に AutoRecorder task (お気に入りルール `auto_record=true` で発火) |
 | 2.4 Web グリッド (Server) | ✅ pst-server Web に `<video>` × N のグリッド表示                               |
 
-Rust テスト 113 件 (pst-core 110 / pstplayer-lib 1 / pst-server 2)、全 pass。
+Rust テスト 114 件 (pst-core 111 / pstplayer-lib 1 / pst-server 2)、全 pass。
 
 ## 開発
 
