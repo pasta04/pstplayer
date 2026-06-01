@@ -511,7 +511,11 @@
 			if (menuOpen) closeMenu();
 		} else if (ev.key === 'Enter') {
 			const e = visible.find((v) => v.e.id === selectedId)?.e;
-			if (e) void watchRow(e);
+			if (e) {
+				// Shift+Enter で「視聴 + 録画」、通常 Enter で「視聴」
+				if (ev.shiftKey) void watchRow(e, true);
+				else void watchRow(e);
+			}
 		} else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
 			if (visible.length === 0) return;
 			ev.preventDefault();
