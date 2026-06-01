@@ -32,6 +32,41 @@
 
 ---
 
+## プロセス / ウィンドウの役割分離 (前提)
+
+実装に入る前に、Desktop / Server 双方で **「メイン」と「サブ」を
+役割で分ける** ことを大方針として決めておく。これがあると自動録画と
+複数視聴がどちらも 1 つの「メイン」に集約され、サブは純粋に視聴 / 書込
+専用にできる。
+
+### Desktop (ハブ & スポーク)
+
+| 役割 | ウィンドウ | 中身 |
+| --- | --- | --- |
+| **ハブ (メイン)** | 1 つだけ | YP / チャンネル一覧、お気に入り、録画タスク一覧 / 開始 / 停止、自動配信録画ロジック、設定編集、視聴履歴。libmpv は持たない |
+| **ビューア (サブ)** | チャンネル数だけ | libmpv (1 配信)、BBS ペイン、書き込み欄、各種ホットキー。ハブから `open_viewer(channel_id)` で起動 |
+
+特徴:
+
+- メイン (ハブ) は **動画を表示しない** → メイン視聴を前提に組んでいた
+  既存 UI から動画エリアを取り除く大改修
+- ビューアは「1 チャンネル = 1 ウィンドウ」で完結。閉じれば libmpv も
+  解放
+- お気に入りクリック / YP 行ダブルクリックでハブが新規ビューアを開く
+- 録画は **ハブ側で集中管理** (RecordingState 相当を 1 つ)。視聴の有無
+  と独立して自動配信録画が走る
+- BBS Cookie / 設定はハブの config を全ビューアで共有
+
+### Server (現状の構造をそのまま役割分離)
+
+- pst-server プロセス = ハブ相当 (YP / 録画 / 設定 / 自動配信録画)
+- ブラウザ tab / Window = ビューア相当 (`<video>` + BBS ペイン)
+- グリッドビューは「複数ビューアを 1 ページに並べる」表示モード
+- 「ハブ専用 view」(YP 一覧 + 録画状態 + 設定 へのリンク) も既に
+  index.html がほぼ該当している → そのまま強化する
+
+---
+
 ## 自動配信録画の設計
 
 ### A. polling ベース (本 ADR で採用)
@@ -89,42 +124,60 @@ auto_stop_grace_sec = 60      # 60 秒間チャンネルが消えてたら stop
 
 ### A. Desktop (Tauri + libmpv)
 
-#### 候補 A1. **新ウィンドウを 1 配信ごとに開く** (本 ADR で採用)
+ハブ & スポークの構造に組み直す。**メインを縮小、ビューアを独立**。
 
-- 1 つの libmpv エンジン = 1 つの Tauri ウィンドウ = 1 配信
-- 既存の "メインウィンドウ" を「**1 番目の視聴ウィンドウ**」とみなす
-- 視聴中に「新しいウィンドウで開く」アクションを足す
-  - 右クリック → 「新しいウィンドウで開く」
-  - YP テーブルから Shift+クリックで新規ウィンドウ
-- 各ウィンドウは独立した PlayerEngine state を持つ
-  - 現状 `tauri::State<'_, PlayerEngine>` でアプリ単位に 1 つ → ウィンドウ
-    単位の State 管理に変える必要あり
-  - Tauri 2 は `app.handle().manage(...)` でしか State を持てないので、
-    `HashMap<window_label, PlayerEngine>` を 1 つ常駐させる形になる
+#### 候補 A1. **ハブ & スポーク (ウィンドウ複数)** ← 本 ADR で採用
+
+##### ハブウィンドウ (今までの「メイン」を改修)
+
+- 動画エリアを削除し、左に **YP / チャンネル一覧 / 視聴履歴 / 録画
+  タスク** のリスト、右に「サマリ / 設定ボタン」を配置
+- BBS ペインも持たない (BBS はビューア側)
+- libmpv エンジンを保持しない
+- 起動時:
+  - YP / channels の polling 開始
+  - 自動配信録画ロジック (favorites.auto_record) を駆動
+- 操作:
+  - チャンネル名をクリックすると **ビューアウィンドウを 1 つ開く**
+  - Ctrl+クリックで「既に開いているビューアにフォーカス」
+  - 録画開始 / 停止は ハブ から直接 (視聴とは独立)
+
+##### ビューアウィンドウ (新規)
+
+- 既存の動画 + BBS + 書き込み欄を切り出した形
+- 1 ウィンドウ = 1 配信 = 1 libmpv エンジン
+- ハブから `open_viewer({ channel_url, channel_name })` で起動
+- ウィンドウクローズで libmpv を解放
+- 同じ channel_id を 2 度開こうとしたらフォーカスのみ移す
 
 ##### State 設計
 
 ```rust
 pub struct PlayerRegistry {
+    /// ウィンドウラベル → そのウィンドウ専用の libmpv エンジン
     engines: Mutex<HashMap<String, Arc<PlayerEngine>>>,
 }
+
+pub struct ChannelMonitor {
+    /// 紐付け先 PeerCastStation の polling 結果 (5-30 秒間隔)
+    latest: RwLock<Vec<ChannelRecord>>,
+}
+
+pub struct RecordingManager { /* 既存 server の RecordingState 相当 */ }
 ```
 
 `player_*` 系コマンドは `window_label: String` を引数で受け取り、
-レジストリから該当エンジンを取得して操作する。既存の `player_attach`
-は既に window_label を受け取っているので大きな手戻りは無い。
-
-##### BBS ペインの扱い
-
-- 各視聴ウィンドウは独自の BBS ペインを持つ (= チャンネルごとに別)
-- 書き込み欄も独立
+レジストリから該当エンジンを取得して操作する。
 
 ##### メリット / デメリット
 
-- ✅ OS 標準のウィンドウ管理 (タイル / 重ね / マルチモニタ) が使える
-- ✅ 既存コードのリファクタが比較的小さい (Tauri ウィンドウを増やすだけ)
-- ❌ 4 つ並べると 4 ウィンドウになりタスクバーがごちゃつく
-- ❌ libmpv x N で CPU / メモリ消費がかさむ
+- ✅ メインが「司令塔」になり、録画 / 自動録画 / 設定変更が視聴と
+  完全に独立する
+- ✅ ビューアを閉じても録画は継続できる (これまでは視聴停止と録画
+  停止が密結合だった)
+- ✅ OS 標準のウィンドウ管理が使える (タイル / マルチモニタ)
+- ❌ 既存メインウィンドウの大改修が必要 (動画 + BBS を切り離し)
+- ❌ ライト用途で「1 配信だけ見たい」場合にウィンドウが 2 個出る
 
 #### 候補 A2. 1 ウィンドウ内タイル表示 (見送り)
 
@@ -175,35 +228,45 @@ libmpv を複数インスタンス、それぞれ別の `wid` (ネイティブ�
 
 ## 段階的な実装計画
 
-各ステップを別 PR / commit にする。
+各ステップを別 PR / commit にする。コードが多めなのは Step 3。
 
-### Step 1: 自動配信録画 (server only)
+### Step 1: 自動配信録画 (server)
 
-- pst-server に AutoRecorder task を追加
-- config に `auto_poll_interval_sec` / `auto_stop_grace_sec`
-- main.rs で `spawn(AutoRecorder::run(state))`
+- pst-server に **AutoRecorder** task を 1 本常駐
+- config に `auto_poll_interval_sec` / `auto_stop_grace_sec` を追加
+- main.rs で `tokio::spawn(AutoRecorder::run(state))`
 - 動作確認: お気に入りに `auto_record=true` を 1 つ入れ、
   PeerCastStation で該当配信を開始 → 自動で録画ディレクトリにファイル
-  が出る
+  が出る / 配信終了で stop される
 
-### Step 2: グリッド視聴 (Web)
+### Step 2: グリッド視聴 (server / Web)
 
-- `/grid.html` or 同一 page 内モード切替
-- N 本の `<video>` + hls.js
+- 同一 page 内モード切替 ("単独" / "グリッド")
+- N 本の `<video>` + 各々独立な hls.js インスタンス
 - お気に入り or YP リストから tile 追加 / 削除
+- BBS ペインはグリッドモードでは非表示 (将来 tab 化検討)
 
-### Step 3: Desktop ウィンドウ複数視聴
+### Step 3: Desktop のハブ & スポーク化 (大改修)
 
-- PlayerRegistry 導入 (window_label → PlayerEngine)
-- 既存 `player_*` コマンドに window_label を渡す
-- 新コマンド `open_viewer_window(url)` で新ウィンドウ起動
-- UI: 右クリック → 「新しいウィンドウで開く」
+ハブ (= 既存メインウィンドウの後継) とビューア (= 新規) を分離する。
+段階を細かく刻む:
 
-### Step 4: 自動視聴 (任意 / 後回し可)
+1. **PlayerRegistry 導入** — `engines: HashMap<window_label, ...>` に
+   変更、既存 `player_*` コマンドに `window_label: String` を渡す
+2. **ビューアウィンドウ新設** (`/viewer?channel=...`) — 動画 +
+   BBS + 書き込み欄を ハブから切り離して新ルートに引っ越し
+3. **ハブの動画 / BBS エリアを削除** — メインウィンドウは YP /
+   履歴 / 録画 / 設定 リンクの「司令塔」に
+4. **ビューア起動コマンド `open_viewer(...)`** — チャンネル URL +
+   名前で新規 WebviewWindow を作成。既に開いてれば focus
+5. **自動配信録画ロジックを Desktop ハブにも実装** — 上記 Step 1
+   の logic を pst-core に切り出して両方で再利用
 
-- 「お気に入りの新規配信を自動でグリッドに追加」(Web)
-- Desktop は 1 ウィンドウ 1 配信なので、「自動で新ウィンドウを spawn」
-  は煩わしいので採用しない
+### Step 4: 自動グリッド (任意 / 後回し可)
+
+- 「お気に入りの新規配信を Server グリッドに自動追加」
+- Desktop は「自動視聴ウィンドウ起動」を採用しない (録画は自動、
+  視聴は人が選ぶ)
 
 ---
 
