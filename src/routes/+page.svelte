@@ -136,7 +136,6 @@
 	let countdownTimer: ReturnType<typeof setInterval> | null = null;
 	let threadSelectedUnlisten: UnlistenFn | null = null;
 	let configSavedUnlisten: UnlistenFn | null = null;
-	let ypSelectedUnlisten: UnlistenFn | null = null;
 	let channelStatusUnlisten: UnlistenFn | null = null;
 
 	let shortcutsUnlisten: (() => void) | null = null;
@@ -178,24 +177,9 @@
 			await loadCurrentThread(true);
 		});
 
-		// YP ウィンドウからチャンネルが選ばれたら自動再生開始。チャンネル
-		// id だけが来るので、自分の PeerCast (config の host:port) に対し
-		// /pls/{id} を組み立てる。YP の tip (配信元 IP) を直接叩かないの
-		// は NAT 越しでリレーが必要なケースがあるため。
-		ypSelectedUnlisten = await listen<{ id: string; channelName: string }>(
-			'yp:selected',
-			async (e) => {
-				try {
-					const cfg = await getConfig();
-					const host = cfg?.peercast?.host || 'localhost';
-					const port = cfg?.peercast?.port || 7144;
-					pasteUrl = `http://${host}:${port}/pls/${e.payload.id}`;
-					await onPaste();
-				} catch (err) {
-					console.warn('yp:selected handling failed', err);
-				}
-			},
-		);
+		// YP ウィンドウからのチャンネル選択は ADR-0006 Step 4 で別プロセス
+		// (`pstplayer.exe <url>`) として spawn する形に変更したため、
+		// ここでの listen は不要 (自プロセス内 emit は飛んでこない)。
 
 		// バックエンドの pseudo-push (5 秒間隔でチャンネル状態を fetch
 		// → channel:status event)。フロント側 setInterval を 1 箇所に
@@ -297,7 +281,6 @@
 		if (countdownTimer) clearInterval(countdownTimer);
 		threadSelectedUnlisten?.();
 		configSavedUnlisten?.();
-		ypSelectedUnlisten?.();
 		channelStatusUnlisten?.();
 		shortcutsUnlisten?.();
 		themeUnlisten?.();

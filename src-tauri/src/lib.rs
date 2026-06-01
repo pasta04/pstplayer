@@ -7,12 +7,82 @@ pub mod player;
 
 use channel_polling::ChannelPolling;
 use player::engine::PlayerEngine;
-use pst_core::cli;
-use tauri::Manager;
+use pst_core::cli::{self, CliArgs};
+use pst_core::single_instance::{self, AcquireResult, LockHandle};
+use tauri::{AppHandle, Manager, Runtime};
+
+/// URL 引数付き起動なら、その `channel_id` の single_instance ロックを
+/// 取りに行く。既に他プロセスが視聴している場合は focus 要求を送って
+/// `None` を返し (= 上位の `run` は即終了)、自分が取れたら
+/// `Some(LockHandle)` を返す。
+fn maybe_acquire_lock(cli: &CliArgs) -> AcquireOutcome {
+    let Some(url) = cli.url.as_ref() else {
+        return AcquireOutcome::Skip;
+    };
+    let parsed = match pst_core::peercast::url::parse(url) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("URL 解析失敗 (single_instance skip): {e}");
+            return AcquireOutcome::Skip;
+        }
+    };
+    match single_instance::acquire(parsed.channel_id.as_str()) {
+        Ok(AcquireResult::Owned(h)) => AcquireOutcome::Owned(h),
+        Ok(AcquireResult::Conflict(info)) => {
+            // 既存プロセスを前面化して自分は終了。
+            if let Err(e) = single_instance::request_focus(info.ipc_addr) {
+                eprintln!("既存ウィンドウへのフォーカス要求が失敗: {e}");
+            }
+            AcquireOutcome::ConflictResolved
+        }
+        Err(e) => {
+            // ロックディレクトリ作成失敗等。継続して起動する。
+            eprintln!("single_instance acquire failed (continuing): {e}");
+            AcquireOutcome::Skip
+        }
+    }
+}
+
+enum AcquireOutcome {
+    /// 既存ウィンドウへフォーカスを送った。自分は何もせず終了して良い。
+    ConflictResolved,
+    /// ロックを取った。`LockHandle` の lifetime をアプリ全体と一致させる。
+    Owned(LockHandle),
+    /// URL 引数なし、もしくは解析失敗。single_instance は使わず通常起動。
+    Skip,
+}
+
+/// `acquire` で受け取ったリスナーを別スレッドで回し、`focus` 要求が
+/// 来たら main ウィンドウを前面化する。`LockHandle` は app state に
+/// 持たせて drop 時に lock ファイル削除されるようにする。
+fn start_focus_listener<R: Runtime>(mut handle: LockHandle, app: AppHandle<R>) -> LockHandle {
+    if let Some(listener) = handle.take_listener() {
+        std::thread::spawn(move || {
+            single_instance::serve(listener, move || {
+                // 最小化を解除し前面に持ってくる。ウィンドウラベルは
+                // tauri.conf.json の最初のラベル ("main") を想定。
+                if let Some(win) = app.get_webview_window("main") {
+                    let _ = win.unminimize();
+                    let _ = win.show();
+                    let _ = win.set_focus();
+                }
+            });
+        });
+    }
+    handle
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let cli_args = cli::parse(&std::env::args().skip(1).collect::<Vec<_>>());
+
+    // channel_id 単位の single_instance チェック。URL 起動 + 既存プロセスが
+    // 同 ch を視聴中の場合は何もせず終了 (フォーカス要求は送る)。
+    let lock_handle = match maybe_acquire_lock(&cli_args) {
+        AcquireOutcome::ConflictResolved => return,
+        AcquireOutcome::Owned(h) => Some(h),
+        AcquireOutcome::Skip => None,
+    };
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -31,6 +101,13 @@ pub fn run() {
                     eprintln!("warning: failed to initialise libmpv: {e}");
                 }
             }
+            // single_instance のロックを持っているなら focus 受け取り用
+            // listener を別スレッドで起動し、handle を app state に保持
+            // する (drop で lock ファイル削除)。
+            if let Some(handle) = lock_handle {
+                let h = start_focus_listener(handle, app.handle().clone());
+                app.handle().manage(h);
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -47,6 +124,7 @@ pub fn run() {
             commands::peercast::start_channel_polling,
             commands::peercast::stop_channel_polling,
             commands::peercast::fetch_yp_index,
+            commands::peercast::spawn_viewer,
             commands::config::get_config,
             commands::config::set_config,
             commands::config::config_file_path,

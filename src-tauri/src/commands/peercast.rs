@@ -5,7 +5,10 @@ use pst_core::peercast::{
     types::{ChannelInfo, ChannelStatus, PeerCastEndpoint},
     yp::{self, YpEntry},
 };
+use pst_core::single_instance;
 use pst_core::util::errors::{AppError, IpcError};
+use serde::Serialize;
+use std::process::Command;
 use tauri::{AppHandle, Runtime, State};
 
 /// Resolve a user-supplied PeerCast URL into the concrete stream URL
@@ -105,4 +108,42 @@ pub async fn fetch_yp_index(override_url: Option<String>) -> Result<Vec<YpEntry>
         }
     };
     yp::fetch_index(&url).await.map_err(Into::into)
+}
+
+/// `spawn_viewer` の結果。フロント側で「新規ウィンドウが立ち上がった」
+/// のか「既存ウィンドウにフォーカスが当たった」のかを判別できる。
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SpawnViewerOutcome {
+    /// 既存ウィンドウにフォーカスを当てた。
+    Focused,
+    /// 新規プロセスを起動した。
+    Spawned,
+}
+
+/// YP / お気に入り行クリックから呼ばれる「視聴用 pstplayer プロセスを
+/// 立ち上げる」コマンド。
+///
+/// 1. `channel_id` のロックを check して既存プロセスがあればフォーカス
+///    要求を送って `Focused` を返す
+/// 2. 無ければ `current_exe()` を URL 引数付きで `Command::spawn` し
+///    `Spawned` を返す
+///
+/// URL は config の `peercast.host:port` から `/pls/{id}` を組み立てる
+/// (YP の `tip` 直叩きはせず必ず自分の PeerCast にリレー要求する)。
+#[tauri::command]
+pub fn spawn_viewer(channel_id: String) -> Result<SpawnViewerOutcome, IpcError> {
+    if let Some(info) = single_instance::read_existing(&channel_id) {
+        let _ = single_instance::request_focus(info.ipc_addr);
+        return Ok(SpawnViewerOutcome::Focused);
+    }
+    let cfg = config::load().map_err(IpcError::from)?;
+    let url = format!("http://{}:{}/pls/{}", cfg.peercast.host, cfg.peercast.port, channel_id);
+    let exe = std::env::current_exe().map_err(|e| {
+        IpcError::from(AppError::Network(format!("current_exe を取得できません: {e}")))
+    })?;
+    Command::new(exe).arg(url).spawn().map_err(|e| {
+        IpcError::from(AppError::Network(format!("別プロセスの pstplayer を起動できません: {e}")))
+    })?;
+    Ok(SpawnViewerOutcome::Spawned)
 }

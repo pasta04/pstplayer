@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { emit } from '@tauri-apps/api/event';
 	import {
 		CommandError,
 		fetchYpIndex,
 		firstFavoriteMatch,
 		getConfig,
+		spawnViewer,
 		type FavoriteRule,
 		type YpEntry,
 	} from '$lib/api';
@@ -51,12 +51,15 @@
 		}
 	}
 
-	// 行クリック: チャンネル id と name を main に通知。URL の組み立て
-	// は main 側 (= 自分の PeerCast に対して /pls/{id} を叩く形)。
-	// YP の `tip` は配信元 IP なので直接叩くと NAT 越しできない場合が
-	// あるため、自分の PeerCast にリレー要求するのが正解。
+	// 行クリック: 視聴用 pstplayer を別プロセスで spawn する。同じ
+	// channel_id が既に視聴中なら既存ウィンドウにフォーカスのみ移す
+	// (ADR-0006 Step 4)。YP ウィンドウ自身は閉じない (ハブとして残す)。
 	async function pick(entry: YpEntry) {
-		await emit('yp:selected', { id: entry.id, channelName: entry.name });
+		try {
+			await spawnViewer(entry.id);
+		} catch (e) {
+			console.warn('spawn_viewer failed', e);
+		}
 	}
 
 	function toggleSort(key: typeof sortKey) {

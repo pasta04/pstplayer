@@ -175,6 +175,16 @@ export async function fetchYpIndex(overrideUrl?: string): Promise<YpEntry[]> {
 	return call<YpEntry[]>('fetch_yp_index', { overrideUrl: overrideUrl ?? null });
 }
 
+export type SpawnViewerOutcome = 'focused' | 'spawned';
+
+/// YP / お気に入りからチャンネルを「別ウィンドウで開く」呼び出し。
+/// 既に同じ channel_id の視聴ウィンドウが立ち上がっていれば
+/// `'focused'` (前面化のみ)、無ければ `'spawned'` (新規プロセス起動)
+/// を返す。
+export async function spawnViewer(channelId: string): Promise<SpawnViewerOutcome> {
+	return call<SpawnViewerOutcome>('spawn_viewer', { channelId });
+}
+
 // ── BBS ─────────────────────────────────────────────────────────────
 
 export type BoardKind = 'Shitaraba' | 'Ch2Compat';

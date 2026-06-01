@@ -239,18 +239,19 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
             unmute する設計
       - [x] レスポンシブ: 2 / 3 / 4 / 5 列 (480 / 900 / 1400 / 1400+)
       - 詳細設計: [ADR-0006 Step 2](decisions/0006-auto-record-and-multiview.md)
-- [ ] **役割分離: pst-server (ハブ) + pstplayer (ビューア複数プロセス)** ← **優先度: 高**
-      - 自動録画 / 配信一覧 / お気に入り編集 / 設定 のサーバ寄り機能は
-        `pst-server` (常駐サービス / ブラウザ UI) に集約
-      - Desktop の `pstplayer` 内 YP ウィンドウは引き続きハブとして残す
-        (行クリックで閉じない / 視聴ウィンドウを閉じても残る)
-      - Desktop の複数視聴は YP の行クリック → `pstplayer.exe <url>` を
-        **別プロセスで spawn** (= ウィンドウ複数)。1 ウィンドウ内タイル
-        表示は不採用 (グリッドは pst-server Web 側で対応済み)
-      - 同一 `channel_id` を 2 度開いた場合は既存ウィンドウにフォーカス
-        (`channel_id` 単位の single_instance、ロックファイル方式で実装)
-      - 自動録画は `pst-server` 常駐で実現 (Pi / Windows サービス / Linux
-        systemd / macOS launchd)
+- [x] **役割分離: pst-server (ハブ) + pstplayer (ビューア複数プロセス)** ← **優先度: 高 / コア完了**
+      - [x] Desktop の `pstplayer` 内 YP ウィンドウは引き続きハブとして
+            残す (行クリックで閉じない / 視聴ウィンドウを閉じても残る)
+      - [x] Desktop の複数視聴は YP の行クリック → `pstplayer.exe <url>`
+            を **別プロセスで spawn** (= ウィンドウ複数)。新コマンド
+            `spawn_viewer(channel_id)` がこれを担当
+      - [x] 1 ウィンドウ内タイル表示は不採用 (グリッドは pst-server
+            Web 側で対応済み)
+      - [x] 同一 `channel_id` 二重起動は `pst_core::single_instance`
+            (ロックファイル + TCP IPC 方式) で既存ウィンドウへフォーカス
+      - [x] 自動録画は `pst-server` 常駐で実現 (Step 1 完了)
+      - 残: pstplayer 側「お気に入り編集 / 履歴」のハブ機能を `pst-server`
+            に寄せる整理 (ADR-0006 Step 3、優先度 中)
       - 詳細設計: [ADR-0006](decisions/0006-auto-record-and-multiview.md)
 
 ### 4.B その他

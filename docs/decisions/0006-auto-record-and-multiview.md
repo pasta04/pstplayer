@@ -280,9 +280,26 @@ Desktop ビューア (`pstplayer`) は視聴専用とする。複数チャンネ
 - メイン UI に「pst-server に接続して YP を見る」ボタン (= ブラウザを
   pst-server のホストで起動)
 
-### Step 4: 複数視聴 (`pstplayer` 複数プロセス起動)
+### Step 4: 複数視聴 (`pstplayer` 複数プロセス起動) — ✅ コア部分完了
 
 採用方針: **YP ウィンドウは「ハブ」として常駐 + 視聴は別プロセス**。
+
+実装メモ (2026-06):
+
+- [x] `pst_core::single_instance` を完全実装
+      (lock ファイル + TCP `127.0.0.1:0` IPC、`ping/pong/focus` プロトコル)
+- [x] `LockHandle` は Drop で lock ファイル削除。プロセスが異常終了
+      しても次起動の probe で stale 判定 → 取り直し
+- [x] Tauri command `spawn_viewer(channel_id)` を追加。`config` から
+      URL を組み立てて `current_exe()` を `Command::spawn`、ただし
+      既存ロックが生きていれば代わりに `request_focus` で前面化
+- [x] YP ページ (`/yp`) のクリックハンドラを `emit('yp:selected', ...)`
+      から `invoke('spawn_viewer', { channelId })` に切替
+- [x] main ページの `yp:selected` listener を撤去
+- [x] `lib.rs` の `run()` で URL 引数付き起動を検出したら lock を
+      acquire し、`focus` 受信用リスナースレッドを起動
+- [x] テスト (`pst_core::single_instance::tests`) で Owned / Conflict /
+      stale / request_focus の主要 4 ケースを cover
 
 - YP ウィンドウ (`/yp`) は行クリックしても**閉じずに表示し続ける** (現在
   の挙動を維持。多くのチャンネルを順次見たり、複数同時に見たりするとき
