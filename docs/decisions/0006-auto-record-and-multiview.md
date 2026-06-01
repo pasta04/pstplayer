@@ -314,8 +314,15 @@ Desktop ビューア (`pstplayer`) は視聴専用とする。複数チャンネ
 - [x] **ハブ画面 (`/hub` route)**: pstplayer を URL 引数なしで起動
       した時のメイン UI。複数 YP テーブル + お気に入り適用 + 右クリック
       メニュー + 自動再 fetch + 視聴中バッジ + 新着 OS 通知 + 「視聴 +
-      録画」 + 一括クローズ。設計は
-      [pstplayer-hub-*.md](../design/)
+      録画」 + 一括クローズ + 「録画中」タブ + ⏹ 録画停止 + ダブル/
+      ミドルクリック動作の設定 + Ctrl+1〜9 のタブ切替 + URL 直接視聴。
+      設計は [pstplayer-hub-*.md](../design/)、使い方は
+      [docs/usage/hub.md](../usage/hub.md)
+- [x] **IPC オペコード**: ping/pong/focus/close/state/stoprec。
+      `state`=録画中なら 1\n、`stoprec`=stream-record を空にする
+- [x] **ハブからの操作**: 視聴開始 / 視聴中バッジ / 録画状態問い合わせ /
+      録画停止 / ウィンドウクローズ がすべて完結 (pst-server / Web
+      に依存しない)
 
 - YP ウィンドウ (`/yp`) は行クリックしても**閉じずに表示し続ける** (現在
   の挙動を維持。多くのチャンネルを順次見たり、複数同時に見たりするとき
