@@ -46,7 +46,13 @@ function ruleMatches(rule, t) {
 	const part = (needle, hay) => {
 		const n = (needle ?? '').trim();
 		if (!n) return true;
-		return (hay ?? '').toLowerCase().includes(n.toLowerCase());
+		const hayLc = (hay ?? '').toLowerCase();
+		// `|` 区切りで OR (pst-core::favorites::matches と整合)。
+		return n
+			.split('|')
+			.map((s) => s.trim())
+			.filter(Boolean)
+			.some((alt) => hayLc.includes(alt.toLowerCase()));
 	};
 	return (
 		part(rule.channel_name, t.name) &&
