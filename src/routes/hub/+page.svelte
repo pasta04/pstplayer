@@ -741,9 +741,14 @@
 		padding: 0 0.4rem;
 		background: #ececec;
 		border-bottom: 1px solid #d0d0d0;
+		overflow-x: auto;
+		scrollbar-width: thin;
+		white-space: nowrap;
 	}
 
 	.tabs button {
+		flex: 0 0 auto;
+		white-space: nowrap;
 		padding: 0.3rem 0.9rem;
 		font: inherit;
 		background: #ececec;
