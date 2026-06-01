@@ -609,12 +609,14 @@
 	{/if}
 
 	{#if failures.length > 0}
-		<div class="warn">
-			YP 取得失敗:
-			{#each failures as f}
-				<span class="failure">[{f.source}] {f.error}</span>
-			{/each}
-		</div>
+		<details class="warn">
+			<summary>⚠ YP 取得失敗 ({failures.length} 件) — 詳細を表示</summary>
+			<ul>
+				{#each failures as f}
+					<li><strong>[{f.source}]</strong> {f.url}<br /><small>{f.error}</small></li>
+				{/each}
+			</ul>
+		</details>
 	{/if}
 
 	<div class="table-wrap">
@@ -867,16 +869,24 @@
 		color: #7a5d00;
 		font-size: 11px;
 		border-bottom: 1px solid #f0e0a0;
-		display: flex;
-		gap: 0.5rem;
-		flex-wrap: wrap;
 	}
 
-	.failure {
-		background: #fff;
-		border: 1px solid #f0c060;
-		border-radius: 2px;
-		padding: 0 0.4rem;
+	.warn summary {
+		cursor: pointer;
+		font-weight: 600;
+	}
+
+	.warn ul {
+		margin: 0.4rem 0 0;
+		padding-left: 1.2rem;
+	}
+
+	.warn li {
+		margin: 0.2rem 0;
+	}
+
+	.warn small {
+		color: #8a6a00;
 	}
 
 	.table-wrap {
