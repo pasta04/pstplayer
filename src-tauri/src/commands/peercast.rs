@@ -180,6 +180,16 @@ pub fn close_all_viewers() -> usize {
     closed
 }
 
+/// 指定 channel_id の視聴ウィンドウに録画停止を要求。lock がなければ
+/// false。失敗時も false。録画していないチャンネルは no-op だが true。
+#[tauri::command]
+pub fn stop_viewer_recording(channel_id: String) -> bool {
+    let Some(info) = single_instance::read_existing(&channel_id) else {
+        return false;
+    };
+    single_instance::request_stop_recording(info.ipc_addr).is_ok()
+}
+
 /// YP / お気に入り行クリックから呼ばれる「視聴用 pstplayer プロセスを
 /// 立ち上げる」コマンド。
 ///

@@ -234,6 +234,11 @@ export async function closeAllViewers(): Promise<number> {
 	return call<number>('close_all_viewers');
 }
 
+/// 指定 channel_id の視聴ウィンドウに録画停止を要求。
+export async function stopViewerRecording(channelId: string): Promise<boolean> {
+	return call<boolean>('stop_viewer_recording', { channelId });
+}
+
 // ── BBS ─────────────────────────────────────────────────────────────
 
 export type BoardKind = 'Shitaraba' | 'Ch2Compat';

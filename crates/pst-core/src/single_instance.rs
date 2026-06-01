@@ -48,6 +48,7 @@ const PONG: &[u8] = b"pong\n";
 const FOCUS: &[u8] = b"focus\n";
 const CLOSE: &[u8] = b"close\n";
 const STATE: &[u8] = b"state\n";
+const STOP_RECORD: &[u8] = b"stoprec\n";
 const OK: &[u8] = b"ok\n";
 
 /// 起動時の重複起動ポリシー。`LaunchPolicy::Single` の時のみ実際に
@@ -215,6 +216,18 @@ pub fn query_recording(addr: SocketAddr) -> std::io::Result<bool> {
     Ok(n >= 1 && buf[0] == b'1')
 }
 
+/// 既存プロセスに録画停止要求を送る。viewer 側で stream-record を空に
+/// 設定する。録画していない時は no-op。
+pub fn request_stop_recording(addr: SocketAddr) -> std::io::Result<()> {
+    let mut stream = TcpStream::connect_timeout(&addr, Duration::from_secs(2))?;
+    stream.set_write_timeout(Some(Duration::from_secs(2)))?;
+    stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+    stream.write_all(STOP_RECORD)?;
+    let mut buf = [0u8; 8];
+    let _ = stream.read(&mut buf);
+    Ok(())
+}
+
 /// 既存ロックファイルを読む (なければ None)。スポーン側で「既に視聴
 /// ウィンドウがあるか?」をチェックするための read-only 操作。
 pub fn read_existing(channel_id: &str) -> Option<LockInfo> {
@@ -268,11 +281,17 @@ pub fn list_active() -> Vec<LockInfo> {
 ///
 /// すべてのコールバックは UI スレッド外で呼ばれるので、内部で
 /// `app.run_on_main_thread` 等を使うこと。
-pub fn serve<F, C, S>(listener: TcpListener, on_focus: F, on_close: C, is_recording: S)
-where
+pub fn serve<F, C, S, R>(
+    listener: TcpListener,
+    on_focus: F,
+    on_close: C,
+    is_recording: S,
+    on_stop_record: R,
+) where
     F: Fn() + Send + 'static,
     C: Fn() + Send + 'static,
     S: Fn() -> bool + Send + Sync + 'static,
+    R: Fn() + Send + 'static,
 {
     for incoming in listener.incoming() {
         let Ok(mut stream) = incoming else { continue };
@@ -295,6 +314,9 @@ where
         } else if req.starts_with(STATE) {
             let body: &[u8] = if is_recording() { b"1\n" } else { b"0\n" };
             let _ = stream.write_all(body);
+        } else if req.starts_with(STOP_RECORD) {
+            let _ = stream.write_all(OK);
+            on_stop_record();
         }
     }
 }
@@ -333,6 +355,7 @@ mod tests {
                 },
                 || {},
                 || false,
+                || {},
             );
         });
         // 同じ channel_id で 2 度目 acquire → Conflict
@@ -408,6 +431,7 @@ mod tests {
                     closed_c.fetch_add(1, Ordering::SeqCst);
                 },
                 || false,
+                || {},
             );
         });
         // 別「プロセス」から close 要求 (= read_existing で addr 取得)
@@ -427,7 +451,7 @@ mod tests {
         };
         let mut h = owned;
         let listener = h.take_listener().unwrap();
-        thread::spawn(move || serve(listener, || {}, || {}, || false));
+        thread::spawn(move || serve(listener, || {}, || {}, || false, || {}));
 
         // 偽の死んだロックも 1 つ書く
         let ch_dead = unique_id("f");
@@ -465,7 +489,7 @@ mod tests {
         };
         let mut h_rec = owned_rec;
         let listener_rec = h_rec.take_listener().unwrap();
-        thread::spawn(move || serve(listener_rec, || {}, || {}, || true));
+        thread::spawn(move || serve(listener_rec, || {}, || {}, || true, || {}));
 
         // 録画 OFF 状態のロック
         let ch_off = unique_id("i");
@@ -475,7 +499,7 @@ mod tests {
         };
         let mut h_off = owned_off;
         let listener_off = h_off.take_listener().unwrap();
-        thread::spawn(move || serve(listener_off, || {}, || {}, || false));
+        thread::spawn(move || serve(listener_off, || {}, || {}, || false, || {}));
 
         thread::sleep(Duration::from_millis(50));
 
@@ -499,7 +523,7 @@ mod tests {
         let listener = h.take_listener().unwrap();
         let stop = Arc::new(Mutex::new(false));
         let _stop_c = stop.clone();
-        thread::spawn(move || serve(listener, || {}, || {}, || false));
+        thread::spawn(move || serve(listener, || {}, || {}, || false, || {}));
         let info = read_existing(&ch).expect("live owner not found");
         assert_eq!(info.channel_id, ch);
         drop(h);

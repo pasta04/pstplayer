@@ -59,7 +59,8 @@ fn start_focus_listener<R: Runtime>(mut handle: LockHandle, app: AppHandle<R>) -
     if let Some(listener) = handle.take_listener() {
         let app_focus = app.clone();
         let app_close = app.clone();
-        let app_state = app;
+        let app_state = app.clone();
+        let app_stop = app;
         std::thread::spawn(move || {
             single_instance::serve(
                 listener,
@@ -80,6 +81,14 @@ fn start_focus_listener<R: Runtime>(mut handle: LockHandle, app: AppHandle<R>) -
                     // ハブ側からの state 問い合わせ。PlayerEngine の
                     // stream-record プロパティが空でなければ録画中。
                     app_state.try_state::<PlayerEngine>().and_then(|e| e.record_path()).is_some()
+                },
+                move || {
+                    // ハブ側からの録画停止要求。stream-record を空にする。
+                    // フロントの recordPath state は同期しないが、ハブの
+                    // 録画状態 IPC では即座に false が返るようになる。
+                    if let Some(e) = app_stop.try_state::<PlayerEngine>() {
+                        let _ = e.stop_record();
+                    }
                 },
             );
         });
@@ -145,6 +154,7 @@ pub fn run() {
             commands::peercast::list_recording_viewers,
             commands::peercast::close_viewer,
             commands::peercast::close_all_viewers,
+            commands::peercast::stop_viewer_recording,
             commands::config::get_config,
             commands::config::set_config,
             commands::config::config_file_path,
