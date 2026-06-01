@@ -134,7 +134,8 @@ MIT License。PCRPlayer (GPL v3) のコードは参照せず、公開プロト�
 - [`docs/usecases.md`](docs/usecases.md) — ユースケース一覧 (Desktop / pst-server を組み合わせた利用シナリオ)
 - [`docs/roadmap.md`](docs/roadmap.md) — 開発ロードマップ (フェーズ計画)
 - [`docs/release.md`](docs/release.md) — リリース / 配布方針 (バージョニング・タグ運用・アイコン仕様)
-- [`docs/usage/`](docs/usage/) — **ユーザマニュアル** (インストール / 初回設定 / 基本操作 / ショートカット / トラブルシューティング)
+- [`docs/usage/`](docs/usage/) — **ユーザマニュアル** (インストール / 初回設定 / 基本操作 / ハブ画面 / pst-server / ショートカット / トラブルシューティング)
+- [`docs/design/`](docs/design/) — デザインスケッチ (ハブ画面 / Web グリッドのモックアップ + インタラクション)
 - [`docs/protocols/peercast.md`](docs/protocols/peercast.md) — PeerCast プロトコル参考メモ
 - [`docs/protocols/bbs.md`](docs/protocols/bbs.md) — BBS プロトコル参考メモ
 - [`docs/decisions/`](docs/decisions/) — アーキテクチャ決定記録 (ADR)
@@ -143,7 +144,7 @@ MIT License。PCRPlayer (GPL v3) のコードは参照せず、公開プロト�
   - [`0003-ui-framework.md`](docs/decisions/0003-ui-framework.md) — UI フレームワーク (Svelte 5)
   - [`0004-scope.md`](docs/decisions/0004-scope.md) — 機能スコープ (PCRPlayer 互換 + オフライン系オミット)
   - [`0005-workspace-and-server.md`](docs/decisions/0005-workspace-and-server.md) — Cargo ワークスペース化 + 将来のリレーサーバ (モバイル対応)
-  - [`0006-auto-record-and-multiview.md`](docs/decisions/0006-auto-record-and-multiview.md) — 自動配信録画 + 複数チャンネル視聴アーキテクチャ (検討中)
+  - [`0006-auto-record-and-multiview.md`](docs/decisions/0006-auto-record-and-multiview.md) — 自動配信録画 + 複数チャンネル視聴アーキテクチャ (実装完了)
 
 ## 参考プロジェクト
 

@@ -2,6 +2,13 @@
 
 PSTPlayer のメインウィンドウのレイアウトとインタラクション仕様。
 
+> **本書のスコープ**: 引数あり起動の **ビューア画面** (動画 + BBS
+> ペイン) のレイアウトのみを扱う。引数なし起動の **ハブ画面**
+> (PeCaRecorder 風テーブル) は [`usage/hub.md`](usage/hub.md) と
+> [`design/pstplayer-hub-mockup.svg`](design/pstplayer-hub-mockup.svg) /
+> [`design/pstplayer-hub-interactions.md`](design/pstplayer-hub-interactions.md)
+> を参照。
+>
 > **画像**: `docs/images/main-layout.png` に元案のスクリーンショットを配置予定 (オーナーから提供された設計案)。
 >
 > **キーボードショートカット**: 本文中の `(T)` `(Z)` `(X)` 等は割り当て例。全一覧は [`shortcuts.md`](shortcuts.md) を参照。

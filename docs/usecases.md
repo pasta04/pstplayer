@@ -214,16 +214,23 @@ ADR-0006 Step 3 (ハブ & スポーク化) を完成させると後続の自動�
 
 ---
 
-## 次のアクション
+## 実装状況
 
-このユースケース表を踏まえて、ADR-0006 の段階的実装計画を **どの
-ユースケースから順に潰すか** で並べ直すと:
+ADR-0006 Step 1〜5 完了済 (2026-06 時点):
 
-1. **UC-07 (Server 自動録画)** → Step 1: pst-server に AutoRecorder
-2. **UC-05 (Web グリッド視聴)** → Step 2: グリッドモード
-3. **UC-01 / UC-03 / UC-08 (Desktop ハブ & スポーク化 + 自動録画)** →
-   Step 3
-4. **UC-04 (モバイル単独視聴)** はほぼ既存実装で成立しているので、
-   仕上げのみ (動作確認 + 改善)
+| UC | 実装状況 | 担当バイナリ |
+| --- | --- | --- |
+| UC-01 単独視聴      | ✅ MVP | pstplayer (ビューア) |
+| UC-02 YP 視聴       | ✅ ハブ画面で複数 YP fetch | pstplayer (ハブ) → ビューア spawn |
+| UC-03 マルチ視聴 D  | ✅ single_instance + spawn | pstplayer (ハブ) ×N viewer |
+| UC-04 モバイル単独  | ✅ HLS + Web UI | pst-server |
+| UC-05 グリッド W    | ✅ Web タイル | pst-server |
+| UC-06 手動録画      | ✅ Desktop / Web 両方 | pstplayer / pst-server |
+| UC-07 自動録画 S    | ✅ AutoRecorder task | pst-server |
+| UC-08 自動録画 D    | ✅ pst-server 同居 + 起動 docs | pst-server (常駐) |
+| UC-09a 設定 D       | ✅ Tauri 設定ダイアログ | pstplayer |
+| UC-09b 設定 S       | ✅ /settings.html | pst-server Web |
+| UC-10 外部連携      | ✅ PCRPlayer 互換引数 | pstplayer |
 
-これで実装着手前にやることがクリアになる。
+残課題は 3 OS 実機 QA とドキュメントの追補 (詳細は
+[`roadmap.md`](roadmap.md) フェーズ 3)。
