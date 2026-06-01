@@ -22,6 +22,7 @@
 		type YpFetchFailure,
 	} from '$lib/api';
 	import { openSettings, openThreadList } from '$lib/windows';
+	import { notify } from '$lib/notifications';
 
 	type SortKey = 'name' | 'genre' | 'listeners' | 'bitrate' | 'uptime' | 'yp_source';
 	type TabKey = 'all' | 'favorites' | 'recording' | 'watching' | 'new';
@@ -43,6 +44,10 @@
 	let prevIds = $state<Set<string>>(new Set());
 	let newIds = $state<Set<string>>(new Set());
 	let watchingIds = $state<Set<string>>(new Set());
+	// 既に通知済みの新着 ID。重複通知防止 (同じセッションで何度も
+	// 「新着 X」を出さない)。
+	let notifiedIds = new Set<string>();
+	let firstRefreshDone = false;
 
 	// 自動再 fetch 間隔 (秒)。0 で無効。将来は config から取る。
 	const AUTO_REFRESH_SEC = 60;
@@ -108,6 +113,21 @@
 			entries = outcome.entries;
 			failures = outcome.failures;
 			lastUpdatedAt = new Date();
+
+			// 新着 + お気に入りマッチ → OS 通知。初回 fetch は「全部新着」に
+			// 見えるので通知抑止。同じ ID は重複通知しない。
+			if (firstRefreshDone) {
+				for (const e of outcome.entries) {
+					if (!fresh.has(e.id)) continue;
+					if (notifiedIds.has(e.id)) continue;
+					const rule = matchFor(e);
+					if (!rule) continue;
+					if (rule.action !== 'show') continue;
+					notifiedIds.add(e.id);
+					void notify(`★ ${rule.name || 'お気に入り'} 配信開始`, `${e.name}\n${e.desc}`);
+				}
+			}
+			firstRefreshDone = true;
 		} catch (e) {
 			lastError = e instanceof Error ? e.message : String(e);
 		} finally {
