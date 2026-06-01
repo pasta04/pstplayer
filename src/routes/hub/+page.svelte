@@ -373,17 +373,26 @@
 
 	async function watchUrl() {
 		const url = prompt(
-			'視聴したい PeerCast URL を入力 (例: http://localhost:7144/pls/abc...)',
+			'視聴したい PeerCast URL または channel_id (32 hex) を入力\n例: http://localhost:7144/pls/abc... / play.html?id=...',
 		)?.trim();
 		if (!url) return;
-		// URL から channel_id を抽出 (簡易: 末尾セグメント)
-		const match = url.match(/\/(?:pls|stream)\/([0-9a-fA-F]{32})/);
-		if (!match) {
-			lastError = `URL から channel_id を抽出できません: ${url}`;
+		// 1. 生 channel_id (32 hex) を許容
+		// 2. URL から /pls/{id} / /stream/{id} / ?id={id} のいずれかで抽出
+		let id: string | null = null;
+		if (/^[0-9a-fA-F]{32}$/.test(url)) {
+			id = url.toLowerCase();
+		} else {
+			const m =
+				url.match(/\/(?:pls|stream|play\.html\?id=)\/?([0-9a-fA-F]{32})/) ??
+				url.match(/[?&]id=([0-9a-fA-F]{32})/);
+			id = m?.[1]?.toLowerCase() ?? null;
+		}
+		if (!id) {
+			lastError = `URL から channel_id (32 hex) を抽出できません: ${url}`;
 			return;
 		}
 		try {
-			await spawnViewer(match[1]);
+			await spawnViewer(id);
 			setTimeout(() => {
 				void refreshWatching();
 			}, 800);
