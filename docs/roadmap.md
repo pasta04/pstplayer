@@ -253,17 +253,27 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
       - 残: pstplayer 側「お気に入り編集 / 履歴」のハブ機能を `pst-server`
             に寄せる整理 (ADR-0006 Step 3、優先度 中)
       - 詳細設計: [ADR-0006](decisions/0006-auto-record-and-multiview.md)
-- [ ] **Desktop ハブ画面 (PeCaRecorder 風)** ← **優先度: 高**
-      - `pstplayer` を引数なしで起動した時のメイン画面を、PeCaRecorder
-        相当の「YP テーブル + お気に入り + 録画一覧」型 UI に置き換える
-      - **複数 YP 対応は必須**。PeerCastStation には YP のチャンネル一覧
-        を返す API が無いため、`index.txt` を直接 HTTP GET する以外の
-        手段が無い。1 つしか登録できない現状 (`peercast.yp_url`) を
-        `[[yp.sources]]` 配列に拡張
-      - お気に入りルールに `text_color` / `background` / `action`
-        (show / ignore / block) を新設。色は録画状態と独立 (PeCaRecorder
-        の色設定をフル取り込み)
-      - カラムソート / 右クリックメニュー / ダブル&ミドルクリック設定
+- [x] **Desktop ハブ画面 (PeCaRecorder 風)** ← **優先度: 高 / v1 完了**
+      - [x] `pstplayer` を引数なしで起動した時のメイン画面を /hub に
+            リダイレクト。PeCaRecorder 相当の YP テーブル + お気に入り
+            + 視聴中タブの UI
+      - [x] **複数 YP 対応** (必須): `[[yp.sources]]` 配列、複数 YP の
+            並行 fetch (tokio::JoinSet)、channel_id 重複は上位 YP 優先、
+            失敗一覧の表示
+      - [x] お気に入りルール拡張: `background` / `text_color` / `action`
+            (show / ignore / block)。旧 `color` は互換維持
+      - [x] カラムソート (任意ヘッダクリックで昇順 ▲ / 降順 ▼、pin_top
+            常時上位固定、既定リスナー降順)
+      - [x] 右クリックメニュー (視聴 / BBS / コンタクト URL ブラウザ /
+            コピー × 6 / お気に入りに追加)
+      - [x] フィルタ入力欄 + 自動再 fetch (60 秒)
+      - [x] 「視聴中」タブ (single_instance ロック列挙、5 秒ポーリング)、
+            行に ▶ バッジ
+      - [x] 新着お気に入りマッチで OS 通知
+      - [x] キーボードショートカット (F5/Ctrl+R/Ctrl+F/Enter/↑↓/Esc)
+      - [x] auto_record は action != 'show' で抑止 (pst-server / Web 共通)
+      - 残: 「録画中」タブ実体化 (Desktop 側で recording state 整備が要る、
+            優先度 中)、ダブル / ミドルクリックの動作設定 UI (低)
       - 詳細設計:
         [pstplayer-hub-mockup.svg](design/pstplayer-hub-mockup.svg) /
         [pstplayer-hub-mockup-wide.svg](design/pstplayer-hub-mockup-wide.svg) /

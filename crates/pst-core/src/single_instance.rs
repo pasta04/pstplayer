@@ -339,6 +339,43 @@ mod tests {
     }
 
     #[test]
+    fn list_active_finds_live_owners_only() {
+        let ch_alive = unique_id("e");
+        let owned = match acquire(&ch_alive).unwrap() {
+            AcquireResult::Owned(h) => h,
+            AcquireResult::Conflict(_) => panic!(),
+        };
+        let mut h = owned;
+        let listener = h.take_listener().unwrap();
+        thread::spawn(move || serve(listener, || {}));
+
+        // 偽の死んだロックも 1 つ書く
+        let ch_dead = unique_id("f");
+        let dead_path = lock_path(&ch_dead);
+        fs::create_dir_all(lock_dir()).unwrap();
+        let fake = LockInfo {
+            pid: 999_999,
+            ipc_addr: "127.0.0.1:1".parse().unwrap(),
+            channel_id: ch_dead.clone(),
+        };
+        fs::write(&dead_path, toml::to_string(&fake).unwrap()).unwrap();
+
+        let active = list_active();
+        let ids: Vec<&str> = active.iter().map(|i| i.channel_id.as_str()).collect();
+        assert!(
+            ids.contains(&ch_alive.as_str()),
+            "alive lock should appear in list_active"
+        );
+        assert!(
+            !ids.contains(&ch_dead.as_str()),
+            "dead lock should NOT appear in list_active"
+        );
+        // 死んでたロックは掃除されている
+        assert!(!dead_path.exists(), "stale lock should be removed");
+        drop(h);
+    }
+
+    #[test]
     fn read_existing_finds_live_owner() {
         let ch = unique_id("d");
         let owned = match acquire(&ch).unwrap() {
