@@ -9,8 +9,13 @@ URL 引数つきで起動 (`pstplayer http://.../pls/{id}`) した場合は従�
 ## ツールバー (上部)
 
 - **↻ 更新** — 全 YP を再 fetch
-- **🔗 URL から開く** — PeerCast URL を prompt で入力して直接視聴
+- **🔗 URL から開く** — PeerCast URL / channel_id (32 hex) を prompt で
+  入力して直接視聴
 - **⚙ 設定** — 設定ダイアログ
+- **🌐 pst-server** — `config.hub.pst_server_url` (既定:
+  `http://localhost:8080/`) を OS のデフォルトブラウザで開く。
+  pst-server を同居運用していて Web グリッドや モバイル UI を Desktop
+  からも触りたい時に
 - **✕ 全閉じ (N)** — 開いている全視聴ウィンドウを一括クローズ
   (N は現在の視聴中数)。0 の時は disabled
 
@@ -115,6 +120,31 @@ URL 引数つきで起動 (`pstplayer http://.../pls/{id}`) した場合は従�
 
 旧 `peercast.yp_url` 単体設定もそのまま残っていますが、`[[yp.sources]]`
 に 1 件でも登録するとそちらは無視されます (移行用)。
+
+## pst-server との使い分け
+
+`pstplayer` のハブと `pst-server` の Web UI は機能が **重複** しています:
+
+| 機能                    | pstplayer ハブ              | pst-server Web                       |
+| ----------------------- | --------------------------- | ------------------------------------ |
+| 複数 YP fetch           | ✓                           | ×                                    |
+| お気に入りルール        | ✓ (`config.toml`)           | ✓ (`pst-server.toml`)                |
+| 自動録画                | × (viewer 経由の手動 / オプション) | ✓ (常駐タスク)                  |
+| 手動録画                | ✓ (視聴 + 録画 / 録画停止)  | ✓ (Web UI ボタン)                    |
+| 視聴                    | ✓ (libmpv の別プロセス)     | ✓ (`<video>` + hls.js)               |
+| 視聴中・録画中の状態    | ✓ (single_instance IPC)     | ✓ (`/api/record/list`)               |
+| グリッド (同時複数視聴) | × (ウィンドウ複数で代替)    | ✓ (Web タイル)                       |
+| モバイル / 他端末アクセス | ×                          | ✓                                    |
+
+設定ファイルは **別物** です (`config.toml` と `pst-server.toml`)。
+お気に入りルールや YP ソースは別管理。同じ自動録画ルールを使いたい場合
+は両方に同じものを書いてください (将来同期する仕組みは検討中)。
+
+**「Desktop で個人視聴 + たまに録画」** だけなら pstplayer のハブだけで
+完結します。**「常駐自動録画」** や **「モバイル / タブレットからも視聴」**
+が欲しい場合に pst-server を追加で立てる、という棲み分けです。
+
+詳細な常駐運用手順は [`docs/usage/server.md`](server.md) を参照。
 
 ## なぜ複数 YP は直接 fetch なのか
 
