@@ -95,16 +95,19 @@ async function loadChannels() {
 function renderChannels(channels) {
 	const tbody = refs.channelsTbody;
 	tbody.innerHTML = '';
-	const annotated = channels.map((ch) => {
-		const info = ch.info ?? {};
-		const fav = firstFavoriteMatch({
-			name: info.name ?? '',
-			genre: info.genre ?? '',
-			desc: info.desc ?? '',
-			comment: info.comment ?? '',
-		});
-		return { ch, info, fav };
-	});
+	const annotated = channels
+		.map((ch) => {
+			const info = ch.info ?? {};
+			const fav = firstFavoriteMatch({
+				name: info.name ?? '',
+				genre: info.genre ?? '',
+				desc: info.desc ?? '',
+				comment: info.comment ?? '',
+			});
+			return { ch, info, fav };
+		})
+		// action = 'ignore' / 'block' は一覧から外す (favorites の挙動と整合)
+		.filter(({ fav }) => !fav?.action || fav.action === 'show');
 	annotated.sort((a, b) => {
 		// pin_top のお気に入りは最上位に固定。次に listeners 降順。
 		const pa = a.fav?.pin_top ? 1 : 0;
@@ -117,7 +120,9 @@ function renderChannels(channels) {
 	for (const { ch, info, fav } of annotated) {
 		const tr = document.createElement('tr');
 		const status = ch.status ?? {};
-		if (fav?.color) tr.style.background = fav.color;
+		const bg = fav?.background || fav?.color || '';
+		if (bg) tr.style.background = bg;
+		if (fav?.text_color) tr.style.color = fav.text_color;
 		if (fav?.pin_top) tr.classList.add('pinned');
 		tr.innerHTML = `
 			<td class="num">${status.localDirects ?? 0}</td>
@@ -280,7 +285,9 @@ function addToGrid(ch, info) {
 
 	const el = document.createElement('div');
 	el.className = 'tile';
-	if (fav?.color) el.style.borderColor = fav.color;
+	const bg = fav?.background || fav?.color || '';
+	if (bg) el.style.borderColor = bg;
+	if (fav?.text_color) el.style.color = fav.text_color;
 	const nameHtml = `${fav ? '<span class="fav-mark">★</span>' : ''}${escapeHtml(name)}`;
 	el.innerHTML = `
 		<div class="tile-video-wrap">
@@ -508,6 +515,8 @@ async function toggleRecord() {
 async function maybeAutoRecord(target) {
 	const fav = firstFavoriteMatch(target);
 	if (!fav?.auto_record) return;
+	// action != "show" (= ignore / block) は自動録画対象外
+	if (fav.action && fav.action !== 'show') return;
 	const list = (await fetchRecordingList()) ?? [];
 	if (list.some((r) => r.channel_id === currentChannelId)) return;
 	try {
