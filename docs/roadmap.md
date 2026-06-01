@@ -225,14 +225,14 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
       - チャンネルが消えたら自動で録画停止 (現状は手動 stop のみ)
       - max_concurrent / dir 等は既存の `[recording]` を継承
       - 詳細設計: [ADR-0006](decisions/0006-auto-record-and-multiview.md)
-- [ ] **複数チャンネル視聴アーキテクチャ (ハブ & スポーク)** ← **優先度: 高**
-      - Desktop: 現状の "メインで視聴" を「ハブ (YP / 録画 / 設定)」
-        と「ビューア (libmpv + BBS、1 配信 1 ウィンドウ)」に分離。
-        録画はハブで集中管理 (視聴と独立)、ビューアを閉じても録画
-        継続可
-      - pst-server Web: グリッド表示で `<video>` × N、各々独立に HLS
-        再生 (帯域 / CPU 負荷の上限はユーザー裁量)
-      - お気に入り / YP からまとめて開く UX
+- [ ] **役割分離: pst-server (ハブ) + pstplayer (ビューア複数プロセス)** ← **優先度: 高**
+      - Desktop も Server も「ハブ」は `pst-server` に集約 (新規 Tauri
+        ハブを作らない)。`pstplayer` は視聴専用に整理
+      - Desktop の複数視聴は `pstplayer` を複数プロセス起動 (= ウィンドウ
+        複数)。1 ウィンドウタイル表示は不採用
+      - pst-server Web はグリッドビューで `<video>` × N
+      - 自動録画は `pst-server` 常駐で実現 (Pi / Windows サービス / Linux
+        systemd / macOS launchd)
       - 詳細設計: [ADR-0006](decisions/0006-auto-record-and-multiview.md)
 
 ### 4.B その他
