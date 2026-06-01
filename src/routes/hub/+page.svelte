@@ -86,11 +86,29 @@
 	let notifiedIds = new Set<string>();
 	let firstRefreshDone = false;
 
-	// 自動再 fetch 間隔 (秒)。0 で無効。将来は config から取る。
-	const AUTO_REFRESH_SEC = 60;
-	const WATCHING_POLL_SEC = 5;
+	// 自動再 fetch / 視聴中ポーリングの間隔 (秒)。config から読む。
+	// 0 で無効。
+	let refreshSec = 60;
+	let watchingPollSec = 5;
 	let refreshTimer: ReturnType<typeof setInterval> | null = null;
 	let watchingTimer: ReturnType<typeof setInterval> | null = null;
+
+	function restartTimers() {
+		if (refreshTimer) clearInterval(refreshTimer);
+		if (watchingTimer) clearInterval(watchingTimer);
+		refreshTimer = null;
+		watchingTimer = null;
+		if (refreshSec > 0) {
+			refreshTimer = setInterval(() => {
+				void refresh();
+			}, refreshSec * 1000);
+		}
+		if (watchingPollSec > 0) {
+			watchingTimer = setInterval(() => {
+				void refreshWatching();
+			}, watchingPollSec * 1000);
+		}
+	}
 
 	let menuOpen = $state(false);
 	let menuX = $state(0);
@@ -103,22 +121,12 @@
 		void refresh();
 		void refreshWatching();
 		// 設定ダイアログで保存があったら再 fetch (YP / お気に入りが変わる
-		// 可能性があるので)。
+		// 可能性があるので)。間隔も再計算する。
 		void listen('config:saved', () => {
 			void refresh();
 		}).then((u) => {
 			configSavedUnlisten = u;
 		});
-		if (AUTO_REFRESH_SEC > 0) {
-			refreshTimer = setInterval(() => {
-				void refresh();
-			}, AUTO_REFRESH_SEC * 1000);
-		}
-		if (WATCHING_POLL_SEC > 0) {
-			watchingTimer = setInterval(() => {
-				void refreshWatching();
-			}, WATCHING_POLL_SEC * 1000);
-		}
 		return () => {
 			if (refreshTimer) clearInterval(refreshTimer);
 			if (watchingTimer) clearInterval(watchingTimer);
@@ -145,6 +153,13 @@
 			const cfg = await getConfig();
 			favorites = cfg?.favorites?.rules ?? [];
 			ypSources = cfg?.yp?.sources ?? [];
+			const newRefresh = cfg?.hub?.refresh_sec ?? 60;
+			const newPoll = cfg?.hub?.watching_poll_sec ?? 5;
+			if (newRefresh !== refreshSec || newPoll !== watchingPollSec) {
+				refreshSec = newRefresh;
+				watchingPollSec = newPoll;
+				restartTimers();
+			}
 			try {
 				await peercastPing();
 			} catch (e) {

@@ -366,6 +366,11 @@ export interface YpCfg {
 	sources: YpSource[];
 }
 
+export interface HubCfg {
+	refresh_sec: number;
+	watching_poll_sec: number;
+}
+
 export interface Config {
 	peercast: PeerCastConfig;
 	bbs: BbsConfig;
@@ -376,6 +381,7 @@ export interface Config {
 	hotkeys?: Record<string, string>;
 	favorites?: FavoritesCfg;
 	yp?: YpCfg;
+	hub?: HubCfg;
 	// other sections exist but are not exposed yet
 	[key: string]: unknown;
 }

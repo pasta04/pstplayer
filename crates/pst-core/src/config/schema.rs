@@ -32,6 +32,36 @@ pub struct Config {
     /// HTTP GET する。詳細は [docs/design/pstplayer-hub-settings.md]。
     #[serde(default)]
     pub yp: YpConfig,
+    /// ハブ画面の表示設定。
+    #[serde(default)]
+    pub hub: HubConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HubConfig {
+    /// YP の自動再 fetch 間隔 (秒)。0 で自動更新無効。既定 60。
+    #[serde(default = "default_hub_refresh_sec")]
+    pub refresh_sec: u32,
+    /// 「視聴中」リストのポーリング間隔 (秒)。0 で無効。既定 5。
+    #[serde(default = "default_hub_watching_poll_sec")]
+    pub watching_poll_sec: u32,
+}
+
+fn default_hub_refresh_sec() -> u32 {
+    60
+}
+
+fn default_hub_watching_poll_sec() -> u32 {
+    5
+}
+
+impl Default for HubConfig {
+    fn default() -> Self {
+        Self {
+            refresh_sec: default_hub_refresh_sec(),
+            watching_poll_sec: default_hub_watching_poll_sec(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
