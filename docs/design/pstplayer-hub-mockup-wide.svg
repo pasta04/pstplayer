@@ -1,0 +1,419 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1780 720" width="1780" height="720" font-family="Meiryo,'Yu Gothic UI','MS Gothic',sans-serif">
+  <!-- Window background -->
+  <rect width="1780" height="720" fill="#ffffff"/>
+
+  <!-- Title bar -->
+  <rect width="1780" height="28" fill="#f0f0f0" stroke="#d8d8d8"/>
+  <rect x="6" y="6" width="16" height="16" rx="2" fill="#46a3ff"/>
+  <text x="26" y="20" fill="#202020" font-size="13">PSTPlayer · YP / 録画 ハブ (ウィンドウ最大化 / 全カラム表示)</text>
+  <text x="1710" y="20" fill="#202020" font-size="14">—  ▢  ×</text>
+
+  <!-- Menu bar -->
+  <rect y="28" width="1780" height="22" fill="#fafafa" stroke="#e0e0e0"/>
+  <text x="10" y="44" fill="#1a1a1a" font-size="12">ファイル(F)</text>
+  <text x="86" y="44" fill="#1a1a1a" font-size="12">表示(V)</text>
+  <text x="138" y="44" fill="#1a1a1a" font-size="12">録画(R)</text>
+  <text x="198" y="44" fill="#1a1a1a" font-size="12">オプション(O)</text>
+
+  <!-- Toolbar -->
+  <rect y="50" width="1780" height="32" fill="#f4f4f4" stroke="#e0e0e0"/>
+  <rect x="8" y="58" width="60" height="20" rx="2" fill="#fff" stroke="#bbb"/>
+  <text x="14" y="72" fill="#333" font-size="11">↻ 更新</text>
+  <rect x="76" y="58" width="74" height="20" rx="2" fill="#fff" stroke="#bbb"/>
+  <text x="83" y="72" fill="#333" font-size="11">★ お気に入り</text>
+  <rect x="158" y="58" width="70" height="20" rx="2" fill="#fff" stroke="#bbb"/>
+  <text x="166" y="72" fill="#333" font-size="11">⏺ 録画一覧</text>
+  <rect x="236" y="58" width="64" height="20" rx="2" fill="#fff" stroke="#bbb"/>
+  <text x="244" y="72" fill="#333" font-size="11">⚙ 設定</text>
+  <text x="324" y="72" fill="#666" font-size="11">フィルタ:</text>
+  <rect x="372" y="58" width="320" height="20" rx="2" fill="#fff" stroke="#bbb"/>
+  <text x="380" y="72" fill="#999" font-size="11">名前 / ジャンル / 詳細 / コメント…</text>
+  <text x="710" y="72" fill="#666" font-size="11">新着のみ:</text>
+  <rect x="770" y="60" width="14" height="14" rx="2" fill="#fff" stroke="#888"/>
+  <text x="804" y="72" fill="#666" font-size="11">通知:</text>
+  <rect x="844" y="60" width="14" height="14" rx="2" fill="#46a3ff" stroke="#1f7adb"/>
+  <text x="846" y="71" fill="#fff" font-size="10">✓</text>
+
+  <!-- Tab bar -->
+  <rect y="82" width="1780" height="24" fill="#ececec" stroke="#d4d4d4"/>
+  <rect x="0" y="84" width="120" height="22" fill="#ffffff" stroke="#d4d4d4"/>
+  <text x="20" y="100" fill="#000" font-size="12" font-weight="600">すべて (47)</text>
+  <text x="138" y="100" fill="#555" font-size="12">お気に入り (8)</text>
+  <text x="242" y="100" fill="#c0392b" font-size="12" font-weight="600">● 録画中 (3)</text>
+  <text x="340" y="100" fill="#555" font-size="12">視聴中 (1)</text>
+  <text x="416" y="100" fill="#555" font-size="12">新着 (5)</text>
+
+  <!-- Column headers (15 列) -->
+  <rect y="106" width="1780" height="22" fill="#e6e6e6" stroke="#cfcfcf"/>
+  <text x="8"    y="121" fill="#333" font-size="11" font-weight="600">チャンネル名</text>
+  <text x="172"  y="121" fill="#333" font-size="11" font-weight="600">ジャンル - 詳細 「コメント」 アーティスト/タイトル/アルバム</text>
+  <text x="658"  y="121" fill="#333" font-size="11" font-weight="600" text-anchor="end">👤 リスナー</text>
+  <text x="710"  y="121" fill="#333" font-size="11" font-weight="600" text-anchor="end">kbps</text>
+  <text x="716"  y="121" fill="#333" font-size="11" font-weight="600">配信時間</text>
+  <text x="768"  y="121" fill="#333" font-size="11" font-weight="600">形式</text>
+  <text x="808"  y="121" fill="#333" font-size="11" font-weight="600">ステータス</text>
+  <text x="860"  y="121" fill="#333" font-size="11" font-weight="600">フィルタ</text>
+  <text x="994"  y="121" fill="#333" font-size="11" font-weight="600">録画</text>
+  <text x="1058" y="121" fill="#333" font-size="11" font-weight="600">コンタクト URL</text>
+  <text x="1282" y="121" fill="#333" font-size="11" font-weight="600">YP</text>
+  <text x="1326" y="121" fill="#333" font-size="11" font-weight="600">YP URL</text>
+  <text x="1470" y="121" fill="#333" font-size="11" font-weight="600">channel ID</text>
+  <text x="1672" y="121" fill="#333" font-size="11" font-weight="600">TIP</text>
+
+  <!-- Vertical column dividers (薄いグリッド線) -->
+  <g stroke="#ededed" stroke-width="1">
+    <line x1="168" y1="128" x2="168" y2="694"/>
+    <line x1="600" y1="128" x2="600" y2="694"/>
+    <line x1="662" y1="128" x2="662" y2="694"/>
+    <line x1="712" y1="128" x2="712" y2="694"/>
+    <line x1="762" y1="128" x2="762" y2="694"/>
+    <line x1="804" y1="128" x2="804" y2="694"/>
+    <line x1="854" y1="128" x2="854" y2="694"/>
+    <line x1="990" y1="128" x2="990" y2="694"/>
+    <line x1="1054" y1="128" x2="1054" y2="694"/>
+    <line x1="1278" y1="128" x2="1278" y2="694"/>
+    <line x1="1322" y1="128" x2="1322" y2="694"/>
+    <line x1="1466" y1="128" x2="1466" y2="694"/>
+    <line x1="1668" y1="128" x2="1668" y2="694"/>
+  </g>
+
+  <!-- ===== Rows (色は favorites.color のみ。録画状態は「録画」列で独立) ===== -->
+  <!-- Row 1: イベント告知 (黄) -->
+  <rect y="128" width="1780" height="22" fill="#fff5b8" stroke="#f0e0a0"/>
+  <text x="8"    y="143" fill="#0a4cad" font-size="11" text-decoration="underline">EventCh1</text>
+  <text x="172"  y="143" fill="#333"    font-size="11">[イベント告知 - 06/06(土) 21:00] サイハテ &lt;Free&gt;</text>
+  <text x="658"  y="143" fill="#888"    font-size="11" text-anchor="end">- / 2</text>
+  <text x="710"  y="143" fill="#666"    font-size="11" text-anchor="end">0</text>
+  <text x="716"  y="143" fill="#888"    font-size="11">00:00</text>
+  <text x="768"  y="143" fill="#555"    font-size="11">RAW</text>
+  <text x="808"  y="143" fill="#555"    font-size="11">click</text>
+  <text x="860"  y="143" fill="#7a5d00" font-size="11" font-weight="600">イベント告知</text>
+  <text x="994"  y="143" fill="#888"    font-size="11">—</text>
+  <text x="1058" y="143" fill="#0a4cad" font-size="11" text-decoration="underline">https://wiki.example/peca/6/06</text>
+  <text x="1282" y="143" fill="#333"    font-size="11">SP</text>
+  <text x="1326" y="143" fill="#0a4cad" font-size="11" text-decoration="underline">http://eventyp.example/</text>
+  <text x="1470" y="143" fill="#666"    font-size="9.5">00000000000000000000000000000001</text>
+  <text x="1672" y="143" fill="#666"    font-size="11">0.0.0.0:0</text>
+
+  <!-- Row 2: イベント告知 -->
+  <rect y="150" width="1780" height="22" fill="#fff5b8" stroke="#f0e0a0"/>
+  <text x="8"    y="165" fill="#0a4cad" font-size="11" text-decoration="underline">EventCh2</text>
+  <text x="172"  y="165" fill="#333"    font-size="11">[イベント告知 - 06/13(土) 21:00] LK &lt;Free&gt;</text>
+  <text x="658"  y="165" fill="#888"    font-size="11" text-anchor="end">- / 2</text>
+  <text x="710"  y="165" fill="#666"    font-size="11" text-anchor="end">0</text>
+  <text x="716"  y="165" fill="#888"    font-size="11">00:00</text>
+  <text x="768"  y="165" fill="#555"    font-size="11">RAW</text>
+  <text x="808"  y="165" fill="#555"    font-size="11">click</text>
+  <text x="860"  y="165" fill="#7a5d00" font-size="11" font-weight="600">イベント告知</text>
+  <text x="994"  y="165" fill="#888"    font-size="11">—</text>
+  <text x="1058" y="165" fill="#0a4cad" font-size="11" text-decoration="underline">https://wiki.example/peca/6/13</text>
+  <text x="1282" y="165" fill="#333"    font-size="11">SP</text>
+  <text x="1326" y="165" fill="#0a4cad" font-size="11" text-decoration="underline">http://eventyp.example/</text>
+  <text x="1470" y="165" fill="#666"    font-size="9.5">00000000000000000000000000000002</text>
+  <text x="1672" y="165" fill="#666"    font-size="11">0.0.0.0:0</text>
+
+  <!-- Row 3: 確実に録画 (シアン) — 録画中 -->
+  <rect y="172" width="1780" height="22" fill="#9be8df" stroke="#7fd0c6"/>
+  <text x="8"    y="187" fill="#0a4cad" font-size="11" text-decoration="underline" font-weight="600">★ inatami</text>
+  <text x="172"  y="187" fill="#1a1a1a" font-size="11" font-weight="600">[STG - 怒首領蜂大往生EGクライアス] &lt;Free&gt; 「2 周目トレモ中」</text>
+  <text x="658"  y="187" fill="#222"    font-size="11" text-anchor="end" font-weight="600">15 / 28</text>
+  <text x="710"  y="187" fill="#222"    font-size="11" text-anchor="end">1528</text>
+  <text x="716"  y="187" fill="#222"    font-size="11">00:39</text>
+  <text x="768"  y="187" fill="#222"    font-size="11">FLV</text>
+  <text x="808"  y="187" fill="#222"    font-size="11">click</text>
+  <text x="860"  y="187" fill="#005a52" font-size="11" font-weight="600">確実に録画するお気に入り</text>
+  <text x="994"  y="187" fill="#c0392b" font-size="11" font-weight="600">● 録画中</text>
+  <text x="1058" y="187" fill="#0a4cad" font-size="11" text-decoration="underline">http://bbs.example/inatami/</text>
+  <text x="1282" y="187" fill="#222"    font-size="11">SP</text>
+  <text x="1326" y="187" fill="#0a4cad" font-size="11" text-decoration="underline">http://bayonet.example/sp/</text>
+  <text x="1470" y="187" fill="#444"    font-size="9.5">4841FE17DA80A181A8BCD3A0A9FE...</text>
+  <text x="1672" y="187" fill="#444"    font-size="11">192.0.2.1:7144</text>
+
+  <!-- Row 4: 通常 -->
+  <rect y="194" width="1780" height="22" fill="#ffffff"/>
+  <text x="8"    y="209" fill="#0a4cad" font-size="11" text-decoration="underline">ちゃんまん</text>
+  <text x="172"  y="209" fill="#333"    font-size="11">[Game - FF16 - &lt;Free&gt;] 「らじいり!! (暗くない)」</text>
+  <text x="658"  y="209" fill="#444"    font-size="11" text-anchor="end">31 / 36</text>
+  <text x="710"  y="209" fill="#444"    font-size="11" text-anchor="end">2160</text>
+  <text x="716"  y="209" fill="#666"    font-size="11">01:55</text>
+  <text x="768"  y="209" fill="#444"    font-size="11">FLV</text>
+  <text x="808"  y="209" fill="#444"    font-size="11">click</text>
+  <text x="860"  y="209" fill="#888"    font-size="11">—</text>
+  <text x="994"  y="209" fill="#888"    font-size="11">—</text>
+  <text x="1058" y="209" fill="#0a4cad" font-size="11" text-decoration="underline">http://bbs.example/Champom/</text>
+  <text x="1282" y="209" fill="#444"    font-size="11">SP</text>
+  <text x="1326" y="209" fill="#0a4cad" font-size="11" text-decoration="underline">http://bayonet.example/sp/</text>
+  <text x="1470" y="209" fill="#666"    font-size="9.5">E8EE5DB0D0226A151AF586AB8053...</text>
+  <text x="1672" y="209" fill="#666"    font-size="11">198.51.100.7:7144</text>
+
+  <!-- Row 5: 専スレお気に入り (薄緑) -->
+  <rect y="216" width="1780" height="22" fill="#c9f0c5" stroke="#b0dca8"/>
+  <text x="8"    y="231" fill="#0a4cad" font-size="11" text-decoration="underline" font-weight="600">★ しまぱん先生</text>
+  <text x="172"  y="231" fill="#1a1a1a" font-size="11" font-weight="600">[Game - 僕のヒーローアカデミア ULTRA RUMBLE 短時間] 「どこか出かけたい」</text>
+  <text x="658"  y="231" fill="#222"    font-size="11" text-anchor="end">11 / 11</text>
+  <text x="710"  y="231" fill="#222"    font-size="11" text-anchor="end">1928</text>
+  <text x="716"  y="231" fill="#444"    font-size="11">02:23</text>
+  <text x="768"  y="231" fill="#222"    font-size="11">FLV</text>
+  <text x="808"  y="231" fill="#222"    font-size="11">click</text>
+  <text x="860"  y="231" fill="#2c5e29" font-size="11" font-weight="600">専スレお気に入り</text>
+  <text x="994"  y="231" fill="#888"    font-size="11">—</text>
+  <text x="1058" y="231" fill="#0a4cad" font-size="11" text-decoration="underline">https://bbs.example/shimapan/</text>
+  <text x="1282" y="231" fill="#222"    font-size="11">SP</text>
+  <text x="1326" y="231" fill="#0a4cad" font-size="11" text-decoration="underline">http://bayonet.example/sp/</text>
+  <text x="1470" y="231" fill="#444"    font-size="9.5">0CEA3D5B4D3D2D3CCD41D8C5D6F...</text>
+  <text x="1672" y="231" fill="#444"    font-size="11">203.0.113.5:7144</text>
+
+  <!-- Row 6: 本人お気に入り (ピンク) — 録画中 -->
+  <rect y="238" width="1780" height="22" fill="#f6b8d4" stroke="#df9bbc"/>
+  <text x="8"    y="253" fill="#0a4cad" font-size="11" text-decoration="underline" font-weight="600">★ ニャム</text>
+  <text x="172"  y="253" fill="#1a1a1a" font-size="11" font-weight="600">[Game - エンドフィールド - &lt;Free&gt;] 「エリア開放しつつ電柱、ジップライン業者」</text>
+  <text x="658"  y="253" fill="#222"    font-size="11" text-anchor="end">11 / 11</text>
+  <text x="710"  y="253" fill="#222"    font-size="11" text-anchor="end">2127</text>
+  <text x="716"  y="253" fill="#222"    font-size="11">02:27</text>
+  <text x="768"  y="253" fill="#222"    font-size="11">FLV</text>
+  <text x="808"  y="253" fill="#222"    font-size="11">click</text>
+  <text x="860"  y="253" fill="#8a2655" font-size="11" font-weight="600">本人お気に入り</text>
+  <text x="994"  y="253" fill="#c0392b" font-size="11" font-weight="600">● 録画中</text>
+  <text x="1058" y="253" fill="#0a4cad" font-size="11" text-decoration="underline">https://bbs.example/nyamuru7/</text>
+  <text x="1282" y="253" fill="#222"    font-size="11">SP</text>
+  <text x="1326" y="253" fill="#0a4cad" font-size="11" text-decoration="underline">http://bayonet.example/sp/</text>
+  <text x="1470" y="253" fill="#444"    font-size="9.5">4604DA3F2E5C78AAB5D1532BE40...</text>
+  <text x="1672" y="253" fill="#444"    font-size="11">192.0.2.34:7144</text>
+
+  <!-- Row 7: 通常 -->
+  <rect y="260" width="1780" height="22" fill="#ffffff"/>
+  <text x="8"    y="275" fill="#0a4cad" font-size="11" text-decoration="underline">野獣ch</text>
+  <text x="172"  y="275" fill="#333"    font-size="11">[Steam - ELDEN RING NIGHTREIGN - &lt;Open&gt;] 「一周目おめでとう(遅)」</text>
+  <text x="658"  y="275" fill="#444"    font-size="11" text-anchor="end">- / 1</text>
+  <text x="710"  y="275" fill="#444"    font-size="11" text-anchor="end">2500</text>
+  <text x="716"  y="275" fill="#666"    font-size="11">01:14</text>
+  <text x="768"  y="275" fill="#444"    font-size="11">FLV</text>
+  <text x="808"  y="275" fill="#444"    font-size="11">click</text>
+  <text x="860"  y="275" fill="#888"    font-size="11">—</text>
+  <text x="994"  y="275" fill="#888"    font-size="11">—</text>
+  <text x="1058" y="275" fill="#0a4cad" font-size="11" text-decoration="underline">http://bbs.example/Nojuchi7144/</text>
+  <text x="1282" y="275" fill="#444"    font-size="11">SP</text>
+  <text x="1326" y="275" fill="#0a4cad" font-size="11" text-decoration="underline">http://bayonet.example/sp/</text>
+  <text x="1470" y="275" fill="#666"    font-size="9.5">3571BB320732394D4778085585B53...</text>
+  <text x="1672" y="275" fill="#666"    font-size="11">198.51.100.8:7144</text>
+
+  <!-- Row 8: 専スレお気に入り (薄緑) -->
+  <rect y="282" width="1780" height="22" fill="#c9f0c5" stroke="#b0dca8"/>
+  <text x="8"    y="297" fill="#0a4cad" font-size="11" text-decoration="underline" font-weight="600">★ キング</text>
+  <text x="172"  y="297" fill="#1a1a1a" font-size="11">[プログラミング - &lt;Free&gt;] 「Unity と AI の連携がどこまで出来るのか知りたい/調べたい」</text>
+  <text x="658"  y="297" fill="#222"    font-size="11" text-anchor="end">106 / 110</text>
+  <text x="710"  y="297" fill="#222"    font-size="11" text-anchor="end">2127</text>
+  <text x="716"  y="297" fill="#444"    font-size="11">05:30</text>
+  <text x="768"  y="297" fill="#222"    font-size="11">FLV</text>
+  <text x="808"  y="297" fill="#222"    font-size="11">click</text>
+  <text x="860"  y="297" fill="#2c5e29" font-size="11" font-weight="600">専スレお気に入り</text>
+  <text x="994"  y="297" fill="#888"    font-size="11">—</text>
+  <text x="1058" y="297" fill="#0a4cad" font-size="11" text-decoration="underline">http://bbs.example/king7144/</text>
+  <text x="1282" y="297" fill="#222"    font-size="11">SP</text>
+  <text x="1326" y="297" fill="#0a4cad" font-size="11" text-decoration="underline">http://bayonet.example/sp/</text>
+  <text x="1470" y="297" fill="#444"    font-size="9.5">0C5AAA97B639B89A20CCEECE7F73...</text>
+  <text x="1672" y="297" fill="#444"    font-size="11">192.0.2.99:7144</text>
+
+  <!-- Row 9: シューター (オレンジ) — 録画中 -->
+  <rect y="304" width="1780" height="22" fill="#ffd9a0" stroke="#e3bc88"/>
+  <text x="8"    y="319" fill="#0a4cad" font-size="11" text-decoration="underline" font-weight="600">★ 依存症</text>
+  <text x="172"  y="319" fill="#1a1a1a" font-size="11" font-weight="600">[石積 - FF11 - &lt;Free&gt;] 「見れない方はこちら https://example.tv/nice_bacon おつまみ…」</text>
+  <text x="658"  y="319" fill="#222"    font-size="11" text-anchor="end">6 / 6</text>
+  <text x="710"  y="319" fill="#222"    font-size="11" text-anchor="end">948</text>
+  <text x="716"  y="319" fill="#222"    font-size="11">02:43</text>
+  <text x="768"  y="319" fill="#222"    font-size="11">FLV</text>
+  <text x="808"  y="319" fill="#222"    font-size="11">click</text>
+  <text x="860"  y="319" fill="#a4540a" font-size="11" font-weight="600">シューター</text>
+  <text x="994"  y="319" fill="#c0392b" font-size="11" font-weight="600">● 録画中</text>
+  <text x="1058" y="319" fill="#0a4cad" font-size="11" text-decoration="underline">https://bbs.example/peercastgeneral/</text>
+  <text x="1282" y="319" fill="#222"    font-size="11">SP</text>
+  <text x="1326" y="319" fill="#0a4cad" font-size="11" text-decoration="underline">http://bayonet.example/sp/</text>
+  <text x="1470" y="319" fill="#444"    font-size="9.5">8183192508A9FBC88B119DE4B06...</text>
+  <text x="1672" y="319" fill="#444"    font-size="11">203.0.113.86:7148</text>
+
+  <!-- Row 10: Status (通常、サーバ情報) -->
+  <rect y="326" width="1780" height="22" fill="#ffffff"/>
+  <text x="8"    y="341" fill="#0a4cad" font-size="11" text-decoration="underline">SP◆アップロード帯域</text>
+  <text x="172"  y="341" fill="#666"    font-size="11">[No data] お知らせは通常運転 測定はコンタクト URL から</text>
+  <text x="658"  y="341" fill="#888"    font-size="11" text-anchor="end">- / 9</text>
+  <text x="710"  y="341" fill="#888"    font-size="11" text-anchor="end">0</text>
+  <text x="716"  y="341" fill="#888"    font-size="11">00:00</text>
+  <text x="768"  y="341" fill="#555"    font-size="11">RAW</text>
+  <text x="808"  y="341" fill="#555"    font-size="11">click</text>
+  <text x="860"  y="341" fill="#888"    font-size="11">Status</text>
+  <text x="994"  y="341" fill="#888"    font-size="11">—</text>
+  <text x="1058" y="341" fill="#0a4cad" font-size="11" text-decoration="underline">http://bayonet.example/sp/uptest</text>
+  <text x="1282" y="341" fill="#444"    font-size="11">SP</text>
+  <text x="1326" y="341" fill="#0a4cad" font-size="11" text-decoration="underline">http://bayonet.example/sp/</text>
+  <text x="1470" y="341" fill="#666"    font-size="9.5">00000000000000000000000000000010</text>
+  <text x="1672" y="341" fill="#666"    font-size="11">198.51.100.10:7144</text>
+
+  <!-- Row 11: p@ Status -->
+  <rect y="348" width="1780" height="22" fill="#ffffff"/>
+  <text x="8"    y="363" fill="#0a4cad" font-size="11" text-decoration="underline">p@◆Status</text>
+  <text x="172"  y="363" fill="#666"    font-size="11">[平常運転] 「Uptime:0:14:33:01 Updated:2026-06-01T22:52:13+09:00」</text>
+  <text x="658"  y="363" fill="#888"    font-size="11" text-anchor="end">- / 9</text>
+  <text x="710"  y="363" fill="#888"    font-size="11" text-anchor="end">0</text>
+  <text x="716"  y="363" fill="#888"    font-size="11">00:00</text>
+  <text x="768"  y="363" fill="#555"    font-size="11">RAW</text>
+  <text x="808"  y="363" fill="#555"    font-size="11">click</text>
+  <text x="860"  y="363" fill="#888"    font-size="11">Status</text>
+  <text x="994"  y="363" fill="#888"    font-size="11">—</text>
+  <text x="1058" y="363" fill="#0a4cad" font-size="11" text-decoration="underline">https://bsky.example/profile/p-at.net</text>
+  <text x="1282" y="363" fill="#444"    font-size="11">p@</text>
+  <text x="1326" y="363" fill="#0a4cad" font-size="11" text-decoration="underline">http://p-at.example/</text>
+  <text x="1470" y="363" fill="#666"    font-size="9.5">00000000000000000000000000000011</text>
+  <text x="1672" y="363" fill="#666"    font-size="11">198.51.100.11:7144</text>
+
+  <!-- Row 12: NG (赤背景 + 白文字、文字色も指定可) -->
+  <rect y="370" width="1780" height="22" fill="#e53935" stroke="#c62828"/>
+  <text x="8"    y="385" fill="#ffffff" font-size="11" text-decoration="underline" font-weight="600">NG ワード入り</text>
+  <text x="172"  y="385" fill="#ffffff" font-size="11">「麻雀 へたれ AVA アスカ駅伝…」 ※ 無視リスト対象</text>
+  <text x="658"  y="385" fill="#ffffff" font-size="11" text-anchor="end">- / 1</text>
+  <text x="710"  y="385" fill="#ffffff" font-size="11" text-anchor="end">1296</text>
+  <text x="716"  y="385" fill="#ffffff" font-size="11">05:25</text>
+  <text x="768"  y="385" fill="#ffffff" font-size="11">FLV</text>
+  <text x="808"  y="385" fill="#ffffff" font-size="11">click</text>
+  <text x="860"  y="385" fill="#ffffff" font-size="11" font-weight="600">NG (無視)</text>
+  <text x="994"  y="385" fill="#ffffff" font-size="11">—</text>
+  <text x="1058" y="385" fill="#ffffff" font-size="11" text-decoration="underline">http://bbs.example/ng/</text>
+  <text x="1282" y="385" fill="#ffffff" font-size="11">SP</text>
+  <text x="1326" y="385" fill="#ffffff" font-size="11" text-decoration="underline">http://bayonet.example/sp/</text>
+  <text x="1470" y="385" fill="#ffffff" font-size="9.5">00000000000000000000000000000099</text>
+  <text x="1672" y="385" fill="#ffffff" font-size="11">203.0.113.99:7144</text>
+
+  <!-- Row 13: 通常 -->
+  <rect y="392" width="1780" height="22" fill="#ffffff"/>
+  <text x="8"    y="407" fill="#0a4cad" font-size="11" text-decoration="underline">おさかな</text>
+  <text x="172"  y="407" fill="#333"    font-size="11">[&lt;Free&gt;] 「ファイナルファンタジー 6」</text>
+  <text x="658"  y="407" fill="#444"    font-size="11" text-anchor="end">- / 1</text>
+  <text x="710"  y="407" fill="#444"    font-size="11" text-anchor="end">1760</text>
+  <text x="716"  y="407" fill="#666"    font-size="11">09:32</text>
+  <text x="768"  y="407" fill="#444"    font-size="11">FLV</text>
+  <text x="808"  y="407" fill="#444"    font-size="11">click</text>
+  <text x="860"  y="407" fill="#888"    font-size="11">—</text>
+  <text x="994"  y="407" fill="#888"    font-size="11">—</text>
+  <text x="1058" y="407" fill="#0a4cad" font-size="11" text-decoration="underline">https://bbs.example/osakana/</text>
+  <text x="1282" y="407" fill="#444"    font-size="11">SP</text>
+  <text x="1326" y="407" fill="#0a4cad" font-size="11" text-decoration="underline">http://bayonet.example/sp/</text>
+  <text x="1470" y="407" fill="#666"    font-size="9.5">E73EFF09F3674F4B5C32DDC4DFA...</text>
+  <text x="1672" y="407" fill="#666"    font-size="11">192.0.2.71:7144</text>
+
+  <!-- Row 14: 通常 -->
+  <rect y="414" width="1780" height="22" fill="#ffffff"/>
+  <text x="8"    y="429" fill="#0a4cad" font-size="11" text-decoration="underline">おるch</text>
+  <text x="172"  y="429" fill="#333"    font-size="11">[&lt;Free&gt;] 「台風一過で即終了、女性視点からの戦国恋愛ゲーム」</text>
+  <text x="658"  y="429" fill="#444"    font-size="11" text-anchor="end">3 / 4</text>
+  <text x="710"  y="429" fill="#444"    font-size="11" text-anchor="end">2660</text>
+  <text x="716"  y="429" fill="#666"    font-size="11">01:14</text>
+  <text x="768"  y="429" fill="#444"    font-size="11">FLV</text>
+  <text x="808"  y="429" fill="#444"    font-size="11">click</text>
+  <text x="860"  y="429" fill="#888"    font-size="11">—</text>
+  <text x="994"  y="429" fill="#888"    font-size="11">—</text>
+  <text x="1058" y="429" fill="#0a4cad" font-size="11" text-decoration="underline">https://bbs.example/oruch/</text>
+  <text x="1282" y="429" fill="#444"    font-size="11">SP</text>
+  <text x="1326" y="429" fill="#0a4cad" font-size="11" text-decoration="underline">http://bayonet.example/sp/</text>
+  <text x="1470" y="429" fill="#666"    font-size="9.5">AA56FC6A48B70547057A2003E4A...</text>
+  <text x="1672" y="429" fill="#666"    font-size="11">198.51.100.14:7144</text>
+
+  <!-- Row 15: 通常 -->
+  <rect y="436" width="1780" height="22" fill="#ffffff"/>
+  <text x="8"    y="451" fill="#0a4cad" font-size="11" text-decoration="underline">ニュ</text>
+  <text x="172"  y="451" fill="#333"    font-size="11">[18x AI - 初音ミクちゃんが我々を応援してくれる - &lt;Free&gt;] 「ちょっとエッチかもしれない…」</text>
+  <text x="658"  y="451" fill="#444"    font-size="11" text-anchor="end">7 / 7</text>
+  <text x="710"  y="451" fill="#444"    font-size="11" text-anchor="end">2160</text>
+  <text x="716"  y="451" fill="#666"    font-size="11">10:39</text>
+  <text x="768"  y="451" fill="#444"    font-size="11">FLV</text>
+  <text x="808"  y="451" fill="#444"    font-size="11">click</text>
+  <text x="860"  y="451" fill="#888"    font-size="11">—</text>
+  <text x="994"  y="451" fill="#888"    font-size="11">—</text>
+  <text x="1058" y="451" fill="#0a4cad" font-size="11" text-decoration="underline">https://bbs.example/nya/</text>
+  <text x="1282" y="451" fill="#444"    font-size="11">SP</text>
+  <text x="1326" y="451" fill="#0a4cad" font-size="11" text-decoration="underline">http://bayonet.example/sp/</text>
+  <text x="1470" y="451" fill="#666"    font-size="9.5">3FD4A61DCD3E4A2C16C93D9F228A...</text>
+  <text x="1672" y="451" fill="#666"    font-size="11">192.0.2.15:7144</text>
+
+  <!-- Selected (薄青) -->
+  <rect y="458" width="1780" height="22" fill="#cce0ff" stroke="#7faaff"/>
+  <text x="8"    y="473" fill="#0a4cad" font-size="11" text-decoration="underline">ゆべし</text>
+  <text x="172"  y="473" fill="#1a1a1a" font-size="11">[18x絵 - ゴラミー - &lt;Open&gt;]</text>
+  <text x="658"  y="473" fill="#222"    font-size="11" text-anchor="end">- / 1</text>
+  <text x="710"  y="473" fill="#222"    font-size="11" text-anchor="end">900</text>
+  <text x="716"  y="473" fill="#444"    font-size="11">01:43</text>
+  <text x="768"  y="473" fill="#222"    font-size="11">FLV</text>
+  <text x="808"  y="473" fill="#222"    font-size="11">click</text>
+  <text x="860"  y="473" fill="#888"    font-size="11">—</text>
+  <text x="994"  y="473" fill="#888"    font-size="11">—</text>
+  <text x="1058" y="473" fill="#0a4cad" font-size="11" text-decoration="underline">http://bbs.example/yubeshi/</text>
+  <text x="1282" y="473" fill="#222"    font-size="11">SP</text>
+  <text x="1326" y="473" fill="#0a4cad" font-size="11" text-decoration="underline">http://bayonet.example/sp/</text>
+  <text x="1470" y="473" fill="#444"    font-size="9.5">B9B4FCC08C156F95BFA9B0049200...</text>
+  <text x="1672" y="473" fill="#444"    font-size="11">203.0.113.45:7144</text>
+
+  <!-- Row 17-19 (no-favorite rows for spacing) -->
+  <rect y="480" width="1780" height="22" fill="#ffffff"/>
+  <text x="8"    y="495" fill="#0a4cad" font-size="11" text-decoration="underline">SP ※FLV 配信が視聴できない場合</text>
+  <text x="172"  y="495" fill="#666"    font-size="11">[Adobe Flash Player のサポート終了に伴い、一部の動画再生ソフトで配信の視聴ができない…]</text>
+  <text x="658"  y="495" fill="#888"    font-size="11" text-anchor="end">- / 9</text>
+  <text x="710"  y="495" fill="#888"    font-size="11" text-anchor="end">0</text>
+  <text x="716"  y="495" fill="#888"    font-size="11">00:00</text>
+  <text x="768"  y="495" fill="#555"    font-size="11">RAW</text>
+  <text x="808"  y="495" fill="#555"    font-size="11">click</text>
+  <text x="860"  y="495" fill="#888"    font-size="11">—</text>
+  <text x="994"  y="495" fill="#888"    font-size="11">—</text>
+  <text x="1058" y="495" fill="#0a4cad" font-size="11" text-decoration="underline">http://bayonet.example/sp/flv</text>
+  <text x="1282" y="495" fill="#555"    font-size="11">SP</text>
+  <text x="1326" y="495" fill="#0a4cad" font-size="11" text-decoration="underline">http://bayonet.example/sp/</text>
+  <text x="1470" y="495" fill="#666"    font-size="9.5">00000000000000000000000000000017</text>
+  <text x="1672" y="495" fill="#666"    font-size="11">0.0.0.0:0</text>
+
+  <rect y="502" width="1780" height="22" fill="#ffffff"/>
+  <text x="8"    y="517" fill="#0a4cad" font-size="11" text-decoration="underline">み☆ま</text>
+  <text x="172"  y="517" fill="#333"    font-size="11">[AI - 声いじり - &lt;Free&gt;] 「声学習します」 180.49.9.21 via Peercast Gateway</text>
+  <text x="658"  y="517" fill="#444"    font-size="11" text-anchor="end">- / 1</text>
+  <text x="710"  y="517" fill="#444"    font-size="11" text-anchor="end">2660</text>
+  <text x="716"  y="517" fill="#666"    font-size="11">00:39</text>
+  <text x="768"  y="517" fill="#444"    font-size="11">FLV</text>
+  <text x="808"  y="517" fill="#444"    font-size="11">click</text>
+  <text x="860"  y="517" fill="#888"    font-size="11">—</text>
+  <text x="994"  y="517" fill="#888"    font-size="11">—</text>
+  <text x="1058" y="517" fill="#0a4cad" font-size="11" text-decoration="underline">http://bayonet.example/sp/mim</text>
+  <text x="1282" y="517" fill="#444"    font-size="11">SP</text>
+  <text x="1326" y="517" fill="#0a4cad" font-size="11" text-decoration="underline">http://bayonet.example/sp/</text>
+  <text x="1470" y="517" fill="#666"    font-size="9.5">BE02AE7300B782B5D63BAC042D0...</text>
+  <text x="1672" y="517" fill="#666"    font-size="11">192.0.2.18:7144</text>
+
+  <rect y="524" width="1780" height="22" fill="#ffffff"/>
+  <text x="8"    y="539" fill="#0a4cad" font-size="11" text-decoration="underline">オヤシロch</text>
+  <text x="172"  y="539" fill="#333"    font-size="11">[Amazon ヤフショポイントセール - &lt;Free&gt;] 「炊飯器など購入済」</text>
+  <text x="658"  y="539" fill="#444"    font-size="11" text-anchor="end">17 / 22</text>
+  <text x="710"  y="539" fill="#444"    font-size="11" text-anchor="end">2660</text>
+  <text x="716"  y="539" fill="#666"    font-size="11">02:18</text>
+  <text x="768"  y="539" fill="#444"    font-size="11">FLV</text>
+  <text x="808"  y="539" fill="#444"    font-size="11">click</text>
+  <text x="860"  y="539" fill="#888"    font-size="11">—</text>
+  <text x="994"  y="539" fill="#888"    font-size="11">—</text>
+  <text x="1058" y="539" fill="#0a4cad" font-size="11" text-decoration="underline">http://bbs.example/oyashiro/</text>
+  <text x="1282" y="539" fill="#444"    font-size="11">SP</text>
+  <text x="1326" y="539" fill="#0a4cad" font-size="11" text-decoration="underline">http://bayonet.example/sp/</text>
+  <text x="1470" y="539" fill="#666"    font-size="9.5">D0085C5BF238760D708B39C4F47...</text>
+  <text x="1672" y="539" fill="#666"    font-size="11">198.51.100.19:7144</text>
+
+  <!-- Status bar -->
+  <rect y="694" width="1780" height="26" fill="#f0f0f0" stroke="#d4d4d4"/>
+  <text x="10"   y="711" fill="#333"    font-size="11">[SP] https://bbs.example/ChaChaCh/</text>
+  <text x="540"  y="711" fill="#0a4cad" font-size="11" text-decoration="underline">peercast.lan:7144</text>
+  <text x="720"  y="711" fill="#666"    font-size="11">YP: pcyp.example/index.txt</text>
+  <text x="1500" y="711" fill="#333"    font-size="11">★ お気に入り 8 / 全 47 ch · 録画 3 本進行中 · 22:53</text>
+
+  <!-- Legend -->
+  <g transform="translate(420,560)">
+    <rect width="940" height="124" fill="#f8f8f8" stroke="#ccc"/>
+    <text x="14" y="22" fill="#1a1a1a" font-size="13" font-weight="600">カラム構成 (ウィンドウ幅に応じて表示/非表示・幅をユーザ調整可)</text>
+    <text x="14" y="40" fill="#333" font-size="11">必須: チャンネル名 / 詳細 / 👤 / kbps / 配信時間 / 形式 / フィルタ (= 適用されたルール名) / 録画 / コンタクト</text>
+    <text x="14" y="56" fill="#333" font-size="11">任意 (既定で非表示も可): ステータス (click) / YP / YP URL / channel ID / TIP — デバッグ・上級ユーザ向け</text>
+    <text x="14" y="74" fill="#1a1a1a" font-size="12" font-weight="600">「フィルタ」列が今までで一番のミソ:</text>
+    <text x="14" y="90" fill="#333" font-size="11">行が色付いている時に「どのお気に入りルールに当たって着色されたか」をその場で見せる。色 + ルール名で一目で判別。</text>
+    <text x="14" y="108" fill="#444" font-size="11">録画状態 (● 録画中 / —) は別カラムに完全独立。文字色 / 背景色は favorites.color, favorites.text_color (新規追加予定) で設定。</text>
+  </g>
+</svg>
