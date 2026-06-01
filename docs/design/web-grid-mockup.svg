@@ -1,0 +1,373 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1320 1720" width="1320" height="1720" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Hiragino Sans',sans-serif">
+  <rect width="1320" height="1720" fill="#252525"/>
+
+  <!-- ============ Section 1: Mobile (375x667) ============ -->
+  <text x="20" y="32" fill="#fff" font-size="18" font-weight="600">📱 モバイル縦 (375 × 667 / 2 列)</text>
+  <g transform="translate(20,50)">
+    <rect width="375" height="667" fill="#0f0f0f" stroke="#444" stroke-width="2"/>
+
+    <!-- Header -->
+    <rect width="375" height="48" fill="#000"/>
+    <text x="14" y="30" fill="#ddd" font-size="20">≡</text>
+    <text x="42" y="30" fill="#fff" font-size="15" font-weight="600">PSTPlayer</text>
+    <text x="300" y="30" fill="#aaa" font-size="16">⚙</text>
+    <rect x="330" y="13" width="32" height="22" rx="4" fill="#ff8a3d"/>
+    <text x="338" y="29" fill="#fff" font-size="13" font-weight="600">⊞</text>
+
+    <!-- Toolbar -->
+    <rect y="48" width="375" height="40" fill="#1a1a1a"/>
+    <rect x="8" y="56" width="118" height="24" rx="4" fill="#2a2a2a" stroke="#404040"/>
+    <text x="14" y="72" fill="#eee" font-size="11">＋ チャンネル追加</text>
+    <text x="230" y="72" fill="#888" font-size="11">単独</text>
+    <text x="266" y="72" fill="#555" font-size="11">|</text>
+    <text x="282" y="72" fill="#ff8a3d" font-size="11" font-weight="600">グリッド</text>
+
+    <!-- Tile (0,0) MOXch -->
+    <g transform="translate(8,96)">
+      <rect width="176" height="150" rx="6" fill="#1c1c1c"/>
+      <rect width="176" height="99" rx="6 6 0 0" fill="#050505"/>
+      <text x="82" y="58" fill="#444" font-size="20">▶</text>
+      <rect width="176" height="22" rx="6 6 0 0" fill="#000" fill-opacity="0.5"/>
+      <text x="8" y="16" fill="#fff" font-size="11" font-weight="600">MOXch</text>
+      <circle cx="155" cy="11" r="8" fill="#000" fill-opacity="0.6"/>
+      <circle cx="155" cy="11" r="3.5" fill="#ff5555"/>
+      <circle cx="162" cy="89" r="8" fill="#000" fill-opacity="0.55"/>
+      <text x="159" y="93" fill="#fff" font-size="10">✕</text>
+      <text x="8" y="116" fill="#fff" font-size="11" font-weight="600">MOXch</text>
+      <text x="8" y="130" fill="#aaa" font-size="9">音楽 / live</text>
+      <text x="8" y="144" fill="#bbb" font-size="9">👤 12</text>
+      <text x="158" y="144" fill="#ff8a3d" font-size="12">★</text>
+    </g>
+    <!-- Tile (1,0) ボヘミア -->
+    <g transform="translate(192,96)">
+      <rect width="176" height="150" rx="6" fill="#1c1c1c"/>
+      <rect width="176" height="99" rx="6 6 0 0" fill="#050505"/>
+      <text x="82" y="58" fill="#444" font-size="20">▶</text>
+      <rect width="176" height="22" rx="6 6 0 0" fill="#000" fill-opacity="0.5"/>
+      <text x="8" y="16" fill="#fff" font-size="11" font-weight="600">ボヘミア</text>
+      <circle cx="155" cy="11" r="8" fill="#000" fill-opacity="0.6"/>
+      <circle cx="155" cy="11" r="3.5" fill="#ff5555"/>
+      <circle cx="162" cy="89" r="8" fill="#000" fill-opacity="0.55"/>
+      <text x="159" y="93" fill="#fff" font-size="10">✕</text>
+      <text x="8" y="116" fill="#fff" font-size="11" font-weight="600">ボヘミア</text>
+      <text x="8" y="130" fill="#aaa" font-size="9">雑談</text>
+      <text x="8" y="144" fill="#bbb" font-size="9">👤 8</text>
+    </g>
+    <!-- Tile (0,1) SevenCh -->
+    <g transform="translate(8,254)">
+      <rect width="176" height="150" rx="6" fill="#1c1c1c"/>
+      <rect width="176" height="99" rx="6 6 0 0" fill="#050505"/>
+      <text x="82" y="58" fill="#444" font-size="20">▶</text>
+      <rect width="176" height="22" rx="6 6 0 0" fill="#000" fill-opacity="0.5"/>
+      <text x="8" y="16" fill="#fff" font-size="11" font-weight="600">SevenCh</text>
+      <circle cx="155" cy="11" r="8" fill="#000" fill-opacity="0.6"/>
+      <circle cx="155" cy="11" r="3.5" fill="#ff5555"/>
+      <circle cx="162" cy="89" r="8" fill="#000" fill-opacity="0.55"/>
+      <text x="159" y="93" fill="#fff" font-size="10">✕</text>
+      <text x="8" y="116" fill="#fff" font-size="11" font-weight="600">SevenCh</text>
+      <text x="8" y="130" fill="#aaa" font-size="9">ゲーム</text>
+      <text x="8" y="144" fill="#bbb" font-size="9">👤 6</text>
+    </g>
+    <!-- Tile (1,1) ABCch -->
+    <g transform="translate(192,254)">
+      <rect width="176" height="150" rx="6" fill="#1c1c1c"/>
+      <rect width="176" height="99" rx="6 6 0 0" fill="#050505"/>
+      <text x="82" y="58" fill="#444" font-size="20">▶</text>
+      <rect width="176" height="22" rx="6 6 0 0" fill="#000" fill-opacity="0.5"/>
+      <text x="8" y="16" fill="#fff" font-size="11" font-weight="600">ABCch</text>
+      <circle cx="155" cy="11" r="8" fill="#000" fill-opacity="0.6"/>
+      <circle cx="155" cy="11" r="3.5" fill="#ff5555"/>
+      <circle cx="162" cy="89" r="8" fill="#000" fill-opacity="0.55"/>
+      <text x="159" y="93" fill="#fff" font-size="10">✕</text>
+      <text x="8" y="116" fill="#fff" font-size="11" font-weight="600">ABCch</text>
+      <text x="8" y="130" fill="#aaa" font-size="9">音楽</text>
+      <text x="8" y="144" fill="#bbb" font-size="9">👤 3</text>
+    </g>
+
+    <!-- Hint -->
+    <text x="187" y="430" text-anchor="middle" fill="#888" font-size="10">タップ → 単独モードで開く (BBS 付き)</text>
+    <text x="187" y="450" text-anchor="middle" fill="#666" font-size="9">↓ さらに下にスクロール</text>
+    <text x="8" y="660" fill="#444" font-size="9">スマホ実用上限 2 〜 4 タイル (CPU / 帯域)</text>
+  </g>
+
+  <!-- ============ Section 2: Tablet (768x600) ============ -->
+  <text x="430" y="32" fill="#fff" font-size="18" font-weight="600">📱 タブレット / 横画面スマホ (768 × 600 / 3 列)</text>
+  <g transform="translate(430,50)">
+    <rect width="768" height="600" fill="#0f0f0f" stroke="#444" stroke-width="2"/>
+
+    <!-- Header -->
+    <rect width="768" height="50" fill="#000"/>
+    <text x="20" y="32" fill="#ddd" font-size="22">≡</text>
+    <text x="52" y="32" fill="#fff" font-size="16" font-weight="600">PSTPlayer</text>
+    <text x="650" y="32" fill="#aaa" font-size="16">⚙</text>
+    <rect x="680" y="14" width="76" height="22" rx="4" fill="#ff8a3d"/>
+    <text x="688" y="30" fill="#fff" font-size="12" font-weight="600">⊞ グリッド</text>
+
+    <!-- Toolbar -->
+    <rect y="50" width="768" height="44" fill="#1a1a1a"/>
+    <rect x="12" y="60" width="146" height="24" rx="4" fill="#2a2a2a" stroke="#404040"/>
+    <text x="20" y="76" fill="#eee" font-size="12">＋ チャンネル追加</text>
+    <rect x="166" y="60" width="86" height="24" rx="4" fill="#222"/>
+    <text x="174" y="76" fill="#aaa" font-size="11">⏵ 全停止</text>
+    <text x="560" y="76" fill="#888" font-size="11">単独</text>
+    <text x="596" y="76" fill="#555" font-size="11">|</text>
+    <text x="610" y="76" fill="#ff8a3d" font-size="11" font-weight="600">グリッド (6)</text>
+
+    <!-- Row 1 tile width 244 -->
+    <g transform="translate(12,106)">
+      <rect width="244" height="180" rx="6" fill="#1c1c1c"/>
+      <rect width="244" height="127" rx="6 6 0 0" fill="#050505"/>
+      <text x="112" y="72" fill="#444" font-size="24">▶</text>
+      <rect width="244" height="24" rx="6 6 0 0" fill="#000" fill-opacity="0.5"/>
+      <text x="10" y="17" fill="#fff" font-size="12" font-weight="600">MOXch</text>
+      <circle cx="220" cy="12" r="9" fill="#000" fill-opacity="0.6"/>
+      <circle cx="220" cy="12" r="4" fill="#ff5555"/>
+      <circle cx="228" cy="115" r="9" fill="#000" fill-opacity="0.55"/>
+      <text x="224" y="119" fill="#fff" font-size="11">✕</text>
+      <text x="10" y="146" fill="#fff" font-size="12" font-weight="600">MOXch</text>
+      <text x="10" y="161" fill="#aaa" font-size="10">音楽 / live</text>
+      <text x="10" y="176" fill="#bbb" font-size="10">👤 12</text>
+      <text x="218" y="176" fill="#ff8a3d" font-size="14">★</text>
+    </g>
+    <g transform="translate(268,106)">
+      <rect width="244" height="180" rx="6" fill="#1c1c1c"/>
+      <rect width="244" height="127" rx="6 6 0 0" fill="#050505"/>
+      <text x="112" y="72" fill="#444" font-size="24">▶</text>
+      <rect width="244" height="24" rx="6 6 0 0" fill="#000" fill-opacity="0.5"/>
+      <text x="10" y="17" fill="#fff" font-size="12" font-weight="600">ボヘミア</text>
+      <circle cx="220" cy="12" r="9" fill="#000" fill-opacity="0.6"/>
+      <circle cx="220" cy="12" r="4" fill="#ff5555"/>
+      <circle cx="228" cy="115" r="9" fill="#000" fill-opacity="0.55"/>
+      <text x="224" y="119" fill="#fff" font-size="11">✕</text>
+      <text x="10" y="146" fill="#fff" font-size="12" font-weight="600">ボヘミア</text>
+      <text x="10" y="161" fill="#aaa" font-size="10">雑談</text>
+      <text x="10" y="176" fill="#bbb" font-size="10">👤 8</text>
+    </g>
+    <g transform="translate(524,106)">
+      <rect width="244" height="180" rx="6" fill="#1c1c1c"/>
+      <rect width="244" height="127" rx="6 6 0 0" fill="#050505"/>
+      <text x="112" y="72" fill="#444" font-size="24">▶</text>
+      <rect width="244" height="24" rx="6 6 0 0" fill="#000" fill-opacity="0.5"/>
+      <text x="10" y="17" fill="#fff" font-size="12" font-weight="600">SevenCh</text>
+      <circle cx="220" cy="12" r="9" fill="#000" fill-opacity="0.6"/>
+      <circle cx="220" cy="12" r="4" fill="#ff5555"/>
+      <circle cx="228" cy="115" r="9" fill="#000" fill-opacity="0.55"/>
+      <text x="224" y="119" fill="#fff" font-size="11">✕</text>
+      <text x="10" y="146" fill="#fff" font-size="12" font-weight="600">SevenCh</text>
+      <text x="10" y="161" fill="#aaa" font-size="10">ゲーム / mhr</text>
+      <text x="10" y="176" fill="#bbb" font-size="10">👤 6</text>
+    </g>
+
+    <!-- Row 2 -->
+    <g transform="translate(12,298)">
+      <rect width="244" height="180" rx="6" fill="#1c1c1c"/>
+      <rect width="244" height="127" rx="6 6 0 0" fill="#050505"/>
+      <text x="112" y="72" fill="#444" font-size="24">▶</text>
+      <rect width="244" height="24" rx="6 6 0 0" fill="#000" fill-opacity="0.5"/>
+      <text x="10" y="17" fill="#fff" font-size="12" font-weight="600">ABCch</text>
+      <circle cx="220" cy="12" r="9" fill="#000" fill-opacity="0.6"/>
+      <circle cx="220" cy="12" r="4" fill="#ff5555"/>
+      <circle cx="228" cy="115" r="9" fill="#000" fill-opacity="0.55"/>
+      <text x="224" y="119" fill="#fff" font-size="11">✕</text>
+      <text x="10" y="146" fill="#fff" font-size="12" font-weight="600">ABCch</text>
+      <text x="10" y="161" fill="#aaa" font-size="10">音楽</text>
+      <text x="10" y="176" fill="#bbb" font-size="10">👤 3</text>
+    </g>
+    <g transform="translate(268,298)">
+      <rect width="244" height="180" rx="6" fill="#1c1c1c"/>
+      <rect width="244" height="127" rx="6 6 0 0" fill="#050505"/>
+      <text x="112" y="72" fill="#444" font-size="24">▶</text>
+      <rect width="244" height="24" rx="6 6 0 0" fill="#000" fill-opacity="0.5"/>
+      <text x="10" y="17" fill="#fff" font-size="12" font-weight="600">XYZ Live</text>
+      <circle cx="220" cy="12" r="9" fill="#000" fill-opacity="0.6"/>
+      <circle cx="220" cy="12" r="4" fill="#ff5555"/>
+      <circle cx="228" cy="115" r="9" fill="#000" fill-opacity="0.55"/>
+      <text x="224" y="119" fill="#fff" font-size="11">✕</text>
+      <text x="10" y="146" fill="#fff" font-size="12" font-weight="600">XYZ Live</text>
+      <text x="10" y="161" fill="#aaa" font-size="10">スポーツ</text>
+      <text x="10" y="176" fill="#bbb" font-size="10">👤 2</text>
+    </g>
+    <g transform="translate(524,298)">
+      <rect width="244" height="180" rx="6" fill="#1c1c1c"/>
+      <rect width="244" height="127" rx="6 6 0 0" fill="#050505"/>
+      <text x="112" y="72" fill="#444" font-size="24">▶</text>
+      <rect width="244" height="24" rx="6 6 0 0" fill="#000" fill-opacity="0.5"/>
+      <text x="10" y="17" fill="#fff" font-size="12" font-weight="600">123ch</text>
+      <circle cx="220" cy="12" r="9" fill="#000" fill-opacity="0.6"/>
+      <circle cx="220" cy="12" r="4" fill="#ff5555"/>
+      <circle cx="228" cy="115" r="9" fill="#000" fill-opacity="0.55"/>
+      <text x="224" y="119" fill="#fff" font-size="11">✕</text>
+      <text x="10" y="146" fill="#fff" font-size="12" font-weight="600">123ch</text>
+      <text x="10" y="161" fill="#aaa" font-size="10">雑談</text>
+      <text x="10" y="176" fill="#bbb" font-size="10">👤 5</text>
+    </g>
+
+    <text x="384" y="510" text-anchor="middle" fill="#888" font-size="11">タップ → 単独モードで開く (BBS 付き)</text>
+    <text x="12" y="590" fill="#444" font-size="10">iPad などのタブレット縦、または iPhone 横、768 〜 1024px 帯</text>
+  </g>
+
+  <!-- ============ Section 3: Desktop (1280x720) ============ -->
+  <text x="20" y="782" fill="#fff" font-size="18" font-weight="600">💻 PC ブラウザ (1280 × 720 / 4 列)</text>
+  <g transform="translate(20,800)">
+    <rect width="1280" height="720" fill="#0f0f0f" stroke="#444" stroke-width="2"/>
+
+    <!-- Header -->
+    <rect width="1280" height="56" fill="#000"/>
+    <text x="24" y="36" fill="#ddd" font-size="22">≡</text>
+    <text x="56" y="36" fill="#fff" font-size="17" font-weight="600">PSTPlayer</text>
+    <text x="158" y="36" fill="#888" font-size="13">— Web (LAN)</text>
+    <text x="1060" y="36" fill="#aaa" font-size="13">pst-server.lan:8080</text>
+    <text x="1212" y="36" fill="#aaa" font-size="17">⚙</text>
+    <rect x="1238" y="18" width="28" height="22" rx="4" fill="#ff8a3d"/>
+    <text x="1247" y="34" fill="#fff" font-size="13" font-weight="600">⊞</text>
+
+    <!-- Toolbar -->
+    <rect y="56" width="1280" height="48" fill="#1a1a1a"/>
+    <rect x="16" y="68" width="160" height="24" rx="4" fill="#2a2a2a" stroke="#404040"/>
+    <text x="24" y="84" fill="#eee" font-size="13">＋ チャンネル追加</text>
+    <rect x="184" y="68" width="100" height="24" rx="4" fill="#222"/>
+    <text x="194" y="84" fill="#aaa" font-size="13">⏵ 全停止</text>
+    <rect x="292" y="68" width="120" height="24" rx="4" fill="#222"/>
+    <text x="302" y="84" fill="#aaa" font-size="13">⊞ 自動整列</text>
+    <text x="1070" y="84" fill="#888" font-size="12">単独</text>
+    <text x="1108" y="84" fill="#555" font-size="12">|</text>
+    <text x="1122" y="84" fill="#ff8a3d" font-size="12" font-weight="600">グリッド (8)</text>
+
+    <!-- 4 col × 2 row, tile 300x225 -->
+    <!-- Row 1 -->
+    <g transform="translate(16,120)">
+      <rect width="300" height="225" rx="6" fill="#1c1c1c"/>
+      <rect width="300" height="160" rx="6 6 0 0" fill="#050505"/>
+      <text x="142" y="92" fill="#444" font-size="28">▶</text>
+      <rect width="300" height="26" rx="6 6 0 0" fill="#000" fill-opacity="0.5"/>
+      <text x="12" y="18" fill="#fff" font-size="13" font-weight="600">MOXch</text>
+      <circle cx="275" cy="13" r="10" fill="#000" fill-opacity="0.6"/>
+      <circle cx="275" cy="13" r="4" fill="#ff5555"/>
+      <circle cx="284" cy="148" r="10" fill="#000" fill-opacity="0.55"/>
+      <text x="280" y="152" fill="#fff" font-size="12">✕</text>
+      <text x="12" y="184" fill="#fff" font-size="13" font-weight="600">MOXch</text>
+      <text x="12" y="200" fill="#aaa" font-size="11">音楽 / live</text>
+      <text x="12" y="216" fill="#bbb" font-size="11">👤 12 / 視聴中</text>
+      <text x="272" y="216" fill="#ff8a3d" font-size="16">★</text>
+    </g>
+    <g transform="translate(332,120)">
+      <rect width="300" height="225" rx="6" fill="#1c1c1c"/>
+      <rect width="300" height="160" rx="6 6 0 0" fill="#050505"/>
+      <text x="142" y="92" fill="#444" font-size="28">▶</text>
+      <rect width="300" height="26" rx="6 6 0 0" fill="#000" fill-opacity="0.5"/>
+      <text x="12" y="18" fill="#fff" font-size="13" font-weight="600">ボヘミア</text>
+      <circle cx="275" cy="13" r="10" fill="#000" fill-opacity="0.6"/>
+      <circle cx="275" cy="13" r="4" fill="#ff5555"/>
+      <circle cx="284" cy="148" r="10" fill="#000" fill-opacity="0.55"/>
+      <text x="280" y="152" fill="#fff" font-size="12">✕</text>
+      <text x="12" y="184" fill="#fff" font-size="13" font-weight="600">ボヘミア</text>
+      <text x="12" y="200" fill="#aaa" font-size="11">雑談</text>
+      <text x="12" y="216" fill="#bbb" font-size="11">👤 8</text>
+    </g>
+    <g transform="translate(648,120)">
+      <rect width="300" height="225" rx="6" fill="#1c1c1c"/>
+      <rect width="300" height="160" rx="6 6 0 0" fill="#050505"/>
+      <text x="142" y="92" fill="#444" font-size="28">▶</text>
+      <rect width="300" height="26" rx="6 6 0 0" fill="#000" fill-opacity="0.5"/>
+      <text x="12" y="18" fill="#fff" font-size="13" font-weight="600">SevenCh</text>
+      <circle cx="275" cy="13" r="10" fill="#000" fill-opacity="0.6"/>
+      <circle cx="275" cy="13" r="4" fill="#ff5555"/>
+      <circle cx="284" cy="148" r="10" fill="#000" fill-opacity="0.55"/>
+      <text x="280" y="152" fill="#fff" font-size="12">✕</text>
+      <text x="12" y="184" fill="#fff" font-size="13" font-weight="600">SevenCh</text>
+      <text x="12" y="200" fill="#aaa" font-size="11">ゲーム / mhr</text>
+      <text x="12" y="216" fill="#bbb" font-size="11">👤 6</text>
+    </g>
+    <g transform="translate(964,120)">
+      <rect width="300" height="225" rx="6" fill="#1c1c1c"/>
+      <rect width="300" height="160" rx="6 6 0 0" fill="#050505"/>
+      <text x="142" y="92" fill="#444" font-size="28">▶</text>
+      <rect width="300" height="26" rx="6 6 0 0" fill="#000" fill-opacity="0.5"/>
+      <text x="12" y="18" fill="#fff" font-size="13" font-weight="600">ABCch</text>
+      <circle cx="275" cy="13" r="10" fill="#000" fill-opacity="0.6"/>
+      <circle cx="275" cy="13" r="4" fill="#ff5555"/>
+      <circle cx="284" cy="148" r="10" fill="#000" fill-opacity="0.55"/>
+      <text x="280" y="152" fill="#fff" font-size="12">✕</text>
+      <text x="12" y="184" fill="#fff" font-size="13" font-weight="600">ABCch</text>
+      <text x="12" y="200" fill="#aaa" font-size="11">音楽</text>
+      <text x="12" y="216" fill="#bbb" font-size="11">👤 3</text>
+    </g>
+    <!-- Row 2 -->
+    <g transform="translate(16,360)">
+      <rect width="300" height="225" rx="6" fill="#1c1c1c"/>
+      <rect width="300" height="160" rx="6 6 0 0" fill="#050505"/>
+      <text x="142" y="92" fill="#444" font-size="28">▶</text>
+      <rect width="300" height="26" rx="6 6 0 0" fill="#000" fill-opacity="0.5"/>
+      <text x="12" y="18" fill="#fff" font-size="13" font-weight="600">XYZ Live</text>
+      <circle cx="275" cy="13" r="10" fill="#000" fill-opacity="0.6"/>
+      <circle cx="275" cy="13" r="4" fill="#ff5555"/>
+      <circle cx="284" cy="148" r="10" fill="#000" fill-opacity="0.55"/>
+      <text x="280" y="152" fill="#fff" font-size="12">✕</text>
+      <text x="12" y="184" fill="#fff" font-size="13" font-weight="600">XYZ Live</text>
+      <text x="12" y="200" fill="#aaa" font-size="11">スポーツ</text>
+      <text x="12" y="216" fill="#bbb" font-size="11">👤 2</text>
+    </g>
+    <g transform="translate(332,360)">
+      <rect width="300" height="225" rx="6" fill="#1c1c1c"/>
+      <rect width="300" height="160" rx="6 6 0 0" fill="#050505"/>
+      <text x="142" y="92" fill="#444" font-size="28">▶</text>
+      <rect width="300" height="26" rx="6 6 0 0" fill="#000" fill-opacity="0.5"/>
+      <text x="12" y="18" fill="#fff" font-size="13" font-weight="600">123ch</text>
+      <circle cx="275" cy="13" r="10" fill="#000" fill-opacity="0.6"/>
+      <circle cx="275" cy="13" r="4" fill="#ff5555"/>
+      <circle cx="284" cy="148" r="10" fill="#000" fill-opacity="0.55"/>
+      <text x="280" y="152" fill="#fff" font-size="12">✕</text>
+      <text x="12" y="184" fill="#fff" font-size="13" font-weight="600">123ch</text>
+      <text x="12" y="200" fill="#aaa" font-size="11">雑談</text>
+      <text x="12" y="216" fill="#bbb" font-size="11">👤 5</text>
+    </g>
+    <g transform="translate(648,360)">
+      <rect width="300" height="225" rx="6" fill="#1c1c1c"/>
+      <rect width="300" height="160" rx="6 6 0 0" fill="#050505"/>
+      <text x="142" y="92" fill="#444" font-size="28">▶</text>
+      <rect width="300" height="26" rx="6 6 0 0" fill="#000" fill-opacity="0.5"/>
+      <text x="12" y="18" fill="#fff" font-size="13" font-weight="600">456ch</text>
+      <circle cx="275" cy="13" r="10" fill="#000" fill-opacity="0.6"/>
+      <circle cx="275" cy="13" r="4" fill="#ff5555"/>
+      <circle cx="284" cy="148" r="10" fill="#000" fill-opacity="0.55"/>
+      <text x="280" y="152" fill="#fff" font-size="12">✕</text>
+      <text x="12" y="184" fill="#fff" font-size="13" font-weight="600">456ch</text>
+      <text x="12" y="200" fill="#aaa" font-size="11">アニメ</text>
+      <text x="12" y="216" fill="#bbb" font-size="11">👤 7</text>
+      <text x="272" y="216" fill="#ff8a3d" font-size="16">★</text>
+    </g>
+    <g transform="translate(964,360)">
+      <rect width="300" height="225" rx="6" fill="#1c1c1c"/>
+      <rect width="300" height="160" rx="6 6 0 0" fill="#050505"/>
+      <text x="142" y="92" fill="#444" font-size="28">▶</text>
+      <rect width="300" height="26" rx="6 6 0 0" fill="#000" fill-opacity="0.5"/>
+      <text x="12" y="18" fill="#fff" font-size="13" font-weight="600">789ch</text>
+      <circle cx="275" cy="13" r="10" fill="#000" fill-opacity="0.6"/>
+      <circle cx="275" cy="13" r="4" fill="#ff5555"/>
+      <circle cx="284" cy="148" r="10" fill="#000" fill-opacity="0.55"/>
+      <text x="280" y="152" fill="#fff" font-size="12">✕</text>
+      <text x="12" y="184" fill="#fff" font-size="13" font-weight="600">789ch</text>
+      <text x="12" y="200" fill="#aaa" font-size="11">朝音楽</text>
+      <text x="12" y="216" fill="#bbb" font-size="11">👤 1</text>
+    </g>
+
+    <text x="640" y="640" text-anchor="middle" fill="#888" font-size="12">タップ → 単独モードで開く (BBS 付き) / 設定で「自動グリッド」をONにすると配信開始時に自動追加</text>
+    <text x="16" y="700" fill="#444" font-size="11">PC は 4 〜 5 列まで広げる。ウィンドウ幅 1600+ なら 5 列、1920+ なら 6 列までも視認可能</text>
+  </g>
+
+  <!-- ============ Legend ============ -->
+  <g transform="translate(20,1560)">
+    <rect width="1280" height="140" fill="#1a1a1a" rx="8"/>
+    <text x="16" y="28" fill="#fff" font-size="14" font-weight="600">共通仕様 (CSS Grid: repeat(auto-fit, minmax(220px, 1fr)) を想定)</text>
+    <text x="16" y="52" fill="#bbb" font-size="12">• ⏺ (赤丸) = 録画ボタン (押下で /api/record/start)。録画中は塗りが濃赤になる</text>
+    <text x="16" y="70" fill="#bbb" font-size="12">• ✕ = タイル閉じる (HLS player 破棄)</text>
+    <text x="16" y="88" fill="#bbb" font-size="12">• ★ = お気に入りマッチ。favorites.color が指定されていれば枠 / 背景にも反映</text>
+    <text x="16" y="106" fill="#bbb" font-size="12">• ヘッダ右の ⊞ / 単独 トグルでモード切替。グリッドモードでは BBS 非表示。タイル単押で単独モードへ</text>
+    <text x="16" y="124" fill="#bbb" font-size="12">• iOS Safari の制約で初期は全タイル muted autoplay、unmute は 1 本ずつ (ユーザー操作必須)</text>
+    <text x="700" y="52" fill="#888" font-size="11">レスポンシブ:</text>
+    <text x="700" y="70" fill="#bbb" font-size="12">• ~ 540px = 2 列 (モバイル縦)</text>
+    <text x="700" y="88" fill="#bbb" font-size="12">• ~ 900px = 3 列 (タブレット / 横画面スマホ)</text>
+    <text x="700" y="106" fill="#bbb" font-size="12">• ~ 1400px = 4 列 (デスクトップ)</text>
+    <text x="700" y="124" fill="#bbb" font-size="12">• 1400px ~ = 5-6 列 (ワイドモニタ)</text>
+  </g>
+</svg>
