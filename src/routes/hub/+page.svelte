@@ -455,8 +455,12 @@
 		ev.preventDefault();
 		selectedId = e.id;
 		menuTarget = e;
-		menuX = ev.clientX;
-		menuY = ev.clientY;
+		// 画面右端 / 下端に近い時に見切れないよう、メニューサイズを
+		// 仮定して位置を補正する。
+		const MENU_W = 260;
+		const MENU_H = 280;
+		menuX = Math.min(ev.clientX, window.innerWidth - MENU_W - 8);
+		menuY = Math.min(ev.clientY, window.innerHeight - MENU_H - 8);
 		menuOpen = true;
 	}
 
