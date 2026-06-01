@@ -127,6 +127,7 @@ MIT License。PCRPlayer (GPL v3) のコードは参照せず、公開プロト�
 - [`docs/features.md`](docs/features.md) — 機能仕様
 - [`docs/ui-design.md`](docs/ui-design.md) — UI レイアウト・インタラクション
 - [`docs/shortcuts.md`](docs/shortcuts.md) — キーボードショートカット一覧
+- [`docs/usecases.md`](docs/usecases.md) — ユースケース一覧 (Desktop / pst-server を組み合わせた利用シナリオ)
 - [`docs/roadmap.md`](docs/roadmap.md) — 開発ロードマップ (フェーズ計画)
 - [`docs/release.md`](docs/release.md) — リリース / 配布方針 (バージョニング・タグ運用・アイコン仕様)
 - [`docs/usage/`](docs/usage/) — **ユーザマニュアル** (インストール / 初回設定 / 基本操作 / ショートカット / トラブルシューティング)
