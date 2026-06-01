@@ -7,12 +7,17 @@ const $ = (id) => document.getElementById(id);
 
 const refs = {
 	refresh: $('refresh'),
+	modeToggle: $('mode-toggle'),
 	status: $('status'),
 	channels: $('channels'),
 	channelsTbody: $('channels').querySelector('tbody'),
 	error: $('error'),
 	playerSection: $('player-section'),
 	channelsSection: $('channels-section'),
+	gridSection: $('grid-section'),
+	grid: $('grid'),
+	gridEmpty: $('grid-empty'),
+	gridStopAll: $('grid-stop-all'),
 	back: $('back'),
 	player: $('player'),
 	playerError: $('player-error'),
@@ -24,6 +29,18 @@ const refs = {
 let currentChannelId = null;
 let currentChannelName = '';
 let favorites = [];
+
+// 表示モード:
+//   'list'   = チャンネル一覧 (既存)。クリックで単独再生へ。
+//   'single' = 単独再生中。`<video id="player">` がアクティブ。
+//   'grid'   = グリッド表示。複数 <video> タイル + 下に一覧 (タップで追加)。
+// 'single' は 'list' のサブ状態として扱う (back で 'list' に戻る)。
+let mode = 'list';
+
+// グリッドのタイル群。`channel_id -> Tile` 。タイル間で同 ch 重複追加は無効。
+const gridTiles = new Map();
+// 最後にユーザが「フォーカス」したタイル (= unmute 対象)。1 本だけ unmute。
+let focusedTileId = null;
 
 function ruleMatches(rule, t) {
 	const part = (needle, hay) => {
@@ -112,7 +129,7 @@ function renderChannels(channels) {
 		tr.title = fav
 			? `★ ${fav.name || 'お気に入り'}${fav.auto_record ? ' / 自動録画' : ''}`
 			: info.desc || '';
-		tr.addEventListener('click', () => openChannel(ch.channelId, info.name || ''));
+		tr.addEventListener('click', () => handleChannelClick(ch, info, fav));
 		tbody.appendChild(tr);
 	}
 	if (annotated.length === 0) {
@@ -130,8 +147,7 @@ async function openChannel(id, name) {
 	currentChannelName = name || '';
 	refs.currentTitle.textContent = name || id;
 	refs.playerError.hidden = true;
-	refs.channelsSection.hidden = true;
-	refs.playerSection.hidden = false;
+	setMode('single');
 	await syncRecordStatus();
 	maybeAutoRecord({ name: name || '', genre: '', desc: '', comment: '' });
 	disposeHls();
@@ -187,8 +203,9 @@ function backToList() {
 	refs.player.pause();
 	refs.player.removeAttribute('src');
 	refs.player.load();
-	refs.playerSection.hidden = true;
-	refs.channelsSection.hidden = false;
+	// 'single' → 'list' or 'grid' のどちらか直近のモードに戻る。グリッドに
+	// タイルがあるならグリッドに戻る、無ければ一覧に戻る。
+	setMode(gridTiles.size > 0 ? 'grid' : 'list');
 }
 
 function escapeHtml(s) {
@@ -200,9 +217,224 @@ function escapeHtml(s) {
 		.replace(/'/g, '&#39;');
 }
 
+// ===== モード管理 =====
+
+function setMode(m) {
+	mode = m;
+	document.body.dataset.grid = m === 'grid' ? 'on' : 'off';
+	refs.gridSection.hidden = m !== 'grid';
+	refs.playerSection.hidden = m !== 'single';
+	// 'single' モードのみ一覧を畳む。'grid' では下に一覧を出す (= 追加 UI)。
+	refs.channelsSection.hidden = m === 'single';
+	if (m === 'grid') {
+		refs.modeToggle.textContent = '📋 一覧';
+		refs.modeToggle.title = '一覧モードに切替';
+		refs.modeToggle.classList.add('active');
+	} else {
+		refs.modeToggle.textContent = '⊞ グリッド';
+		refs.modeToggle.title = 'グリッド表示に切替';
+		refs.modeToggle.classList.remove('active');
+	}
+	updateGridEmpty();
+}
+
+function toggleMode() {
+	if (mode === 'grid') {
+		setMode('list');
+	} else {
+		// 'single' のときは一旦 player を畳んでから grid へ。
+		if (mode === 'single') {
+			disposeHls();
+			refs.player.pause();
+			refs.player.removeAttribute('src');
+			refs.player.load();
+		}
+		setMode('grid');
+	}
+}
+
+function handleChannelClick(ch, info) {
+	if (mode === 'grid') {
+		addToGrid(ch, info);
+	} else {
+		openChannel(ch.channelId, info.name || '');
+	}
+}
+
+// ===== グリッドタイル管理 =====
+
+function addToGrid(ch, info) {
+	const id = ch.channelId;
+	if (gridTiles.has(id)) {
+		focusTile(id);
+		return;
+	}
+	const name = info?.name || id;
+	const status = ch.status ?? {};
+	const fav = firstFavoriteMatch({
+		name: info?.name ?? '',
+		genre: info?.genre ?? '',
+		desc: info?.desc ?? '',
+		comment: info?.comment ?? '',
+	});
+
+	const el = document.createElement('div');
+	el.className = 'tile';
+	if (fav?.color) el.style.borderColor = fav.color;
+	const nameHtml = `${fav ? '<span class="fav-mark">★</span>' : ''}${escapeHtml(name)}`;
+	el.innerHTML = `
+		<div class="tile-video-wrap">
+			<video class="tile-video" autoplay muted playsinline></video>
+			<div class="tile-overlay-top">
+				<span class="tile-name">${escapeHtml(name)}</span>
+				<button class="tile-record" type="button" title="録画開始 / 停止">●</button>
+			</div>
+			<button class="tile-close" type="button" title="タイルを閉じる">✕</button>
+		</div>
+		<div class="tile-info">
+			<div class="tile-info-name">${nameHtml}</div>
+			<div class="tile-info-meta">${escapeHtml(info?.genre || '')}</div>
+			<div class="tile-info-meta-row">
+				<span class="tile-info-meta">👤 ${status.localDirects ?? 0}</span>
+				<span class="tile-info-meta">${info?.bitrate ?? 0} kbps</span>
+			</div>
+		</div>
+	`;
+	refs.grid.appendChild(el);
+
+	const video = el.querySelector('.tile-video');
+	const url = `/hls/${encodeURIComponent(id)}.m3u8`;
+	const hls = playHls(video, url);
+
+	const closeBtn = el.querySelector('.tile-close');
+	closeBtn.addEventListener('click', (e) => {
+		e.stopPropagation();
+		removeFromGrid(id);
+	});
+	const recordBtn = el.querySelector('.tile-record');
+	recordBtn.addEventListener('click', (e) => {
+		e.stopPropagation();
+		toggleTileRecord(id, name, recordBtn);
+	});
+	// タイル本体タップ → そのタイルを unmute (フォーカス)、他は mute。
+	el.addEventListener('click', () => focusTile(id));
+
+	gridTiles.set(id, { element: el, video, hls, name, recordBtn });
+	updateGridEmpty();
+	syncTileRecordButtons();
+}
+
+function removeFromGrid(id) {
+	const t = gridTiles.get(id);
+	if (!t) return;
+	try {
+		t.hls?.destroy();
+	} catch {
+		/* ignore */
+	}
+	try {
+		t.video.pause();
+		t.video.removeAttribute('src');
+		t.video.load();
+	} catch {
+		/* ignore */
+	}
+	t.element.remove();
+	gridTiles.delete(id);
+	if (focusedTileId === id) focusedTileId = null;
+	updateGridEmpty();
+}
+
+function focusTile(id) {
+	// iOS Safari は複数タイルが同時に unmute された <video> を再生
+	// できない (片方が止まる) ので、unmute は 1 本だけにする運用。
+	focusedTileId = id;
+	for (const [tid, t] of gridTiles) {
+		const focused = tid === id;
+		t.video.muted = !focused;
+		t.element.classList.toggle('focused', focused);
+	}
+}
+
+function updateGridEmpty() {
+	const empty = gridTiles.size === 0;
+	if (refs.gridEmpty) refs.gridEmpty.hidden = !empty;
+	if (refs.gridStopAll) refs.gridStopAll.hidden = empty;
+}
+
+function stopAllTiles() {
+	for (const id of Array.from(gridTiles.keys())) removeFromGrid(id);
+}
+
+function playHls(video, url) {
+	if (canPlayHls()) {
+		video.src = url;
+		video.play().catch(() => undefined);
+		return null;
+	}
+	if (window.Hls && window.Hls.isSupported()) {
+		const hls = new window.Hls({ enableWorker: true, lowLatencyMode: false });
+		hls.loadSource(url);
+		hls.attachMedia(video);
+		hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
+			video.play().catch(() => undefined);
+		});
+		hls.on(window.Hls.Events.ERROR, (_evt, data) => {
+			if (data.fatal) {
+				try {
+					hls.destroy();
+				} catch {
+					/* ignore */
+				}
+			}
+		});
+		return hls;
+	}
+	return null;
+}
+
+async function toggleTileRecord(id, name, btn) {
+	try {
+		const list = (await fetchRecordingList()) ?? [];
+		const me = list.find((r) => r.channel_id === id);
+		if (me) {
+			await fetch('/api/record/stop', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ id }),
+			});
+			btn.classList.remove('on');
+		} else {
+			const r = await fetch('/api/record/start', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ id, name }),
+			});
+			if (r.ok) btn.classList.add('on');
+		}
+	} catch {
+		/* ignore */
+	}
+}
+
+async function syncTileRecordButtons() {
+	const list = await fetchRecordingList();
+	if (!list) return;
+	const ids = new Set(list.map((r) => r.channel_id));
+	for (const [id, t] of gridTiles) {
+		t.recordBtn.classList.toggle('on', ids.has(id));
+	}
+}
+
 refs.refresh.addEventListener('click', loadChannels);
 refs.back.addEventListener('click', backToList);
 refs.record.addEventListener('click', toggleRecord);
+refs.modeToggle.addEventListener('click', toggleMode);
+refs.gridStopAll.addEventListener('click', stopAllTiles);
+
+// 録画状態 (タイル ⏺ ボタン) を 7 秒間隔で同期。グリッドモード外も
+// 含めて軽くポーリング。`/api/record/list` は安価。
+setInterval(syncTileRecordButtons, 7000);
 
 // 録画 API は複数本対応 (/api/record/list, start, stop)。
 // 現在開いているチャンネルが録画中かを 1 つだけ判定する。

@@ -21,6 +21,7 @@
 	<body data-theme="dark">
 		<header class="topbar">
 			<h1>📡 PSTPlayer</h1>
+			<button id="mode-toggle" type="button" title="表示モードを切替">⊞ グリッド</button>
 			<button id="refresh" type="button" title="チャンネル一覧を更新">↻ 更新</button>
 			<a class="link-button" href="/settings.html" title="サーバ設定">⚙</a>
 		</header>
@@ -34,6 +35,16 @@
 				<video id="player" controls playsinline autoplay></video>
 				<div id="player-error" class="error" hidden></div>
 				<div id="record-info" class="muted small" hidden></div>
+			</section>
+			<section id="grid-section" hidden>
+				<div class="grid-toolbar">
+					<span class="muted small">タイルをタップで単独表示 (サウンド ON)</span>
+					<button id="grid-stop-all" type="button" hidden>⏹ 全停止</button>
+				</div>
+				<div id="grid" class="grid"></div>
+				<p id="grid-empty" class="grid-empty muted small">
+					↓ 下のチャンネル一覧から行をタップしてタイルに追加してください。
+				</p>
 			</section>
 			<section id="channels-section">
 				<div id="status" class="muted small">読み込み中…</div>

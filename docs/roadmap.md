@@ -229,6 +229,16 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
       - [x] `[recording] enabled = false` / `auto_record=true` ルール無しの
             時は polling 自体走らず (CPU 浪費防止)
       - 詳細設計: [ADR-0006](decisions/0006-auto-record-and-multiview.md)
+- [x] **Web グリッドビュー (pst-server)** ← **優先度: 高 / Step 2 完了**
+      - [x] ヘッダの `⊞ グリッド` ↔ `📋 一覧` トグルでモード切替
+      - [x] グリッドモードでは下のチャンネル一覧をピッカーに転用
+            (行タップでタイル追加、同 ch は重複不可)
+      - [x] 各タイル: hls.js / Safari ネイティブで再生、★ お気に入り
+            マーク + color 枠線、⏺ 録画ボタン、✕ 削除ボタン
+      - [x] iOS Safari 制約 (同時 unmute 不可) に合わせフォーカス 1 本のみ
+            unmute する設計
+      - [x] レスポンシブ: 2 / 3 / 4 / 5 列 (480 / 900 / 1400 / 1400+)
+      - 詳細設計: [ADR-0006 Step 2](decisions/0006-auto-record-and-multiview.md)
 - [ ] **役割分離: pst-server (ハブ) + pstplayer (ビューア複数プロセス)** ← **優先度: 高**
       - Desktop も Server も「ハブ」は `pst-server` に集約 (新規 Tauri
         ハブを作らない)。`pstplayer` は視聴専用に整理
