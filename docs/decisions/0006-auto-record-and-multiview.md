@@ -282,11 +282,45 @@ Desktop ビューア (`pstplayer`) は視聴専用とする。複数チャンネ
 
 ### Step 4: 複数視聴 (`pstplayer` 複数プロセス起動)
 
-- 視聴中に右クリック → 「別ウィンドウで開く」 (= 自分自身を別プロセス
-  で起動、URL 引数渡し)
-- 同一 channel_id で既に開いていればフォーカスのみ移す
-  (single_instance を IPC ベースで実装)
-- 既存の `pst-core::single_instance` を確認・拡張
+採用方針: **YP ウィンドウは「ハブ」として常駐 + 視聴は別プロセス**。
+
+- YP ウィンドウ (`/yp`) は行クリックしても**閉じずに表示し続ける** (現在
+  の挙動を維持。多くのチャンネルを順次見たり、複数同時に見たりするとき
+  に、毎回 YP を開き直さなくて良いように)
+- 行をクリックした時は、現状の `emit('yp:selected', ...)` で main ウィン
+  ドウを更新する挙動から、**新しい `pstplayer.exe` プロセスを URL 引数
+  付きで spawn する挙動**へ変更
+- 各視聴ウィンドウは独立した OS プロセス = 独立 libmpv = 独立 BBS。
+  クラッシュ耐性が高い (1 ウィンドウが落ちても他に波及しない)
+- 同一 `channel_id` で既に開いていればフォーカスのみ移す。**`single_instance`
+  は「アプリ全体で 1 つ」ではなく「`channel_id` ごとに 1 つ」のセマン
+  ティクスに拡張**する必要がある (現状の `pst_core::single_instance`
+  はアプリ単独起動用なので作り直しに近い)
+- 視聴中に右クリック → 「別ウィンドウで開く」を残す (YP 経由しない
+  サブメニューからのスポーン)
+- YP ウィンドウを閉じても視聴ウィンドウは生き続ける (別プロセスなので
+  当然そうなる)。OS のタイル / 仮想デスクトップ / マルチモニタを使って
+  自由に配置できる
+
+実装メモ:
+
+- spawn は `std::env::current_exe()` + `std::process::Command::new(...).arg(url).spawn()`
+- `channel_id` 単位の single instance は OS 別のロックファイル / 名前付き
+  Mutex (Windows) / abstract namespace socket (Linux) / launchd の named
+  port (macOS) のどれかで実装。**今回は最も移植性の高いロックファイル
+  方式** (`$TMPDIR/pstplayer-{channel_id}.lock`、PID 入り、stale 判定付き)
+  を採用する
+- 起動済みプロセスを「前面化」する IPC: ロックファイルに自分の
+  webview window のラベル / hwnd を書いて、後発プロセスが読み取って
+  Tauri の `WebviewWindow::setFocus` 相当を別プロセス経由で呼ぶか、
+  ロックファイルの PID にプラットフォーム別の「ウィンドウ前面化」
+  syscall を投げる
+- 共有設定は `pst-core::config` がすでに OS 標準パス参照 + ファイル
+  ベース永続化なので、複数プロセスから読まれても困らない (書き込み
+  は YP プロセス側だけが行う運用にすれば衝突しない)
+- お気に入り / 自動録画ロジックは `pst-server` (常駐サービス) 側に
+  寄せる方針 (Step 3) なので、複数プロセスから自動録画が二重発火する
+  心配はない
 
 ### Step 5: pst-server 同居運用のドキュメント
 

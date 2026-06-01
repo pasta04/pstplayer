@@ -240,11 +240,15 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
       - [x] レスポンシブ: 2 / 3 / 4 / 5 列 (480 / 900 / 1400 / 1400+)
       - 詳細設計: [ADR-0006 Step 2](decisions/0006-auto-record-and-multiview.md)
 - [ ] **役割分離: pst-server (ハブ) + pstplayer (ビューア複数プロセス)** ← **優先度: 高**
-      - Desktop も Server も「ハブ」は `pst-server` に集約 (新規 Tauri
-        ハブを作らない)。`pstplayer` は視聴専用に整理
-      - Desktop の複数視聴は `pstplayer` を複数プロセス起動 (= ウィンドウ
-        複数)。1 ウィンドウタイル表示は不採用
-      - pst-server Web はグリッドビューで `<video>` × N
+      - 自動録画 / 配信一覧 / お気に入り編集 / 設定 のサーバ寄り機能は
+        `pst-server` (常駐サービス / ブラウザ UI) に集約
+      - Desktop の `pstplayer` 内 YP ウィンドウは引き続きハブとして残す
+        (行クリックで閉じない / 視聴ウィンドウを閉じても残る)
+      - Desktop の複数視聴は YP の行クリック → `pstplayer.exe <url>` を
+        **別プロセスで spawn** (= ウィンドウ複数)。1 ウィンドウ内タイル
+        表示は不採用 (グリッドは pst-server Web 側で対応済み)
+      - 同一 `channel_id` を 2 度開いた場合は既存ウィンドウにフォーカス
+        (`channel_id` 単位の single_instance、ロックファイル方式で実装)
       - 自動録画は `pst-server` 常駐で実現 (Pi / Windows サービス / Linux
         systemd / macOS launchd)
       - 詳細設計: [ADR-0006](decisions/0006-auto-record-and-multiview.md)
