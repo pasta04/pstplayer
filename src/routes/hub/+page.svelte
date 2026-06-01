@@ -45,9 +45,9 @@
 	let lastUpdatedAt = $state<Date | null>(null);
 
 	let filter = $state(loadStr('hub.filter', ''));
-	let sortKey = $state<SortKey>(loadStr('hub.sortKey', 'listeners') as SortKey);
+	let sortKey = $state<SortKey>(loadSortKey('hub.sortKey', 'listeners'));
 	let sortDesc = $state(loadBool('hub.sortDesc', true));
-	let activeTab = $state<TabKey>(loadStr('hub.activeTab', 'all') as TabKey);
+	let activeTab = $state<TabKey>(loadTabKey('hub.activeTab', 'all'));
 	let selectedId = $state<string | null>(null);
 
 	// localStorage への永続化 (ソート / タブ / フィルタはセッション跨ぎ)。
@@ -80,14 +80,33 @@
 		}
 	}
 
+	// localStorage に旧バージョン / 改竄で invalid な値が入っていても
+	// default にフォールバックする (`as` キャストの type 不変条件を保つ)。
+	function loadSortKey(key: string, defaultVal: SortKey): SortKey {
+		const valid: SortKey[] = ['name', 'genre', 'listeners', 'bitrate', 'uptime', 'yp_source'];
+		const v = loadStr(key, defaultVal);
+		return (valid as string[]).includes(v) ? (v as SortKey) : defaultVal;
+	}
+
+	function loadTabKey(key: string, defaultVal: TabKey): TabKey {
+		const v = loadStr(key, defaultVal);
+		const builtin: TabKey[] = ['all', 'favorites', 'recording', 'watching', 'new'];
+		if ((builtin as string[]).includes(v)) return v as TabKey;
+		// 動的 YP タブは "yp:" prefix のみ許容 (実在チェックは render 側で)
+		if (v.startsWith('yp:')) return v as TabKey;
+		return defaultVal;
+	}
+
 	// 前回 fetch 時に見えていた channel_id の集合 (新着判定用)。
 	let prevIds = $state<Set<string>>(new Set());
 	let newIds = $state<Set<string>>(new Set());
 	let watchingIds = $state<Set<string>>(new Set());
 	let recordingIds = $state<Set<string>>(new Set());
 	// 既に通知済みの新着 ID。重複通知防止 (同じセッションで何度も
-	// 「新着 X」を出さない)。
+	// 「新着 X」を出さない)。長時間運用で肥大化しないよう、追加時に
+	// 1000 件で切る (FIFO に近い)。
 	let notifiedIds = new Set<string>();
+	const NOTIFIED_IDS_CAP = 1000;
 	let firstRefreshDone = false;
 
 	// 自動再 fetch / 視聴中ポーリングの間隔 (秒)。config から読む。
@@ -208,6 +227,11 @@
 					if (!rule) continue;
 					if (rule.action !== 'show') continue;
 					notifiedIds.add(e.id);
+					// 上限超過時は古いものから 1 件削除 (Set は挿入順を保つ)
+					if (notifiedIds.size > NOTIFIED_IDS_CAP) {
+						const first = notifiedIds.values().next().value;
+						if (first !== undefined) notifiedIds.delete(first);
+					}
 					void notify(`★ ${rule.name || 'お気に入り'} 配信開始`, `${e.name}\n${e.desc}`);
 				}
 			}

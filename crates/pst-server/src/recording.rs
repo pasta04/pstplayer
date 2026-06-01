@@ -38,7 +38,10 @@ pub struct RecordingState {
 pub struct RecordingTask {
     pub path: PathBuf,
     pub channel_name: String,
-    /// abort 用ハンドル。
+    /// graceful 停止用フラグ。stop() で true にセットすると、録画ループは
+    /// 次のチャンク境界で抜けて file.flush() してから終了する。
+    pub stop_flag: Arc<std::sync::atomic::AtomicBool>,
+    /// 監視 / fallback abort 用ハンドル。
     pub handle: tokio::task::JoinHandle<()>,
 }
 
@@ -152,8 +155,12 @@ impl RecordingState {
 
         let upstream = format!("http://{peercast_host}:{peercast_port}/stream/{channel_id}.{ext}");
         let path_for_task = path.clone();
+        let stop_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let stop_flag_task = stop_flag.clone();
         let handle = tokio::spawn(async move {
-            if let Err(e) = run_recording(upstream, path_for_task, auth_user, auth_pass).await {
+            if let Err(e) =
+                run_recording(upstream, path_for_task, auth_user, auth_pass, stop_flag_task).await
+            {
                 eprintln!("recording task failed: {e}");
             }
         });
@@ -161,6 +168,7 @@ impl RecordingState {
         let task = RecordingTask {
             path: path.clone(),
             channel_name: channel_name.clone(),
+            stop_flag,
             handle,
         };
         guard.insert(channel_id.clone(), task);
@@ -172,10 +180,21 @@ impl RecordingState {
     }
 
     /// 特定 channel_id の録画を停止。進行中でなければ no-op。
+    ///
+    /// graceful shutdown: stop_flag をセットして次チャンク受信境界で
+    /// 録画ループが抜けて `file.flush()` してから終了する。fallback
+    /// として `abort()` も呼ぶが、これは upstream stream がハングした
+    /// 場合の保険 (graceful 抜けが効くケースではほぼ flush 後 abort)。
     pub async fn stop(&self, channel_id: &str) -> bool {
         let mut guard = self.inner.lock().await;
         if let Some(task) = guard.remove(channel_id) {
-            task.handle.abort();
+            task.stop_flag.store(true, std::sync::atomic::Ordering::SeqCst);
+            // 一定時間 graceful 完了を待つ余裕を与えてから abort
+            // (上流が stuck していた場合のみ abort が実効する)。
+            tokio::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                task.handle.abort();
+            });
             true
         } else {
             false
@@ -187,7 +206,11 @@ impl RecordingState {
         let mut guard = self.inner.lock().await;
         let n = guard.len();
         for (_, task) in guard.drain() {
-            task.handle.abort();
+            task.stop_flag.store(true, std::sync::atomic::Ordering::SeqCst);
+            tokio::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                task.handle.abort();
+            });
         }
         n
     }
@@ -195,11 +218,17 @@ impl RecordingState {
 
 /// PeerCast の生 stream を 1 本受けて指定パスに書き出す。エラーは
 /// 呼び出し側で `eprintln!` される (録画タスクは abort/終了するだけ)。
+///
+/// `stop_flag` が外部から true にされたら、次のチャンク境界で抜けて
+/// `file.flush()` してから戻る (graceful shutdown)。これで FLV/MKV
+/// の writer buffer が確実に flush され、途中切断によるファイル末尾
+/// 欠損を最小化する。
 async fn run_recording(
     upstream: String,
     path: PathBuf,
     auth_user: Option<String>,
     auth_pass: Option<String>,
+    stop_flag: Arc<std::sync::atomic::AtomicBool>,
 ) -> Result<(), String> {
     let mut req = CLIENT.get(&upstream);
     if let (Some(u), Some(p)) = (auth_user.as_deref(), auth_pass.as_deref()) {
@@ -216,6 +245,9 @@ async fn run_recording(
         .map_err(|e| e.to_string())?;
     let mut stream = resp.bytes_stream();
     while let Some(chunk) = stream.next().await {
+        if stop_flag.load(std::sync::atomic::Ordering::SeqCst) {
+            break;
+        }
         let bytes = chunk.map_err(|e| e.to_string())?;
         file.write_all(&bytes).await.map_err(|e| e.to_string())?;
     }

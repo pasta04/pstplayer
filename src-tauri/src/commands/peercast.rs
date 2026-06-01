@@ -145,14 +145,29 @@ pub fn list_active_viewers() -> Vec<String> {
 }
 
 /// 現在録画中の channel_id 一覧を返す。各 active viewer の IPC に
-/// `state\n` を投げて録画中なら返答 `1\n` をもらう。失敗 / not recording
-/// なら無視。ハブ画面の「録画中」タブ表示用。
+/// `state\n` を並行に投げて録画中なら返答 `1\n` をもらう。失敗 /
+/// not recording は無視。viewer の数が多くても直列の総当たり待ちで
+/// UI が固まらないよう、スレッドで並行 query する。
 #[tauri::command]
-pub fn list_recording_viewers() -> Vec<String> {
+pub async fn list_recording_viewers() -> Vec<String> {
+    let actives = single_instance::list_active();
+    if actives.is_empty() {
+        return Vec::new();
+    }
+    // tokio::task::spawn_blocking で TCP I/O (同期 API) を並行に。
+    let mut handles = Vec::with_capacity(actives.len());
+    for info in actives {
+        handles.push(tokio::task::spawn_blocking(move || {
+            match single_instance::query_recording(info.ipc_addr) {
+                Ok(true) => Some(info.channel_id),
+                _ => None,
+            }
+        }));
+    }
     let mut out = Vec::new();
-    for info in single_instance::list_active() {
-        if let Ok(true) = single_instance::query_recording(info.ipc_addr) {
-            out.push(info.channel_id);
+    for h in handles {
+        if let Ok(Some(id)) = h.await {
+            out.push(id);
         }
     }
     out
@@ -168,12 +183,23 @@ pub fn close_viewer(channel_id: String) -> bool {
     single_instance::request_close(info.ipc_addr).is_ok()
 }
 
-/// 全視聴ウィンドウを一括クローズ。閉じられた件数を返す。
+/// 全視聴ウィンドウを一括クローズ。閉じられた件数を返す。各 viewer
+/// への IPC は並行送信 (直列で 1 つずつだと timeout が累積するため)。
 #[tauri::command]
-pub fn close_all_viewers() -> usize {
+pub async fn close_all_viewers() -> usize {
+    let actives = single_instance::list_active();
+    if actives.is_empty() {
+        return 0;
+    }
+    let mut handles = Vec::with_capacity(actives.len());
+    for info in actives {
+        handles.push(tokio::task::spawn_blocking(move || {
+            single_instance::request_close(info.ipc_addr).is_ok()
+        }));
+    }
     let mut closed = 0;
-    for info in single_instance::list_active() {
-        if single_instance::request_close(info.ipc_addr).is_ok() {
+    for h in handles {
+        if let Ok(true) = h.await {
             closed += 1;
         }
     }
@@ -207,9 +233,15 @@ pub fn spawn_viewer(
     channel_id: String,
     record: Option<bool>,
 ) -> Result<SpawnViewerOutcome, IpcError> {
+    // 既存ロックがあれば focus 要求を送る。送信に成功した場合のみ
+    // Focused を返す。失敗 (= viewer プロセスが probe → focus の間に
+    // 落ちた、ファイアウォール等) なら新規 spawn にフォールバック。
     if let Some(info) = single_instance::read_existing(&channel_id) {
-        let _ = single_instance::request_focus(info.ipc_addr);
-        return Ok(SpawnViewerOutcome::Focused);
+        if single_instance::request_focus(info.ipc_addr).is_ok() {
+            return Ok(SpawnViewerOutcome::Focused);
+        }
+        // probe → focus の間に死んだ可能性 → spawn にフォールスルー。
+        // 死んだ lock は次回 read_existing で除去される。
     }
     let cfg = config::load().map_err(IpcError::from)?;
     let url = format!("http://{}:{}/pls/{}", cfg.peercast.host, cfg.peercast.port, channel_id);
