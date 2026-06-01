@@ -425,7 +425,8 @@
 				desc: channelInfo.desc,
 				comment: channelInfo.comment,
 			});
-			if (fav?.auto_record) {
+			// action !== 'show' (= ignore / block) は自動録画しない
+			if (fav?.auto_record && (!fav.action || fav.action === 'show')) {
 				const path = await playerRecordStart(channelInfo.name);
 				recordPath = path;
 				notify(`自動録画開始 (${fav.name || 'お気に入り'})`, path);
