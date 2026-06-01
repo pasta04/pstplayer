@@ -524,7 +524,8 @@
 				<p class="hint small muted">
 					各ルールはチャンネル一覧 (YP・PeerCast) に対して上から評価され、最初にマッチした
 					ものが採用されます。フィールドは部分一致 (大文字小文字無視) で、空欄はワイルド
-					カードです。複数フィールドを書くと AND 条件。
+					カードです。複数フィールドを書くと AND 条件。1 つのフィールド内で
+					<code>|</code> 区切りにすると OR (例: <code>へたれ|inatami|vader</code>)。
 				</p>
 				<table class="favorites">
 					<thead>
