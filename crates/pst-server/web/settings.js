@@ -107,9 +107,27 @@ function addFavRow(rule) {
 	const rec = checkbox(rule.auto_record);
 	tr.appendChild(rec.td);
 	data.auto_record = rec.inp;
-	const color = cell(rule.color, 'text');
-	tr.appendChild(color.td);
-	data.color = color.inp;
+
+	// action select (show / ignore / block)
+	const actionTd = document.createElement('td');
+	const actionSel = document.createElement('select');
+	for (const opt of ['show', 'ignore', 'block']) {
+		const o = document.createElement('option');
+		o.value = opt;
+		o.textContent = { show: '表示', ignore: '非表示', block: 'ブロック' }[opt];
+		actionSel.appendChild(o);
+	}
+	actionSel.value = rule.action ?? 'show';
+	actionTd.appendChild(actionSel);
+	tr.appendChild(actionTd);
+	data.action = actionSel;
+
+	const background = cell(rule.background || rule.color, 'text');
+	tr.appendChild(background.td);
+	data.background = background.inp;
+	const textColor = cell(rule.text_color, 'text');
+	tr.appendChild(textColor.td);
+	data.text_color = textColor.inp;
 	const ops = document.createElement('td');
 	ops.className = 'ops';
 	const up = document.createElement('button');
@@ -153,7 +171,11 @@ function collectFavorites() {
 			comment: d.comment.value,
 			pin_top: d.pin_top.checked,
 			auto_record: d.auto_record.checked,
-			color: d.color.value,
+			action: d.action.value,
+			background: d.background.value,
+			text_color: d.text_color.value,
+			// 旧 color フィールドは backend で background にフォールバック
+			// するので互換目的でも残さない (新規は background が主)。
 		});
 	}
 	return rules;
