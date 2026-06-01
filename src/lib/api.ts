@@ -106,6 +106,7 @@ export interface CliArgs {
 	minimized: boolean;
 	show_help: boolean;
 	show_version: boolean;
+	record_on_start: boolean;
 }
 
 export async function getCliArgs(): Promise<CliArgs> {
@@ -200,8 +201,14 @@ export type SpawnViewerOutcome = 'focused' | 'spawned';
 /// 既に同じ channel_id の視聴ウィンドウが立ち上がっていれば
 /// `'focused'` (前面化のみ)、無ければ `'spawned'` (新規プロセス起動)
 /// を返す。
-export async function spawnViewer(channelId: string): Promise<SpawnViewerOutcome> {
-	return call<SpawnViewerOutcome>('spawn_viewer', { channelId });
+export async function spawnViewer(
+	channelId: string,
+	options?: { record?: boolean },
+): Promise<SpawnViewerOutcome> {
+	return call<SpawnViewerOutcome>('spawn_viewer', {
+		channelId,
+		record: options?.record ?? false,
+	});
 }
 
 /// 現在「視聴中」(= single_instance ロックが生きている) チャンネル ID

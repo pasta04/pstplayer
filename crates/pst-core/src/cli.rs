@@ -31,6 +31,9 @@ pub struct CliArgs {
     pub minimized: bool,
     pub show_help: bool,
     pub show_version: bool,
+    /// 起動時に強制的に録画も開始する (favorites の auto_record と独立)。
+    /// hub から「視聴 + 録画」で spawn された viewer が使う。
+    pub record_on_start: bool,
 }
 
 /// Parse a slice of arguments (excluding `argv[0]`).
@@ -52,6 +55,7 @@ pub fn parse(args: &[String]) -> CliArgs {
                     "minimized" => out.minimized = true,
                     "help" => out.show_help = true,
                     "version" => out.show_version = true,
+                    "record-on-start" => out.record_on_start = true,
                     _ => {
                         let next = iter.next().cloned();
                         assign_long(&mut out, rest, next);

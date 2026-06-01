@@ -413,10 +413,20 @@
 	async function maybeAutoRecord() {
 		// 既に録画中なら何もしない (二重起動防止)。channelInfo が無い時
 		// もスキップ。お気に入りルールにマッチかつ auto_record=true なら
-		// 録画開始する。
+		// 録画開始する。CLI 引数 --record-on-start でも強制起動 (favorites
+		// と独立、hub の「視聴 + 録画」が使う)。
 		if (!channelInfo) return;
 		if (recordPath) return;
 		try {
+			const cli = await getCliArgs();
+			// 1. --record-on-start で強制録画 (hub の「視聴+録画」spawn)
+			if (cli.record_on_start) {
+				const path = await playerRecordStart(channelInfo.name);
+				recordPath = path;
+				notify('録画開始 (CLI --record-on-start)', path);
+				return;
+			}
+			// 2. 通常の auto_record ルール判定
 			const cfg = await getConfig();
 			const rules = cfg?.favorites?.rules as FavoriteRule[] | undefined;
 			const fav = firstFavoriteMatch(rules, {

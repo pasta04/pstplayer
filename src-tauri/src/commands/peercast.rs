@@ -154,8 +154,13 @@ pub fn list_active_viewers() -> Vec<String> {
 ///
 /// URL は config の `peercast.host:port` から `/pls/{id}` を組み立てる
 /// (YP の `tip` 直叩きはせず必ず自分の PeerCast にリレー要求する)。
+/// `record` = true で `--record-on-start` を追加 (= viewer 側で
+/// favorites の auto_record と独立に強制録画開始)。
 #[tauri::command]
-pub fn spawn_viewer(channel_id: String) -> Result<SpawnViewerOutcome, IpcError> {
+pub fn spawn_viewer(
+    channel_id: String,
+    record: Option<bool>,
+) -> Result<SpawnViewerOutcome, IpcError> {
     if let Some(info) = single_instance::read_existing(&channel_id) {
         let _ = single_instance::request_focus(info.ipc_addr);
         return Ok(SpawnViewerOutcome::Focused);
@@ -165,7 +170,12 @@ pub fn spawn_viewer(channel_id: String) -> Result<SpawnViewerOutcome, IpcError> 
     let exe = std::env::current_exe().map_err(|e| {
         IpcError::from(AppError::Network(format!("current_exe を取得できません: {e}")))
     })?;
-    Command::new(exe).arg(url).spawn().map_err(|e| {
+    let mut cmd = Command::new(exe);
+    cmd.arg(&url);
+    if record.unwrap_or(false) {
+        cmd.arg("--record-on-start");
+    }
+    cmd.spawn().map_err(|e| {
         IpcError::from(AppError::Network(format!("別プロセスの pstplayer を起動できません: {e}")))
     })?;
     Ok(SpawnViewerOutcome::Spawned)

@@ -298,10 +298,10 @@
 		return sortDesc ? ' ▼' : ' ▲';
 	}
 
-	async function watchRow(e: YpEntry) {
+	async function watchRow(e: YpEntry, record = false) {
 		closeMenu();
 		try {
-			await spawnViewer(e.id);
+			await spawnViewer(e.id, { record });
 			// 即座に「視聴中」リストを更新 (5 秒待たずにバッジが付く)。
 			// spawn 直後は lock が完了していないかもしれないので少し待つ。
 			setTimeout(() => {
@@ -588,6 +588,7 @@
 		tabindex="-1"
 	>
 		<button onclick={() => watchRow(t)} class="primary">▶ 視聴 (別ウィンドウで開く)</button>
+		<button onclick={() => watchRow(t, true)}>⏺ 視聴 + 録画開始</button>
 		<hr />
 		<button onclick={() => openBbs(t.contact_url)} disabled={!t.contact_url}
 			>📺 BBS としてコンタクト URL を開く</button
