@@ -19,6 +19,7 @@
 		playerRecordStart,
 		playerRecordStop,
 		playerSetAspect,
+		playerSetAutoReconnect,
 		playerSetVolume,
 		playerSnapshot,
 		playerStatus,
@@ -52,6 +53,11 @@
 	let pasteUrl = $state('');
 	let busy = $state(false);
 	let lastError = $state<string | null>(null);
+	// 自動再接続の進行 / 結果を表示するメッセージ。null なら非表示。
+	// バックエンドからの `player:reconnecting` / `player:reconnect_stopped`
+	// イベントで更新される。詳細は src-tauri/src/player/engine.rs。
+	let reconnectStatus = $state<string | null>(null);
+	let reconnectStatusTimer: ReturnType<typeof setTimeout> | null = null;
 
 	// ── Display toggles (T/Z/X/B/C shortcuts + 表示 menu) ────────────
 	let showBbsPane = $state(true);
@@ -136,6 +142,9 @@
 	let threadSelectedUnlisten: UnlistenFn | null = null;
 	let configSavedUnlisten: UnlistenFn | null = null;
 	let channelStatusUnlisten: UnlistenFn | null = null;
+	let reconnectingUnlisten: UnlistenFn | null = null;
+	let reconnectStoppedUnlisten: UnlistenFn | null = null;
+	let endFileObservedUnlisten: UnlistenFn | null = null;
 
 	let shortcutsUnlisten: (() => void) | null = null;
 	let themeUnlisten: (() => void) | null = null;
@@ -162,6 +171,7 @@
 		configSavedUnlisten = await listen('config:saved', () => {
 			reloadBbsPrefs();
 			reinstallShortcuts();
+			syncAutoReconnect();
 		});
 
 		threadSelectedUnlisten = await listen<{
@@ -185,6 +195,45 @@
 		// まとめる目的。複数ウィンドウからも同じ event を listen 可。
 		channelStatusUnlisten = await listen<ChannelStatus>('channel:status', (e) => {
 			channelStatus = e.payload;
+		});
+
+		// 自動再接続イベント (詳細は src-tauri/src/player/engine.rs)。
+		// observation モード (config.player.auto_reconnect = false) でも
+		// end_file_observed は飛んでくるので、reason 値の挙動確認に使える。
+		endFileObservedUnlisten = await listen<{
+			reason: string;
+			auto_reconnect_enabled: boolean;
+		}>('player:end_file_observed', (e) => {
+			// 観察モード時のみ短く表示。有効時は reconnecting / stopped で
+			// より詳細を表示するためここでは黙る。
+			if (!e.payload.auto_reconnect_enabled) {
+				showReconnectStatus(`配信終了/切断 (reason=${e.payload.reason})`, 8000);
+			}
+		});
+		reconnectingUnlisten = await listen<{
+			attempt: number;
+			max: number;
+			delay_sec: number;
+			end_file_reason: string;
+		}>('player:reconnecting', (e) => {
+			const p = e.payload;
+			showReconnectStatus(
+				`自動再接続中… 試行 ${p.attempt}/${p.max} (${p.delay_sec}秒後 / reason=${p.end_file_reason})`,
+				null, // 次のイベントまで表示し続ける
+			);
+		});
+		reconnectStoppedUnlisten = await listen<{
+			reason: string;
+			end_file_reason: string;
+		}>('player:reconnect_stopped', (e) => {
+			const p = e.payload;
+			const msg = reconnectStopMessage(p.reason, p.end_file_reason);
+			if (msg) {
+				showReconnectStatus(msg, 15000);
+			} else {
+				// user-stop / not-reconnectable / disabled は通常運用なので消すだけ。
+				clearReconnectStatus();
+			}
 		});
 
 		// Honour CLI args (positional URL → auto-play unless --no-autoplay).
@@ -275,9 +324,13 @@
 		if (threadTimer) clearInterval(threadTimer);
 		if (playerTimer) clearInterval(playerTimer);
 		if (countdownTimer) clearInterval(countdownTimer);
+		if (reconnectStatusTimer) clearTimeout(reconnectStatusTimer);
 		threadSelectedUnlisten?.();
 		configSavedUnlisten?.();
 		channelStatusUnlisten?.();
+		reconnectingUnlisten?.();
+		reconnectStoppedUnlisten?.();
+		endFileObservedUnlisten?.();
 		shortcutsUnlisten?.();
 		themeUnlisten?.();
 		windowGeomUnlisten?.();
@@ -301,6 +354,57 @@
 	// Spec (docs/ui-design.md §147): デフォルト ON。手動スクロール時は
 	// 一時停止 = ユーザーが末尾付近にいない時は追従しない。
 	const NEAR_BOTTOM_PX = 24;
+
+	// ── 自動再接続ステータス表示 ─────────────────────────────────
+
+	function showReconnectStatus(msg: string, autoHideMs: number | null) {
+		reconnectStatus = msg;
+		if (reconnectStatusTimer) clearTimeout(reconnectStatusTimer);
+		if (autoHideMs !== null) {
+			reconnectStatusTimer = setTimeout(() => {
+				reconnectStatus = null;
+				reconnectStatusTimer = null;
+			}, autoHideMs);
+		}
+	}
+
+	function clearReconnectStatus() {
+		if (reconnectStatusTimer) clearTimeout(reconnectStatusTimer);
+		reconnectStatusTimer = null;
+		reconnectStatus = null;
+	}
+
+	/// 設定保存後に backend の auto_reconnect 値を即時同期する。
+	async function syncAutoReconnect() {
+		try {
+			const cfg = await getConfig();
+			const enabled = cfg?.player?.auto_reconnect === true;
+			await playerSetAutoReconnect(enabled);
+		} catch {
+			// failed read or call: ignore (engine will catch on next load())
+		}
+	}
+
+	/// Skip 理由 → 表示メッセージ。null を返す reason は通常運用なので
+	/// ステータス帯に出さない (= ノイズを減らす)。
+	function reconnectStopMessage(skipReason: string, endFileReason: string): string | null {
+		switch (skipReason) {
+			case 'user-stop':
+			case 'not-reconnectable':
+			case 'disabled':
+				return null;
+			case 'no-url':
+				return null; // 内部状態の不整合、表示不要
+			case 'max-attempts':
+				return `自動再接続を停止しました (上限到達)。F5 で手動再接続できます。`;
+			case 'total-timeout':
+				return `自動再接続を停止しました (合計時間超過)。F5 で手動再接続できます。`;
+			case 'broadcast-likely-ended':
+				return `自動再接続を停止しました (配信終了の可能性、reason=${endFileReason})。`;
+			default:
+				return `自動再接続を停止しました (${skipReason})。`;
+		}
+	}
 
 	function isNearBottom(el: HTMLElement | null): boolean {
 		if (!el) return false;
@@ -1387,6 +1491,9 @@
 		{:else}
 			<span class="muted">未接続</span>
 		{/if}
+		{#if reconnectStatus}
+			<span class="reconnect" title="自動再接続の状態 (詳細は engine.rs)">⟳ {reconnectStatus}</span>
+		{/if}
 		{#if lastError}
 			<span class="err">⚠ {lastError}</span>
 		{/if}
@@ -1757,6 +1864,16 @@
 	.err {
 		color: var(--err);
 		margin-left: auto;
+	}
+
+	.reconnect {
+		color: #f5b942;
+		margin-left: auto;
+		font-weight: 500;
+	}
+
+	.reconnect + .err {
+		margin-left: 0.5rem;
 	}
 
 	/* Linked anchors / IDs inside post bodies and header. */

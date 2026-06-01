@@ -159,6 +159,13 @@ pub fn run() {
             // player rather than aborting the whole app.
             match PlayerEngine::new() {
                 Ok(engine) => {
+                    // 起動時の config から auto_reconnect の初期値を反映
+                    // してから event loop を起動する。設定読み込み失敗時
+                    // (新規環境等) は既定 false = 観察モード扱い。
+                    if let Ok(cfg) = pst_core::config::load() {
+                        engine.set_auto_reconnect(cfg.player.auto_reconnect);
+                    }
+                    engine.attach_event_loop(app.handle().clone());
                     app.handle().manage(engine);
                 }
                 Err(e) => {
@@ -223,6 +230,7 @@ pub fn run() {
             commands::player::player_record_path,
             commands::player::recording_target_dir,
             commands::player::player_set_aspect,
+            commands::player::player_set_auto_reconnect,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

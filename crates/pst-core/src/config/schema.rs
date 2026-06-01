@@ -265,6 +265,20 @@ pub struct PlayerConfig {
     /// "mkv" / "mp4" 等を指定。
     #[serde(default)]
     pub recording_ext: String,
+    /// 配信が予期せず切断された時に自動再接続を試みるかどうか。
+    /// 既定 false (= 観察モード: end_file の reason をステータス帯と
+    /// stderr に出すだけで実際の再接続はしない)。実機で reason 値の
+    /// 挙動を確認してから true に切り替える運用想定。
+    ///
+    /// 有効時の挙動 (詳細は src-tauri/src/player/engine.rs):
+    /// - EOF / ERROR / REDIRECT で再接続を試みる (STOP / QUIT は無視)
+    /// - 指数バックオフ: 1, 2, 4, 8, 16, 30, 30, 30, 30, 30 秒
+    /// - 総タイムアウト 5 分 / 最大 10 試行
+    /// - 再接続後 3 秒以内に切れる「即切断」が 3 回連続したら配信終了と
+    ///   推定して打ち切り (リレー網が完全に死亡 = origin が止まったケース)
+    /// - ユーザ手動 stop / 別チャンネル load でリセット
+    #[serde(default)]
+    pub auto_reconnect: bool,
 }
 
 impl Default for PlayerConfig {
@@ -277,6 +291,7 @@ impl Default for PlayerConfig {
             snapshot_jpeg_quality: 95,
             recording_dir: String::new(),
             recording_ext: String::new(),
+            auto_reconnect: false,
         }
     }
 }

@@ -329,6 +329,9 @@ export interface PlayerCfg {
 	snapshot_jpeg_quality: number;
 	recording_dir: string;
 	recording_ext: string;
+	/// 配信切断時に自動再接続するか。既定 false (= 観察モード)。
+	/// 詳細は src-tauri/src/player/engine.rs。
+	auto_reconnect: boolean;
 }
 
 export interface WindowCfg {
@@ -566,4 +569,10 @@ export async function recordingTargetDir(): Promise<string> {
 
 export async function playerSetAspect(aspect: number): Promise<void> {
 	return call<void>('player_set_aspect', { aspect });
+}
+
+/// 自動再接続の ON/OFF を即時反映する。設定ダイアログの保存ハンドラ
+/// から呼ぶ。詳細は src-tauri/src/player/engine.rs を参照。
+export async function playerSetAutoReconnect(enabled: boolean): Promise<void> {
+	return call<void>('player_set_auto_reconnect', { enabled });
 }

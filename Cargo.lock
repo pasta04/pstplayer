@@ -3080,6 +3080,7 @@ name = "pstplayer"
 version = "0.0.1"
 dependencies = [
  "libmpv2",
+ "libmpv2-sys",
  "pst-core",
  "raw-window-handle",
  "serde",

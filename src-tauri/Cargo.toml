@@ -27,6 +27,10 @@ serde_json.workspace = true
 # ので明示。
 tokio.workspace = true
 libmpv2 = { version = "5", default-features = false, features = ["render"] }
+# libmpv の生の event id / end_file_reason 定数を engine.rs の再接続
+# ロジックで参照するため、低レベルの sys クレートを直接 import する
+# (libmpv2 は再エクスポートしていない)。
+libmpv2-sys = "4"
 raw-window-handle = "0.6"
 
 # On Windows the system has no standard search path for libmpv.

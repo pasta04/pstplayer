@@ -9,7 +9,20 @@ use tauri::{AppHandle, Manager, Runtime, State};
 
 #[tauri::command]
 pub fn player_load(url: String, engine: State<'_, PlayerEngine>) -> Result<(), IpcError> {
+    // load 時に config の auto_reconnect 設定を engine state に反映
+    // しておく (= 設定変更を毎回反映)。`set_config` 後に明示同期する
+    // のは `player_set_auto_reconnect` 経由。
+    if let Ok(cfg) = config::load() {
+        engine.set_auto_reconnect(cfg.player.auto_reconnect);
+    }
     engine.load(&url).map_err(Into::into)
+}
+
+/// 設定ダイアログでユーザが auto_reconnect の ON/OFF を変えた直後に
+/// 呼ぶ。次回 load() を待たずに反映される。
+#[tauri::command]
+pub fn player_set_auto_reconnect(enabled: bool, engine: State<'_, PlayerEngine>) {
+    engine.set_auto_reconnect(enabled);
 }
 
 #[tauri::command]

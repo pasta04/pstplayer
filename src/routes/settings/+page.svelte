@@ -632,6 +632,19 @@
 					負荷ほぼゼロ)。拡張子は元コンテナに合わせて指定してください (FLV 配信なら flv、mkv
 					が安全な選択肢)。
 				</p>
+				<label>
+					<input type="checkbox" bind:checked={cfg.player.auto_reconnect} />
+					自動再接続を有効化する
+				</label>
+				<p class="hint small muted">
+					配信が途中で切れた時に自動で再接続を試みます (PeerCast はリレー網のため、自分の
+					上流が落ちても配信元は続いていることが多い)。 EOF / ERROR / REDIRECT を区別せず再接続
+					を試み、再接続後 3 秒以内に再切断が <strong>3 回連続</strong> したら配信終了とみなして
+					諦めます。上限 10 試行 / 合計 5 分。指数バックオフ (1, 2, 4, 8, 16, 30, 30, 30, 30, 30
+					秒)。 <br />
+					<strong>OFF 時 (既定):</strong> 観察モード。end_file の reason 値をステータス帯に出すだけで実際の再接続はしません。実機で
+					reason の挙動を確認したら ON に切り替えてください。
+				</p>
 			{:else if tab === 'favorites'}
 				<p class="hint small muted">
 					各ルールはチャンネル一覧 (YP・PeerCast) に対して上から評価され、最初にマッチした
