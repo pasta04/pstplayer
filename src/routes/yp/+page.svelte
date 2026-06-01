@@ -73,15 +73,20 @@
 
 	const visible = $derived.by(() => {
 		const q = filter.trim().toLowerCase();
+		// action='block' は完全に隠す、'ignore' も一覧から除外。
+		const base = entries.filter((e) => {
+			const a = matchFor(e)?.action ?? 'show';
+			return a === 'show';
+		});
 		const filtered = q
-			? entries.filter(
+			? base.filter(
 					(e) =>
 						e.name.toLowerCase().includes(q) ||
 						e.genre.toLowerCase().includes(q) ||
 						e.desc.toLowerCase().includes(q) ||
 						e.comment.toLowerCase().includes(q),
 				)
-			: entries.slice();
+			: base.slice();
 		filtered.sort((a, b) => {
 			// pin_top のお気に入りは常に最上位に固める (列ソートより優先)。
 			const pa = matchFor(a)?.pin_top ? 1 : 0;
@@ -157,6 +162,7 @@
 		<div class="tbody">
 			{#each visible as e (e.id)}
 				{@const fav = matchFor(e)}
+				{@const bg = fav?.background || fav?.color || ''}
 				<button
 					class="row"
 					class:pinned={fav?.pin_top}
@@ -164,7 +170,10 @@
 					title={fav
 						? `★ ${fav.name || 'お気に入り'}${fav.auto_record ? ' / 自動録画' : ''}`
 						: e.desc || e.comment}
-					style={fav?.color ? `background:${fav.color};` : undefined}
+					style={[
+						bg ? `background:${bg};` : '',
+						fav?.text_color ? `color:${fav.text_color};` : '',
+					].join('')}
 				>
 					<span class="c-listeners">{e.listeners}</span>
 					<span class="c-name">
