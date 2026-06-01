@@ -251,6 +251,21 @@
 		cfg = { ...cfg! };
 	}
 
+	function setHubRefreshSec(v: number) {
+		if (!cfg) return;
+		if (!Number.isFinite(v) || v < 0) v = 0;
+		cfg.hub = { ...(cfg.hub ?? { refresh_sec: 60, watching_poll_sec: 5 }), refresh_sec: v };
+	}
+
+	function setHubWatchingPollSec(v: number) {
+		if (!cfg) return;
+		if (!Number.isFinite(v) || v < 0) v = 0;
+		cfg.hub = {
+			...(cfg.hub ?? { refresh_sec: 60, watching_poll_sec: 5 }),
+			watching_poll_sec: v,
+		};
+	}
+
 	function applyRecentHost(entry: string) {
 		if (!cfg) return;
 		// entry は "host:port" 形式。IPv6 は host:port 表記が曖昧なので
@@ -436,6 +451,30 @@
 					旧 <code>peercast.yp_url</code> 単体設定もそのまま残っていますが、こちらに 1 件でも登録するとそちらは無視されます
 					(移行用)。
 				</p>
+
+				<h3>ハブ画面の更新間隔</h3>
+				<fieldset>
+					<label>
+						YP 自動再 fetch 間隔 (秒、0 で無効)
+						<input
+							type="number"
+							min="0"
+							max="3600"
+							value={cfg.hub?.refresh_sec ?? 60}
+							oninput={(e) => setHubRefreshSec(Number(e.currentTarget.value))}
+						/>
+					</label>
+					<label>
+						「視聴中」ポーリング間隔 (秒、0 で無効)
+						<input
+							type="number"
+							min="0"
+							max="600"
+							value={cfg.hub?.watching_poll_sec ?? 5}
+							oninput={(e) => setHubWatchingPollSec(Number(e.currentTarget.value))}
+						/>
+					</label>
+				</fieldset>
 			{:else if tab === 'bbs'}
 				<label>
 					デフォルト名前
