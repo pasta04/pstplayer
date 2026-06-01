@@ -85,6 +85,12 @@ async fn run(state: AppState) {
                     let Some(rule) = first_match(&rules, &ch.info) else {
                         continue;
                     };
+                    // 最初にマッチしたルールが Block / Ignore なら録画
+                    // しない。auto_record=true な別ルールが下にあっても
+                    // 優先順位上位のものを尊重する。
+                    if rule.action != pst_core::favorites::FavoriteAction::Show {
+                        continue;
+                    }
                     if !rule.auto_record {
                         continue;
                     }

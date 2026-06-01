@@ -35,8 +35,51 @@ pub struct FavoriteRule {
     pub pin_top: bool,
     #[serde(default)]
     pub auto_record: bool,
+    /// 旧フィールド。背景色。新しい設定 UI では `background` で扱うが、
+    /// 古い config.toml との互換のため deserialize は `color` で受ける。
+    /// 新規書き出しでは `background` のみで足りるが、両方持ち続ける。
+    /// `background` が空かつ `color` に値があれば `background` として
+    /// 解釈する (`effective_background` ヘルパ参照)。
     #[serde(default)]
     pub color: String,
+    /// 行の背景色 (CSS color)。空なら未指定 (テーマ既定)。
+    #[serde(default)]
+    pub background: String,
+    /// 行の文字色 (CSS color)。空なら未指定。
+    #[serde(default)]
+    pub text_color: String,
+    /// このルールにマッチした時の挙動。
+    #[serde(default)]
+    pub action: FavoriteAction,
+}
+
+impl FavoriteRule {
+    /// 互換用: `background` が空なら旧 `color` を使う。
+    pub fn effective_background(&self) -> &str {
+        if !self.background.is_empty() {
+            &self.background
+        } else {
+            &self.color
+        }
+    }
+}
+
+/// マッチしたルールがチャンネルにどう影響するか。
+///
+/// - `Show` (既定): ハブで通常表示。`pin_top` / `auto_record` / 色は
+///   他フィールドどおりに適用
+/// - `Ignore`: ハブの「すべて」「お気に入り」タブから非表示。専用の
+///   「非表示」タブで確認はできる。録画 / 視聴 spawn の対象外
+/// - `Block`: 完全ブロック。表示しない、視聴 spawn しない、録画しない。
+///   別ルールで `auto_record = true` でも、優先順位がこちらに当たれば
+///   録画されない
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FavoriteAction {
+    #[default]
+    Show,
+    Ignore,
+    Block,
 }
 
 /// 「お気に入り判定」できる対象。`YpEntry` と `ChannelInfo` の両方を
@@ -143,6 +186,60 @@ mod tests {
         assert!(matches(&r, &yp("MOXch", "music live")));
         assert!(!matches(&r, &yp("MOXch", "game")));
         assert!(!matches(&r, &yp("other", "music live")));
+    }
+
+    #[test]
+    fn effective_background_falls_back_to_color() {
+        let r = FavoriteRule {
+            color: "#abcdef".into(),
+            background: String::new(),
+            ..Default::default()
+        };
+        assert_eq!(r.effective_background(), "#abcdef");
+
+        let r = FavoriteRule {
+            color: "#abcdef".into(),
+            background: "#123456".into(),
+            ..Default::default()
+        };
+        assert_eq!(r.effective_background(), "#123456");
+    }
+
+    #[test]
+    fn action_defaults_to_show() {
+        let r = FavoriteRule::default();
+        assert_eq!(r.action, FavoriteAction::Show);
+    }
+
+    #[test]
+    fn action_deserialises_lowercase() {
+        let s = r##"
+            name = "test"
+            channel_name = "foo"
+            action = "ignore"
+        "##;
+        let r: FavoriteRule = toml::from_str(s).unwrap();
+        assert_eq!(r.action, FavoriteAction::Ignore);
+
+        let s = r##"
+            name = "test"
+            channel_name = "foo"
+            action = "block"
+        "##;
+        let r: FavoriteRule = toml::from_str(s).unwrap();
+        assert_eq!(r.action, FavoriteAction::Block);
+    }
+
+    #[test]
+    fn legacy_color_field_is_still_parsed() {
+        let s = r##"
+            name = "old"
+            channel_name = "x"
+            color = "#aabbcc"
+        "##;
+        let r: FavoriteRule = toml::from_str(s).unwrap();
+        assert_eq!(r.color, "#aabbcc");
+        assert_eq!(r.effective_background(), "#aabbcc");
     }
 
     #[test]

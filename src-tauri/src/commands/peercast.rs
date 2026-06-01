@@ -96,18 +96,33 @@ pub fn stop_channel_polling(polling: State<'_, ChannelPolling>) {
 }
 
 /// Fetch the configured YP `index.txt` and return parsed entries.
-/// `override_url` を渡すと config の `peercast.yp_url` ではなくそれを
-/// 使用 (将来の複数 YP 切替や手入力に備える)。
+/// `override_url` を渡すと config の YP 設定を無視して単独 URL を fetch
+/// する (手入力 / プレビュー用)。それ以外は `[[yp.sources]]` (旧
+/// `peercast.yp_url` からのマイグレ込み) を **全部並行 fetch** し、
+/// `channel_id` 重複は前者のソース優先で 1 つに纏める。
 #[tauri::command]
 pub async fn fetch_yp_index(override_url: Option<String>) -> Result<Vec<YpEntry>, IpcError> {
-    let url = match override_url {
-        Some(s) if !s.trim().is_empty() => s,
-        _ => {
-            let cfg = config::load().map_err(IpcError::from)?;
-            cfg.peercast.yp_url
-        }
-    };
-    yp::fetch_index(&url).await.map_err(Into::into)
+    if let Some(url) = override_url.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        return yp::fetch_index(url).await.map_err(Into::into);
+    }
+    let cfg = config::load().map_err(IpcError::from)?;
+    let sources = cfg.effective_yp_sources();
+    if sources.is_empty() {
+        return Ok(Vec::new());
+    }
+    Ok(yp::fetch_indexes(&sources).await.entries)
+}
+
+/// 全 YP ソースの fetch + 失敗一覧。フロントは `failures` を見て
+/// ステータスバーに「YP X: 取得失敗」を出せる。
+#[tauri::command]
+pub async fn fetch_yp_sources() -> Result<yp::MultiFetchOutcome, IpcError> {
+    let cfg = config::load().map_err(IpcError::from)?;
+    let sources = cfg.effective_yp_sources();
+    if sources.is_empty() {
+        return Ok(yp::MultiFetchOutcome { entries: Vec::new(), failures: Vec::new() });
+    }
+    Ok(yp::fetch_indexes(&sources).await)
 }
 
 /// `spawn_viewer` の結果。フロント側で「新規ウィンドウが立ち上がった」

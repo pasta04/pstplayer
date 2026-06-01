@@ -30,6 +30,10 @@ pub struct YpEntry {
     pub flag_click: String,
     pub comment: String,
     pub flag_extra: String,
+    /// 取得元 YP の名前 (複数 YP マージ後に `fetch_indexes` がセット)。
+    /// 単独 `fetch_index` 経由では空文字列のまま。
+    #[serde(default)]
+    pub yp_source: String,
 }
 
 fn unescape(field: &str) -> String {
@@ -71,6 +75,7 @@ pub fn parse_line(line: &str) -> Option<YpEntry> {
         flag_click: fields[16].to_string(),
         comment: unescape(fields[17]),
         flag_extra: fields[18].to_string(),
+        yp_source: String::new(),
     })
 }
 
@@ -96,6 +101,78 @@ pub async fn fetch_index(yp_url: &str) -> AppResult<Vec<YpEntry>> {
     }
     let body = resp.text().await?;
     Ok(parse(&body))
+}
+
+/// 複数の YP ソースを並行 fetch して結果をマージする。同一 `channel_id`
+/// が複数 YP に出てきた場合は **最初の YP (= 引数の配列の先頭側)** を
+/// 採用 (= ソース並びが優先度)。`yp_source` フィールドに採用元 YP の
+/// 名前 (`YpSource::name`) が入る。
+///
+/// 個別 YP の fetch 失敗は他に影響させない (除外して継続) — 失敗一覧は
+/// `MultiFetchOutcome::failures` に積む。
+pub async fn fetch_indexes(sources: &[crate::config::schema::YpSource]) -> MultiFetchOutcome {
+    // 並行 fetch (tokio::task::JoinSet) + 元の並び順を保つために index 付き
+    // で集計、最後に並び替える。各 YP の失敗は他に影響させない。
+    let mut set = tokio::task::JoinSet::new();
+    for (idx, s) in sources.iter().enumerate() {
+        let src = s.clone();
+        set.spawn(async move {
+            let res = fetch_index(&src.url).await;
+            (idx, src, res)
+        });
+    }
+
+    let mut indexed: Vec<(
+        usize,
+        crate::config::schema::YpSource,
+        AppResult<Vec<YpEntry>>,
+    )> = Vec::new();
+    while let Some(joined) = set.join_next().await {
+        if let Ok(triple) = joined {
+            indexed.push(triple);
+        }
+    }
+    indexed.sort_by_key(|t| t.0);
+
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut entries: Vec<YpEntry> = Vec::new();
+    let mut failures: Vec<YpFetchFailure> = Vec::new();
+
+    for (_, src, res) in indexed {
+        match res {
+            Ok(list) => {
+                for mut e in list {
+                    let key = e.id.to_ascii_lowercase();
+                    if key.is_empty() || seen.contains(&key) {
+                        continue;
+                    }
+                    seen.insert(key);
+                    e.yp_source = src.name.clone();
+                    entries.push(e);
+                }
+            }
+            Err(err) => failures.push(YpFetchFailure {
+                source: src.name.clone(),
+                url: src.url.clone(),
+                error: err.to_string(),
+            }),
+        }
+    }
+
+    MultiFetchOutcome { entries, failures }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MultiFetchOutcome {
+    pub entries: Vec<YpEntry>,
+    pub failures: Vec<YpFetchFailure>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct YpFetchFailure {
+    pub source: String,
+    pub url: String,
+    pub error: String,
 }
 
 #[cfg(test)]

@@ -124,6 +124,7 @@ pub fn run() {
             commands::peercast::start_channel_polling,
             commands::peercast::stop_channel_polling,
             commands::peercast::fetch_yp_index,
+            commands::peercast::fetch_yp_sources,
             commands::peercast::spawn_viewer,
             commands::config::get_config,
             commands::config::set_config,
