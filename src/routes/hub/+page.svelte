@@ -10,6 +10,8 @@
 	import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event';
 	import {
 		CommandError,
+		closeAllViewers,
+		closeViewer,
 		effectiveBackground,
 		fetchYpSources,
 		firstFavoriteMatch,
@@ -312,6 +314,30 @@
 		}
 	}
 
+	async function closeRow(e: YpEntry) {
+		closeMenu();
+		try {
+			await closeViewer(e.id);
+			setTimeout(() => {
+				void refreshWatching();
+			}, 400);
+		} catch (err) {
+			lastError = err instanceof Error ? err.message : String(err);
+		}
+	}
+
+	async function closeAll() {
+		try {
+			const n = await closeAllViewers();
+			setTimeout(() => {
+				void refreshWatching();
+			}, 400);
+			if (n === 0) lastError = '視聴中のウィンドウはありません';
+		} catch (err) {
+			lastError = err instanceof Error ? err.message : String(err);
+		}
+	}
+
 	function onRowClick(e: YpEntry) {
 		selectedId = e.id;
 	}
@@ -443,6 +469,13 @@
 	<header class="toolbar">
 		<button onclick={refresh} disabled={loading}>{loading ? '更新中…' : '↻ 更新'}</button>
 		<button onclick={openSettings}>⚙ 設定</button>
+		<button
+			onclick={closeAll}
+			disabled={watchingIds.size === 0}
+			title="開いている全視聴ウィンドウを閉じる"
+		>
+			✕ 全閉じ ({watchingIds.size})
+		</button>
 		<input
 			class="filter"
 			type="search"
@@ -597,8 +630,12 @@
 		role="menu"
 		tabindex="-1"
 	>
-		<button onclick={() => watchRow(t)} class="primary">▶ 視聴 (別ウィンドウで開く)</button>
-		<button onclick={() => watchRow(t, true)}>⏺ 視聴 + 録画開始</button>
+		{#if watchingIds.has(t.id)}
+			<button onclick={() => closeRow(t)} class="primary">✕ 視聴ウィンドウを閉じる</button>
+		{:else}
+			<button onclick={() => watchRow(t)} class="primary">▶ 視聴 (別ウィンドウで開く)</button>
+			<button onclick={() => watchRow(t, true)}>⏺ 視聴 + 録画開始</button>
+		{/if}
 		<hr />
 		<button onclick={() => openBbs(t.contact_url)} disabled={!t.contact_url}
 			>📺 BBS としてコンタクト URL を開く</button

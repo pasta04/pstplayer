@@ -144,6 +144,28 @@ pub fn list_active_viewers() -> Vec<String> {
     single_instance::list_active().into_iter().map(|i| i.channel_id).collect()
 }
 
+/// 指定 channel_id の視聴ウィンドウを閉じる。lock がなければ no-op。
+/// 失敗してもエラーにはせず false を返す (already closed 等の race を想定)。
+#[tauri::command]
+pub fn close_viewer(channel_id: String) -> bool {
+    let Some(info) = single_instance::read_existing(&channel_id) else {
+        return false;
+    };
+    single_instance::request_close(info.ipc_addr).is_ok()
+}
+
+/// 全視聴ウィンドウを一括クローズ。閉じられた件数を返す。
+#[tauri::command]
+pub fn close_all_viewers() -> usize {
+    let mut closed = 0;
+    for info in single_instance::list_active() {
+        if single_instance::request_close(info.ipc_addr).is_ok() {
+            closed += 1;
+        }
+    }
+    closed
+}
+
 /// YP / お気に入り行クリックから呼ばれる「視聴用 pstplayer プロセスを
 /// 立ち上げる」コマンド。
 ///

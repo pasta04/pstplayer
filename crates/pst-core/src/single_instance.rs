@@ -43,6 +43,7 @@ use serde::{Deserialize, Serialize};
 const PING: &[u8] = b"ping\n";
 const PONG: &[u8] = b"pong\n";
 const FOCUS: &[u8] = b"focus\n";
+const CLOSE: &[u8] = b"close\n";
 const OK: &[u8] = b"ok\n";
 
 /// 起動時の重複起動ポリシー。`LaunchPolicy::Single` の時のみ実際に
@@ -186,6 +187,18 @@ pub fn request_focus(addr: SocketAddr) -> std::io::Result<()> {
     Ok(())
 }
 
+/// 既存プロセスにクローズ要求を送る。受け取った viewer 側は `serve`
+/// の `on_close` コールバックでウィンドウを閉じる (= プロセス終了)。
+pub fn request_close(addr: SocketAddr) -> std::io::Result<()> {
+    let mut stream = TcpStream::connect_timeout(&addr, Duration::from_secs(2))?;
+    stream.set_write_timeout(Some(Duration::from_secs(2)))?;
+    stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+    stream.write_all(CLOSE)?;
+    let mut buf = [0u8; 8];
+    let _ = stream.read(&mut buf);
+    Ok(())
+}
+
 /// 既存ロックファイルを読む (なければ None)。スポーン側で「既に視聴
 /// ウィンドウがあるか?」をチェックするための read-only 操作。
 pub fn read_existing(channel_id: &str) -> Option<LockInfo> {
@@ -231,9 +244,14 @@ pub fn list_active() -> Vec<LockInfo> {
 }
 
 /// `acquire` で受け取った `TcpListener` をブロッキングループで処理する。
-/// `on_focus` は `focus\n` を受け取った時に呼ばれる (UI スレッド外なので
-/// 内部で `app.run_on_main_thread` 等を使うこと)。
-pub fn serve<F: Fn() + Send + 'static>(listener: TcpListener, on_focus: F) {
+/// `on_focus` は `focus\n` を、`on_close` は `close\n` を受け取った時に
+/// 呼ばれる (UI スレッド外なので内部で `app.run_on_main_thread` 等を
+/// 使うこと)。
+pub fn serve<F, C>(listener: TcpListener, on_focus: F, on_close: C)
+where
+    F: Fn() + Send + 'static,
+    C: Fn() + Send + 'static,
+{
     for incoming in listener.incoming() {
         let Ok(mut stream) = incoming else { continue };
         let _ = stream.set_read_timeout(Some(Duration::from_secs(1)));
@@ -249,6 +267,9 @@ pub fn serve<F: Fn() + Send + 'static>(listener: TcpListener, on_focus: F) {
         } else if req.starts_with(FOCUS) {
             let _ = stream.write_all(OK);
             on_focus();
+        } else if req.starts_with(CLOSE) {
+            let _ = stream.write_all(OK);
+            on_close();
         }
     }
 }
@@ -280,9 +301,13 @@ mod tests {
         let focused = Arc::new(AtomicU32::new(0));
         let focused_c = focused.clone();
         thread::spawn(move || {
-            serve(listener, move || {
-                focused_c.fetch_add(1, Ordering::SeqCst);
-            });
+            serve(
+                listener,
+                move || {
+                    focused_c.fetch_add(1, Ordering::SeqCst);
+                },
+                || {},
+            );
         });
         // 同じ channel_id で 2 度目 acquire → Conflict
         match acquire(&ch).unwrap() {
@@ -347,7 +372,7 @@ mod tests {
         };
         let mut h = owned;
         let listener = h.take_listener().unwrap();
-        thread::spawn(move || serve(listener, || {}));
+        thread::spawn(move || serve(listener, || {}, || {}));
 
         // 偽の死んだロックも 1 つ書く
         let ch_dead = unique_id("f");
@@ -386,7 +411,7 @@ mod tests {
         let listener = h.take_listener().unwrap();
         let stop = Arc::new(Mutex::new(false));
         let _stop_c = stop.clone();
-        thread::spawn(move || serve(listener, || {}));
+        thread::spawn(move || serve(listener, || {}, || {}));
         let info = read_existing(&ch).expect("live owner not found");
         assert_eq!(info.channel_id, ch);
         drop(h);

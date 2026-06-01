@@ -52,21 +52,30 @@ enum AcquireOutcome {
     Skip,
 }
 
-/// `acquire` で受け取ったリスナーを別スレッドで回し、`focus` 要求が
-/// 来たら main ウィンドウを前面化する。`LockHandle` は app state に
-/// 持たせて drop 時に lock ファイル削除されるようにする。
+/// `acquire` で受け取ったリスナーを別スレッドで回し、`focus` / `close`
+/// 要求に応える。`LockHandle` は app state に持たせて drop 時に lock
+/// ファイル削除されるようにする。
 fn start_focus_listener<R: Runtime>(mut handle: LockHandle, app: AppHandle<R>) -> LockHandle {
     if let Some(listener) = handle.take_listener() {
+        let app_focus = app.clone();
+        let app_close = app;
         std::thread::spawn(move || {
-            single_instance::serve(listener, move || {
-                // 最小化を解除し前面に持ってくる。ウィンドウラベルは
-                // tauri.conf.json の最初のラベル ("main") を想定。
-                if let Some(win) = app.get_webview_window("main") {
-                    let _ = win.unminimize();
-                    let _ = win.show();
-                    let _ = win.set_focus();
-                }
-            });
+            single_instance::serve(
+                listener,
+                move || {
+                    // 最小化を解除し前面に持ってくる。ウィンドウラベルは
+                    // tauri.conf.json の最初のラベル ("main") を想定。
+                    if let Some(win) = app_focus.get_webview_window("main") {
+                        let _ = win.unminimize();
+                        let _ = win.show();
+                        let _ = win.set_focus();
+                    }
+                },
+                move || {
+                    // ハブ側からの close 要求。app を exit させる。
+                    app_close.exit(0);
+                },
+            );
         });
     }
     handle
@@ -127,6 +136,8 @@ pub fn run() {
             commands::peercast::fetch_yp_sources,
             commands::peercast::spawn_viewer,
             commands::peercast::list_active_viewers,
+            commands::peercast::close_viewer,
+            commands::peercast::close_all_viewers,
             commands::config::get_config,
             commands::config::set_config,
             commands::config::config_file_path,

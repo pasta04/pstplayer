@@ -217,6 +217,16 @@ export async function listActiveViewers(): Promise<string[]> {
 	return call<string[]>('list_active_viewers');
 }
 
+/// 指定 channel_id の視聴ウィンドウを閉じる。
+export async function closeViewer(channelId: string): Promise<boolean> {
+	return call<boolean>('close_viewer', { channelId });
+}
+
+/// 全視聴ウィンドウを一括クローズ。閉じた数を返す。
+export async function closeAllViewers(): Promise<number> {
+	return call<number>('close_all_viewers');
+}
+
 // ── BBS ─────────────────────────────────────────────────────────────
 
 export type BoardKind = 'Shitaraba' | 'Ch2Compat';
