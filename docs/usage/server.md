@@ -36,6 +36,180 @@ PST_SERVER_WEB_DIR=/opt/pst-server/web \
   pst-server --config /etc/pst-server/pst-server.toml
 ```
 
+## Desktop 同居運用 (常駐起動)
+
+Pi 等の専用機ではなく **デスクトップ PC に pst-server を同居** させて
+自動録画させたい場合の OS 別起動設定。**Windows サービス方式は採用
+しません** (ログインユーザ権限で動く方が録画先パス等で都合が良い、
+ADR-0006 §採用方針 を参照)。
+
+### Linux (systemd ユーザ unit)
+
+`~/.config/systemd/user/pst-server.service` を作成:
+
+```ini
+[Unit]
+Description=PSTPlayer relay server (per-user)
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/pst-server --config %h/.config/PSTPlayer/pst-server.toml
+Restart=on-failure
+RestartSec=10
+# Web フロントの場所を環境変数で明示
+Environment="PST_SERVER_WEB_DIR=%h/.local/share/pst-server/web"
+
+[Install]
+WantedBy=default.target
+```
+
+設定 / 有効化:
+
+```bash
+# バイナリ & Web を配置
+install -m 755 target/release/pst-server ~/.local/bin/pst-server
+mkdir -p ~/.local/share/pst-server
+cp -r crates/pst-server/web ~/.local/share/pst-server/
+
+# 設定ファイル
+mkdir -p ~/.config/PSTPlayer
+cp docs/usage/pst-server.example.toml ~/.config/PSTPlayer/pst-server.toml
+$EDITOR ~/.config/PSTPlayer/pst-server.toml
+
+# ログイン時自動起動 + 即起動
+systemctl --user daemon-reload
+systemctl --user enable --now pst-server.service
+
+# 状態確認 / ログ
+systemctl --user status pst-server.service
+journalctl --user -u pst-server.service -f
+```
+
+ログイン無しでもバックグラウンドで動かしたい場合は
+`sudo loginctl enable-linger $USER` を実行。
+
+### macOS (launchd LaunchAgent)
+
+`~/Library/LaunchAgents/io.github.pasta04.pst-server.plist` を作成:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>io.github.pasta04.pst-server</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/pst-server</string>
+    <string>--config</string>
+    <string>/Users/USERNAME/Library/Application Support/PSTPlayer/pst-server.toml</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PST_SERVER_WEB_DIR</key>
+    <string>/Users/USERNAME/Library/Application Support/pst-server/web</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardErrorPath</key>
+  <string>/tmp/pst-server.err.log</string>
+  <key>StandardOutPath</key>
+  <string>/tmp/pst-server.out.log</string>
+</dict>
+</plist>
+```
+
+`USERNAME` 部分は自分のホームディレクトリ名に置換。
+
+設定 / 有効化:
+
+```bash
+# バイナリ & Web を配置
+install -m 755 target/release/pst-server /usr/local/bin/pst-server
+mkdir -p ~/Library/Application\ Support/pst-server
+cp -r crates/pst-server/web ~/Library/Application\ Support/pst-server/
+
+# 設定ファイル
+mkdir -p ~/Library/Application\ Support/PSTPlayer
+cp docs/usage/pst-server.example.toml \
+   ~/Library/Application\ Support/PSTPlayer/pst-server.toml
+$EDITOR ~/Library/Application\ Support/PSTPlayer/pst-server.toml
+
+# launchd へ登録 + 即ロード
+launchctl load -w ~/Library/LaunchAgents/io.github.pasta04.pst-server.plist
+
+# 状態確認 / アンロード
+launchctl list | grep pst-server
+launchctl unload ~/Library/LaunchAgents/io.github.pasta04.pst-server.plist
+```
+
+### Windows (スタートアップ folder のショートカット)
+
+**サービス方式は使いません** (管理者権限 / SYSTEM ユーザ問題)。
+代わりに **スタートアップ folder のショートカット** で「ログイン時に
+コンソール非表示で起動」します。
+
+1. `pst-server.exe` と `web/` を任意の場所に配置:
+
+   ```
+   C:\Users\<USER>\AppData\Local\pst-server\
+     ├── pst-server.exe
+     └── web\
+   ```
+
+2. 設定ファイルは OS 標準の場所 (`%APPDATA%\PSTPlayer\pst-server.toml`)
+   に置く。なければ `pst-server.example.toml` をコピーして編集。
+
+3. **コンソール非表示で起動する VBS ラッパー** を作成
+   (`C:\Users\<USER>\AppData\Local\pst-server\start.vbs`):
+
+   ```vbscript
+   ' Run pst-server hidden (no console window)
+   Set WshShell = CreateObject("WScript.Shell")
+   exePath = WshShell.ExpandEnvironmentStrings("%LOCALAPPDATA%\pst-server\pst-server.exe")
+   webDir  = WshShell.ExpandEnvironmentStrings("%LOCALAPPDATA%\pst-server\web")
+   WshShell.Environment("Process").Item("PST_SERVER_WEB_DIR") = webDir
+   ' 0 = SW_HIDE (window hidden), False = don't wait
+   WshShell.Run """" & exePath & """", 0, False
+   ```
+
+4. **スタートアップ folder にショートカット作成**
+
+   - エクスプローラのアドレスバーに `shell:startup` と入力 → 開く
+     (= `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\`)
+   - 上記 `start.vbs` への右クリック → 「ショートカットの作成」
+     → 作成されたショートカットを startup folder に移動 (または直接
+     新規ショートカット作成で `start.vbs` のパスを指定)
+
+5. 次回ログイン時に自動起動。**手動でも `start.vbs` をダブルクリック
+   して即起動できる** (タスクマネージャの「プロセス」に `pst-server.exe`
+   が見えれば成功)。
+
+停止する時はタスクマネージャから `pst-server.exe` を「タスクの終了」。
+
+#### ログを確認したい場合 (Windows)
+
+VBS でコンソールを隠しているので stderr / stdout が見えません。
+デバッグ時は `pst-server.toml` で:
+
+```toml
+[log]
+debug = true
+dir = "C:\\Users\\<USER>\\AppData\\Local\\pst-server\\log"
+```
+
+を有効化すると指定ディレクトリに日次ローテーションで書き出されます。
+
+### 動作確認 (3 OS 共通)
+
+ブラウザで `http://localhost:8080/` (= `[server.bind]` のポート) を開いて
+チャンネル一覧が出れば常駐起動成功です。`http://<LAN-IP>:8080/` で
+他端末のブラウザからもアクセス可。
+
 ## 設定ファイル
 
 `pst-server --config <path>` で明示指定可能。指定がない場合は OS 標準の

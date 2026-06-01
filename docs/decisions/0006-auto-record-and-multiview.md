@@ -362,16 +362,21 @@ Desktop ビューア (`pstplayer`) は視聴専用とする。複数チャンネ
   寄せる方針 (Step 3) なので、複数プロセスから自動録画が二重発火する
   心配はない
 
-### Step 5: pst-server 同居運用のドキュメント
+### Step 5: pst-server 同居運用のドキュメント — ✅ 完了
 
-- `docs/usage/server.md` を強化:
-  - Pi での systemd unit 例 (既出)
-  - **Linux systemd ユーザ unit 例** (Desktop 同居用)
-  - **macOS launchd plist 例** (`~/Library/LaunchAgents/`)
-  - **Windows スタートアップ folder ショートカット例**
-    (`shell:startup` に `.vbs` ラッパー経由の非表示起動)
-- 「自動録画したいだけのライト Desktop 利用者」が迷わず立てられる
-  ように
+`docs/usage/server.md` に「Desktop 同居運用 (常駐起動)」セクションを
+追加し、3 OS 分のセットアップ手順を整備:
+
+- [x] Pi での systemd unit 例 (既出)
+- [x] **Linux**: systemd ユーザ unit (`~/.config/systemd/user/pst-server.service`)
+      + `loginctl enable-linger` 案内
+- [x] **macOS**: launchd LaunchAgent plist (`~/Library/LaunchAgents/`)
+      + KeepAlive / RunAtLoad
+- [x] **Windows**: スタートアップ folder (`shell:startup`) に VBS
+      ラッパー (`start.vbs`、`SW_HIDE` でコンソール非表示起動) の
+      ショートカット
+- [x] 動作確認 / 停止方法 / ログ取得 (Windows のみ stdio が見えない
+      ので `[log]` セクション有効化の案内付き)
 
 **Windows サービス方式は採用しない**。理由:
 
