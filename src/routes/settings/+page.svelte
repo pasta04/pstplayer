@@ -164,6 +164,9 @@
 		pin_top: false,
 		auto_record: false,
 		color: '',
+		background: '',
+		text_color: '',
+		action: 'show',
 	});
 
 	function ensureFavorites(): FavoriteRule[] {

@@ -169,10 +169,29 @@ export interface YpEntry {
 	flag_click: string;
 	comment: string;
 	flag_extra: string;
+	/// 取得元 YP の `name` (複数 YP マージ後にバックエンドが付ける)。
+	yp_source: string;
+}
+
+export interface YpFetchFailure {
+	source: string;
+	url: string;
+	error: string;
+}
+
+export interface YpMultiFetchOutcome {
+	entries: YpEntry[];
+	failures: YpFetchFailure[];
 }
 
 export async function fetchYpIndex(overrideUrl?: string): Promise<YpEntry[]> {
 	return call<YpEntry[]>('fetch_yp_index', { overrideUrl: overrideUrl ?? null });
+}
+
+/// 設定 (`[[yp.sources]]`) に登録された全 YP を並行 fetch して
+/// entries + failures をまとめて返す。
+export async function fetchYpSources(): Promise<YpMultiFetchOutcome> {
+	return call<YpMultiFetchOutcome>('fetch_yp_sources');
 }
 
 export type SpawnViewerOutcome = 'focused' | 'spawned';
@@ -282,6 +301,8 @@ export interface WindowCfg {
 	always_on_top: boolean;
 }
 
+export type FavoriteAction = 'show' | 'ignore' | 'block';
+
 export interface FavoriteRule {
 	name: string;
 	channel_name: string;
@@ -290,11 +311,36 @@ export interface FavoriteRule {
 	comment: string;
 	pin_top: boolean;
 	auto_record: boolean;
+	/// 旧フィールド (互換)。新規は `background` を使う。両方ある時は
+	/// `background` 優先。
 	color: string;
+	background: string;
+	text_color: string;
+	action: FavoriteAction;
 }
 
 export interface FavoritesCfg {
 	rules: FavoriteRule[];
+}
+
+/// 旧 `color` と新 `background` の救済。
+export function effectiveBackground(rule: FavoriteRule | null | undefined): string {
+	if (!rule) return '';
+	return rule.background?.trim() || rule.color?.trim() || '';
+}
+
+export interface YpSource {
+	name: string;
+	url: string;
+	namespace: string;
+	show_tab: boolean;
+	show_in_all: boolean;
+	text_color: string;
+	background: string;
+}
+
+export interface YpCfg {
+	sources: YpSource[];
 }
 
 export interface Config {
@@ -306,6 +352,7 @@ export interface Config {
 	 * 未指定の action はフロントのデフォルトを使う。 */
 	hotkeys?: Record<string, string>;
 	favorites?: FavoritesCfg;
+	yp?: YpCfg;
 	// other sections exist but are not exposed yet
 	[key: string]: unknown;
 }

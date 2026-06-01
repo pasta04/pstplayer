@@ -13,7 +13,6 @@
 		getConfig,
 		getHistory,
 		listThreads,
-		peercastPing,
 		playerAttach,
 		playerLoad,
 		playerRecordPath,
@@ -192,23 +191,20 @@
 		// CLI url が無ければ初期表示として:
 		//   - PeerCast に応答あり → YP ウィンドウを自動オープン
 		//   - PeerCast 未起動 / port 違い → 設定ウィンドウを開いて促す
-		// メインウィンドウの URL 貼り付け欄はバックアップとして残る。
+		// CLI URL 引数なしで起動された場合はハブ画面 (PeCaRecorder 風)
+		// に遷移する (ADR-0006 / pstplayer-hub-mockup.svg)。視聴ウィンドウは
+		// ハブ画面から行クリックで別プロセスとして spawn する設計なので、
+		// 既存の「貼り付け + 単一プレイヤー」UI は CLI URL があるときだけ
+		// 使う。
 		try {
 			const cli = await getCliArgs();
 			if (cli.url && !cli.no_autoplay) {
 				pasteUrl = cli.url;
 				await onPaste();
 			} else if (!cli.no_autoplay) {
-				try {
-					await peercastPing();
-					await openYpList();
-				} catch (err) {
-					if (err instanceof CommandError && err.code === 'peercast_unreachable') {
-						lastError =
-							'PeerCast 本体に接続できません。設定で接続先 (ホスト/ポート) を確認してください。';
-						await openSettings();
-					}
-				}
+				const { goto } = await import('$app/navigation');
+				await goto('/hub', { replaceState: true });
+				return;
 			}
 		} catch {
 			/* CLI parsing is best-effort */
