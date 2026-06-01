@@ -16,6 +16,9 @@
 //!    `Conflict` を返す。返ってこなければ stale → 削除して取り直し
 //! 4. 後続側は `request_focus(info.ipc_addr)` で `focus\n` を送る。
 //!    取得側のリスナースレッドが受け取り、Tauri ウィンドウを前面化する
+//! 5. ハブ側は `request_close(info.ipc_addr)` で `close\n` を送って
+//!    視聴ウィンドウを終了させられる (一括クローズ機能)。サーバ側は
+//!    `serve` の `on_close` コールバックで `app.exit(0)` を呼ぶ
 //!
 //! # なぜ PID チェックでなくポート ping か
 //!
