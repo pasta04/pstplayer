@@ -546,6 +546,8 @@
 						{#each ensureFavorites() as rule, i (i)}
 							{@const bgEff = rule.background || rule.color || ''}
 							<tr
+								class:row-ignore={rule.action === 'ignore'}
+								class:row-block={rule.action === 'block'}
 								style={[
 									bgEff ? `background:${bgEff};` : '',
 									rule.text_color ? `color:${rule.text_color};` : '',
@@ -912,6 +914,13 @@
 		width: 100%;
 		border-collapse: collapse;
 		font-size: 0.82rem;
+	}
+	table.favorites tr.row-ignore {
+		opacity: 0.55;
+	}
+	table.favorites tr.row-block {
+		opacity: 0.45;
+		text-decoration: line-through;
 	}
 	table.favorites th,
 	table.favorites td {
