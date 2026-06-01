@@ -588,12 +588,26 @@
 				{#each visible as { e, rule } (e.id + '@' + e.yp_source)}
 					{@const bg = effectiveBackground(rule)}
 					{@const fg = rule?.text_color ?? ''}
+					{@const tip = [
+						e.name,
+						e.genre ? `[${e.genre}]` : '',
+						e.desc ?? '',
+						e.comment ? `「${e.comment}」` : '',
+						rule ? `★ ${rule.name || 'お気に入り'}` : '',
+						`👤 ${e.listeners} / ${e.relays} · ${e.bitrate} kbps · ${e.uptime}`,
+						`YP: ${e.yp_source}`,
+						`ID: ${e.id}`,
+						`TIP: ${e.tip}`,
+					]
+						.filter(Boolean)
+						.join('\n')}
 					<tr
 						class:selected={selectedId === e.id}
 						class:pinned={rule?.pin_top}
 						class:newish={newIds.has(e.id)}
 						style:background={bg || undefined}
 						style:color={fg || undefined}
+						title={tip}
 						onclick={() => onRowClick(e)}
 						ondblclick={() => onRowDblClick(e)}
 						oncontextmenu={(ev) => onRowContextMenu(ev, e)}
