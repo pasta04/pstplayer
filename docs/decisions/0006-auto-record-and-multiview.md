@@ -302,7 +302,20 @@ Desktop ビューア (`pstplayer`) は視聴専用とする。複数チャンネ
 - [x] `lib.rs` の `run()` で URL 引数付き起動を検出したら lock を
       acquire し、`focus` 受信用リスナースレッドを起動
 - [x] テスト (`pst_core::single_instance::tests`) で Owned / Conflict /
-      stale / request_focus の主要 4 ケースを cover
+      stale / request_focus / request_close / list_active の 6 ケースを cover
+- [x] **ハブからの個別 / 一括クローズ**: `single_instance` に
+      `CLOSE` opcode を追加 (`close\n`)、`request_close(addr)` /
+      `serve(..., on_close)` で対応。Tauri command `close_viewer` /
+      `close_all_viewers` でハブから視聴ウィンドウを終了させられる
+- [x] **`--record-on-start` CLI フラグ**: ハブの右クリック「視聴 +
+      録画」から spawn 時に付与される。viewer 側で favorites の
+      auto_record と独立に強制録画開始 (Hub から記録「したい時」の
+      ワンクリックを提供)
+- [x] **ハブ画面 (`/hub` route)**: pstplayer を URL 引数なしで起動
+      した時のメイン UI。複数 YP テーブル + お気に入り適用 + 右クリック
+      メニュー + 自動再 fetch + 視聴中バッジ + 新着 OS 通知 + 「視聴 +
+      録画」 + 一括クローズ。設計は
+      [pstplayer-hub-*.md](../design/)
 
 - YP ウィンドウ (`/yp`) は行クリックしても**閉じずに表示し続ける** (現在
   の挙動を維持。多くのチャンネルを順次見たり、複数同時に見たりするとき
