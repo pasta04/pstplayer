@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { emit } from '@tauri-apps/api/event';
+	import { onDestroy, onMount } from 'svelte';
+	import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event';
 	import {
 		CommandError,
 		clearHistory,
@@ -87,6 +87,8 @@
 	let snapshotPreview = $state<string>('');
 	let recordingPreview = $state<string>('');
 
+	let addFavoriteUnlisten: UnlistenFn | null = null;
+
 	onMount(async () => {
 		applyTheme(getTheme()); // settings window also reflects the chosen theme
 		theme = getTheme();
@@ -99,6 +101,22 @@
 		} catch (e) {
 			message = errMsg(e);
 		}
+		// ハブ側「お気に入りに追加」からの prefill: 新規ルールを追加して
+		// お気に入りタブに切り替える。
+		addFavoriteUnlisten = await listen<{ channelName: string }>('settings:add-favorite', (ev) => {
+			if (!cfg) return;
+			const rule = emptyRule();
+			rule.name = ev.payload?.channelName ?? '';
+			rule.channel_name = ev.payload?.channelName ?? '';
+			ensureFavorites().push(rule);
+			cfg = { ...cfg };
+			tab = 'favorites';
+			message = `「${rule.name}」を新しいお気に入りルールとして追加しました (保存ボタンで確定)`;
+		});
+	});
+
+	onDestroy(() => {
+		addFavoriteUnlisten?.();
 	});
 
 	async function refreshSnapshotPreview() {

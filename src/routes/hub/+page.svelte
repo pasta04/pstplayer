@@ -7,6 +7,7 @@
 	// pstplayer-hub-settings.md を参照。
 
 	import { onMount } from 'svelte';
+	import { emit } from '@tauri-apps/api/event';
 	import {
 		CommandError,
 		effectiveBackground,
@@ -286,6 +287,13 @@
 		closeMenu();
 	}
 
+	async function addToFavorite(channelName: string) {
+		closeMenu();
+		await openSettings();
+		// 設定ウィンドウが既に開いていても、新規でも、emit は届く。
+		await emit('settings:add-favorite', { channelName });
+	}
+
 	function plsUrlFor(e: YpEntry, host: string, port: number) {
 		return `http://${host}:${port}/pls/${e.id}`;
 	}
@@ -498,6 +506,8 @@
 		<button onclick={() => openInBrowser(t.contact_url)} disabled={!t.contact_url}
 			>🌐 コンタクト URL をブラウザで開く</button
 		>
+		<hr />
+		<button onclick={() => addToFavorite(t.name)}>★ お気に入りルールに追加…</button>
 		<hr />
 		<div class="submenu-label">📋 コピー</div>
 		<button class="indent" onclick={() => copy(t.name)}>チャンネル名</button>
