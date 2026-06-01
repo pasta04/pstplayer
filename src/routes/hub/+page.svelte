@@ -529,6 +529,15 @@
 			ev.preventDefault();
 			const inp = document.querySelector<HTMLInputElement>('input.filter');
 			inp?.focus();
+		} else if ((ev.ctrlKey || ev.metaKey) && /^[1-9]$/.test(ev.key)) {
+			ev.preventDefault();
+			const n = Number(ev.key);
+			const builtin: TabKey[] = ['all', 'favorites', 'new', 'recording', 'watching'];
+			const ypTabs: TabKey[] = ypSources
+				.filter((s) => s.show_tab)
+				.map((s) => `yp:${s.name}` as TabKey);
+			const allTabs = [...builtin, ...ypTabs];
+			if (n - 1 < allTabs.length) activeTab = allTabs[n - 1];
 		} else if (ev.key === 'Escape') {
 			if (menuOpen) closeMenu();
 		} else if (ev.key === 'Enter') {
