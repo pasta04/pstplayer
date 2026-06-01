@@ -562,7 +562,12 @@
 								<td><input type="checkbox" bind:checked={rule.pin_top} /></td>
 								<td><input type="checkbox" bind:checked={rule.auto_record} /></td>
 								<td>
-									<select bind:value={rule.action}>
+									<select
+										bind:value={rule.action}
+										title={'表示 = 通常 + 色付け\n' +
+											'非表示 = ハブのリストから外す (専用タブのみ表示)\n' +
+											'ブロック = 完全拒否 (視聴 / 録画も不可)'}
+									>
 										<option value="show">表示</option>
 										<option value="ignore">非表示</option>
 										<option value="block">ブロック</option>
