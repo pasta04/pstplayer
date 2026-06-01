@@ -112,7 +112,7 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
 - [x] キーワード検索 (フィルタ欄、Ctrl+F でフォーカス、本文/名前/ID/番号横断)
 - [x] URL 自動リンク化 (本文中の http(s) を `<a class="external">` 化、クリックで OS 既定ブラウザを起動)
 - [x] 新着レス通知 (OS 標準通知) — `notifyOnNewPost` 隠しオプション、既定 OFF
-- [ ] HTML レンダリング表示モード (スキン適用、CSS で装飾)
+- [ ] HTML レンダリング表示モード (スキン適用、CSS で装飾) — **優先度: 低**
 - [x] 新着レス到着時の自動スクロール (既定 ON、手動スクロール中は一時停止、設定 UI で OFF 可)
 - [x] スレッドが落ちた時の検知 (404/410/Not Found を判定、💀 表示 + 自動更新停止、
       Ctrl+Shift+R で再試行)
@@ -176,13 +176,12 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
       - 起動時に `peercastPing()` (getVersionInfo) → 失敗なら設定ウィンドウを自動オープン
         + lastError 表示
       - 残: libmpv 再生中の stream 切断検知、ネットワーク断時の自動 retry など
-- [ ] パフォーマンス計測と改善 (起動時間、メモリ、CPU)
-- [ ] 3 OS で実機 QA
-- [ ] バグ修正
+- [ ] パフォーマンス計測と改善 (起動時間、メモリ、CPU) — **優先度: 低**
+- [ ] 3 OS で実機 QA — **優先度: 低**
+- [ ] バグ修正 — **優先度: 低**
 - [x] ユーザマニュアル (`docs/usage/` 1 巡目: README + install + first-setup +
       basic + shortcuts + troubleshooting の 6 章。スクリーンショットは実機 QA 時に追加)
-- [ ] (任意) コード署名 (Windows) / 公証 (macOS)
-- [ ] (任意) 自動更新機構 (Tauri Updater)
+- [ ] (任意) 自動更新機構 (Tauri Updater) — **優先度: 低**
 
 **完了条件**: v1.0 タグ。リリースバイナリを 3 OS で配布。
 
@@ -215,9 +214,30 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
       - pst-server は `/api/favorites` で config の `[[favorites.rules]]`
         を JSON で返す (read-only)
       - 視聴開始時に `auto_record = true` ルールにマッチすれば自動録画
-- [ ] プラグイン機構 (BBS タイプ追加、フィルタ等)
-- [ ] 英語 UI (i18n)
-- [ ] PeerCast 本体の自動起動・終了
+
+### 4.A 高優先度 — 自動 / 並行系の拡張
+
+- [ ] **自動配信録画 (お気に入りで配信開始を自動検知)** ← **優先度: 高**
+      - pst-server が定期的に紐付け先 PeerCastStation の `getChannels`
+        (および任意で YP) を polling
+      - 出現したチャンネルが `[[favorites.rules]]` に `auto_record = true`
+        でマッチしたら自動で録画開始 (現状は人が視聴開始した時のみ)
+      - チャンネルが消えたら自動で録画停止 (現状は手動 stop のみ)
+      - max_concurrent / dir 等は既存の `[recording]` を継承
+      - 詳細設計: [ADR-0006](decisions/0006-auto-record-and-multiview.md)
+- [ ] **複数チャンネル視聴アーキテクチャ** ← **優先度: 高**
+      - Desktop: 現状 libmpv 1 本制約 → ウィンドウ複製 or 1 ウィンドウ
+        内のタイル表示で複数チャンネル同時視聴
+      - pst-server Web: グリッド表示で `<video>` × N、各々独立に HLS
+        再生 (帯域 / CPU 負荷の上限はユーザー裁量)
+      - お気に入り / YP からまとめて開く UX
+      - 詳細設計: [ADR-0006](decisions/0006-auto-record-and-multiview.md)
+
+### 4.B その他
+
+- [ ] プラグイン機構 (BBS タイプ追加、フィルタ等) — **優先度: 低**
+- [ ] 英語 UI (i18n) — **優先度: 低**
+- [ ] PeerCast 本体の自動起動・終了 — **優先度: 低**
 - [ ] **リレーサーバ `pst-server`** (iPad/iPhone/Android からブラウザで視聴 + 投稿。
       設定ファイルに紐付け先 PeerCastStation を書き、`getChannels` をプロキシして
       TOP ページに視聴可能チャンネル一覧を表示、HLS 出力で全端末対応、PWA 化。
@@ -241,9 +261,9 @@ PSTPlayer の段階的な開発計画。各フェーズで「動くもの」を�
             は上流に転送、Basic 認証も付加)
       - [x] **SD カード保護のログ仕様** (既定 OFF、`[log] debug = true, dir = "..."`
             時のみ tracing-appender で日次ローテーション)
-      - [ ] **認証 / 公開モード** (LAN 外公開時の Basic / OAuth 等)
-- [ ] リモート操作 (別端末からの再生制御) ← 上記サーバの延長
-- [ ] `pstplayer://` カスタム URL スキーマ (ブラウザからのワンクリック起動)
+      - [ ] **認証 / 公開モード** (LAN 外公開時の Basic / OAuth 等) — **優先度: 低**
+- [ ] リモート操作 (別端末からの再生制御) ← 上記サーバの延長 — **優先度: 低**
+- [ ] `pstplayer://` カスタム URL スキーマ (ブラウザからのワンクリック起動) — **優先度: 低**
 
 ---
 

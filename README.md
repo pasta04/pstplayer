@@ -138,6 +138,7 @@ MIT License。PCRPlayer (GPL v3) のコードは参照せず、公開プロト�
   - [`0003-ui-framework.md`](docs/decisions/0003-ui-framework.md) — UI フレームワーク (Svelte 5)
   - [`0004-scope.md`](docs/decisions/0004-scope.md) — 機能スコープ (PCRPlayer 互換 + オフライン系オミット)
   - [`0005-workspace-and-server.md`](docs/decisions/0005-workspace-and-server.md) — Cargo ワークスペース化 + 将来のリレーサーバ (モバイル対応)
+  - [`0006-auto-record-and-multiview.md`](docs/decisions/0006-auto-record-and-multiview.md) — 自動配信録画 + 複数チャンネル視聴アーキテクチャ (検討中)
 
 ## 参考プロジェクト
 
