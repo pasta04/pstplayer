@@ -5,6 +5,8 @@ pub mod channel_polling;
 pub mod commands;
 pub mod player;
 
+use std::path::Path;
+
 use channel_polling::ChannelPolling;
 use player::engine::PlayerEngine;
 use pst_core::cli::{self, CliArgs};
@@ -60,32 +62,52 @@ fn start_focus_listener<R: Runtime>(mut handle: LockHandle, app: AppHandle<R>) -
         let app_focus = app.clone();
         let app_close = app.clone();
         let app_state = app.clone();
+        let app_start = app.clone();
         let app_stop = app;
         std::thread::spawn(move || {
             single_instance::serve(
                 listener,
                 move || {
-                    // 最小化を解除し前面に持ってくる。ウィンドウラベルは
-                    // tauri.conf.json の最初のラベル ("main") を想定。
                     if let Some(win) = app_focus.get_webview_window("main") {
                         let _ = win.unminimize();
                         let _ = win.show();
                         let _ = win.set_focus();
                     }
                 },
+                move || app_close.exit(0),
                 move || {
-                    // ハブ側からの close 要求。app を exit させる。
-                    app_close.exit(0);
-                },
-                move || {
-                    // ハブ側からの state 問い合わせ。PlayerEngine の
-                    // stream-record プロパティが空でなければ録画中。
                     app_state.try_state::<PlayerEngine>().and_then(|e| e.record_path()).is_some()
                 },
                 move || {
-                    // ハブ側からの録画停止要求。stream-record を空にする。
-                    // フロントの recordPath state は同期しないが、ハブの
-                    // 録画状態 IPC では即座に false が返るようになる。
+                    // ハブからの録画開始要求。CLI 引数の channel_name を
+                    // ファイル名に使い、設定の recording_dir に保存する。
+                    // libmpv の stream-record property を設定するだけなので
+                    // 既に録画中の時は no-op (上書きはしない)。
+                    let Some(engine) = app_start.try_state::<PlayerEngine>() else { return };
+                    if engine.record_path().is_some() {
+                        return; // 既に録画中
+                    }
+                    let cli = app_start.try_state::<CliArgs>();
+                    let channel_name =
+                        cli.and_then(|c| c.channel_name.clone()).unwrap_or_default();
+                    let Ok(cfg) = pst_core::config::load() else { return };
+                    let exe_dir =
+                        std::env::current_exe().ok().and_then(|p| p.parent().map(Path::to_path_buf));
+                    let resolved = pst_core::snapshot::resolve_record_dir(
+                        &cfg.player,
+                        exe_dir.as_deref(),
+                    );
+                    if std::fs::create_dir_all(&resolved.dir).is_err() {
+                        return;
+                    }
+                    let raw_ext = cfg.player.recording_ext.trim().trim_start_matches('.');
+                    let ext = if raw_ext.is_empty() { "flv" } else { raw_ext };
+                    let name = pst_core::snapshot::make_filename(&channel_name, ext);
+                    let full = resolved.dir.join(&name);
+                    let _ = engine.start_record(&full.to_string_lossy());
+                },
+                move || {
+                    // ハブ側からの録画停止要求。
                     if let Some(e) = app_stop.try_state::<PlayerEngine>() {
                         let _ = e.stop_record();
                     }
@@ -155,6 +177,7 @@ pub fn run() {
             commands::peercast::close_viewer,
             commands::peercast::close_all_viewers,
             commands::peercast::stop_viewer_recording,
+            commands::peercast::start_viewer_recording,
             commands::config::get_config,
             commands::config::set_config,
             commands::config::config_file_path,

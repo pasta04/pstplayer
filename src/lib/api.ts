@@ -239,6 +239,11 @@ export async function stopViewerRecording(channelId: string): Promise<boolean> {
 	return call<boolean>('stop_viewer_recording', { channelId });
 }
 
+/// 指定 channel_id の視聴ウィンドウに録画開始を要求。
+export async function startViewerRecording(channelId: string): Promise<boolean> {
+	return call<boolean>('start_viewer_recording', { channelId });
+}
+
 // ── BBS ─────────────────────────────────────────────────────────────
 
 export type BoardKind = 'Shitaraba' | 'Ch2Compat';

@@ -216,6 +216,16 @@ pub fn stop_viewer_recording(channel_id: String) -> bool {
     single_instance::request_stop_recording(info.ipc_addr).is_ok()
 }
 
+/// 指定 channel_id の視聴ウィンドウに録画開始を要求。viewer 側で path
+/// 構築 + libmpv stream-record property を設定。lock がなければ false。
+#[tauri::command]
+pub fn start_viewer_recording(channel_id: String) -> bool {
+    let Some(info) = single_instance::read_existing(&channel_id) else {
+        return false;
+    };
+    single_instance::request_start_recording(info.ipc_addr).is_ok()
+}
+
 /// YP / お気に入り行クリックから呼ばれる「視聴用 pstplayer プロセスを
 /// 立ち上げる」コマンド。
 ///

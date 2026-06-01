@@ -12,6 +12,7 @@
 		CommandError,
 		closeAllViewers,
 		closeViewer,
+		startViewerRecording,
 		stopViewerRecording,
 		effectiveBackground,
 		fetchYpSources,
@@ -387,6 +388,18 @@
 		closeMenu();
 		try {
 			await stopViewerRecording(e.id);
+			setTimeout(() => {
+				void refreshWatching();
+			}, 400);
+		} catch (err) {
+			lastError = err instanceof Error ? err.message : String(err);
+		}
+	}
+
+	async function startRecordingRow(e: YpEntry) {
+		closeMenu();
+		try {
+			await startViewerRecording(e.id);
 			setTimeout(() => {
 				void refreshWatching();
 			}, 400);
@@ -817,6 +830,8 @@
 			<button onclick={() => closeRow(t)} class="primary">✕ 視聴ウィンドウを閉じる</button>
 			{#if recordingIds.has(t.id)}
 				<button onclick={() => stopRecordingRow(t)}>⏹ 録画停止</button>
+			{:else}
+				<button onclick={() => startRecordingRow(t)}>⏺ 録画開始 (視聴中のまま)</button>
 			{/if}
 		{:else}
 			<button onclick={() => watchRow(t)} class="primary">▶ 視聴 (別ウィンドウで開く)</button>
