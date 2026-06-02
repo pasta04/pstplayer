@@ -313,9 +313,11 @@ build と release を 1 ファイルにまとめている。将来 release 周�
 - [ ] workspace 直下の `Cargo.toml` の `workspace.package.version` を bump
       (他のファイルは自動継承、編集不要)
 - [ ] `cargo update -w` で Cargo.lock 反映
-- [ ] 3 OS で実際にバイナリを動かして起動・PeerCast 視聴・BBS 投稿を確認
+- [ ] **3 OS で実機 QA** — 詳細項目は [`qa-checklist.md`](qa-checklist.md)
+      (libmpv reason 値の実測、ハブ + spawn の体感、配布物の正常起動など)
 - [ ] アイコンが PSTPlayer 専用のものに差し替え済み (0.1.0 以降)
-- [ ] CHANGELOG / リリースノート下書き準備
+- [ ] CHANGELOG / リリースノート下書き準備 (タグ push 後の Release notes
+      は `.github/release.yml` で自動生成されるので、必要時のみ追記)
 - [ ] LICENSE と THIRD-PARTY が最新の依存に追従
 
 ---

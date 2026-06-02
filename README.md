@@ -134,6 +134,7 @@ MIT License。PCRPlayer (GPL v3) のコードは参照せず、公開プロト�
 - [`docs/usecases.md`](docs/usecases.md) — ユースケース一覧 (Desktop / pst-server を組み合わせた利用シナリオ)
 - [`docs/roadmap.md`](docs/roadmap.md) — 開発ロードマップ (フェーズ計画)
 - [`docs/release.md`](docs/release.md) — リリース / 配布方針 (バージョニング・タグ運用・アイコン仕様)
+- [`docs/qa-checklist.md`](docs/qa-checklist.md) — リリース前の実機 QA チェックリスト (3 OS で踏む項目を網羅)
 - [`docs/usage/`](docs/usage/) — **ユーザマニュアル** (インストール / 初回設定 / 基本操作 / ハブ画面 / pst-server / ショートカット / トラブルシューティング)
 - [`docs/design/`](docs/design/) — デザインスケッチ (ハブ画面 / Web グリッドのモックアップ + インタラクション)
 - [`docs/protocols/peercast.md`](docs/protocols/peercast.md) — PeerCast プロトコル参考メモ
