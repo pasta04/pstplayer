@@ -140,7 +140,8 @@ pub fn load(explicit: Option<&Path>) -> Result<(Config, PathBuf), ConfigError> {
 }
 
 /// `Config` を TOML として `path` に書き出す。親ディレクトリが
-/// 無ければ作る。
+/// 無ければ作る。途中で停電 / プロセス kill されても古い `path` が
+/// 残るよう、tmp ファイル経由の atomic rename で書く。
 pub fn save_to(path: &Path, cfg: &Config) -> Result<(), ConfigError> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| ConfigError::Io {
@@ -152,7 +153,15 @@ pub fn save_to(path: &Path, cfg: &Config) -> Result<(), ConfigError> {
         path: path.to_path_buf(),
         source: Box::new(e),
     })?;
-    fs::write(path, body).map_err(|e| ConfigError::Io {
+    // 同階層に tmp を作って rename で置換。POSIX の rename は atomic、
+    // Windows でも既存上書きが既定動作なので両 OS で「半端な書き込み
+    // 途中の pst-server.toml が残る」事故を防げる。
+    let tmp = path.with_extension("toml.tmp");
+    fs::write(&tmp, body).map_err(|e| ConfigError::Io {
+        path: tmp.clone(),
+        source: e,
+    })?;
+    fs::rename(&tmp, path).map_err(|e| ConfigError::Io {
         path: path.to_path_buf(),
         source: e,
     })

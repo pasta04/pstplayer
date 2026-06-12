@@ -2,9 +2,20 @@ pub mod schema;
 
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Mutex;
+
+use once_cell::sync::Lazy;
 
 use crate::util::errors::{AppError, AppResult};
 pub use schema::Config;
+
+/// プロセス内で並行する load+modify+save シーケンスを直列化するための
+/// ロック。`update()` と `save()` が共有する。
+///
+/// 同一プロセス内のレースしか保護できない (別プロセスが同じ config.toml
+/// を書きに来た場合は防げない) が、本アプリでは Desktop = 単一 Tauri
+/// プロセス / pst-server = 単一 axum プロセスで完結するので十分。
+static CONFIG_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 /// Resolve the OS-standard config directory for PSTPlayer.
 ///
@@ -63,7 +74,32 @@ pub fn load_or_default() -> (Config, Option<PathBuf>) {
 }
 
 /// Write the config to disk, creating the parent directory if needed.
+/// 並行する load+save / save+save を直列化し、書き込みは tmp ファイル
+/// 経由の atomic rename で行う (途中で停電 / クラッシュしても旧
+/// `config.toml` が残る)。
 pub fn save(cfg: &Config) -> AppResult<()> {
+    let _guard = CONFIG_LOCK.lock().expect("config lock poisoned");
+    save_locked(cfg)
+}
+
+/// `load` してから `modify` をかけて `save` するアトミックなヘルパ。
+/// load+save 間に他の save が割り込めない (= TOCTOU race を防ぐ)。
+/// 視聴履歴 / recent_hosts / ウィンドウ位置のような「部分書き換え」を
+/// 行うコマンドが、独立した command 同士で並行に走った時に書き換え
+/// 結果が消えないようにするため。
+pub fn update<F>(modify: F) -> AppResult<Config>
+where
+    F: FnOnce(&mut Config),
+{
+    let _guard = CONFIG_LOCK.lock().expect("config lock poisoned");
+    let mut cfg = load()?;
+    modify(&mut cfg);
+    save_locked(&cfg)?;
+    Ok(cfg)
+}
+
+/// ロック取得済み前提の save。`save` と `update` の共通実装。
+fn save_locked(cfg: &Config) -> AppResult<()> {
     let path = config_path()?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
@@ -71,8 +107,18 @@ pub fn save(cfg: &Config) -> AppResult<()> {
     }
     let body =
         toml::to_string_pretty(cfg).map_err(|e| AppError::Decode(format!("serialise: {e}")))?;
-    fs::write(&path, body)
-        .map_err(|e| AppError::Decode(format!("write {}: {e}", path.display())))?;
+    // tmp ファイルに書き出してから rename で atomic 置換。std::fs::rename
+    // は POSIX で atomic、Windows でも既存上書きが既定動作なので両 OS で
+    // 「半端な書き込み途中の config.toml が残る」事故を防げる。
+    let tmp = path.with_extension("toml.tmp");
+    fs::write(&tmp, body).map_err(|e| AppError::Decode(format!("write {}: {e}", tmp.display())))?;
+    fs::rename(&tmp, &path).map_err(|e| {
+        AppError::Decode(format!(
+            "rename {} -> {}: {e}",
+            tmp.display(),
+            path.display()
+        ))
+    })?;
     Ok(())
 }
 

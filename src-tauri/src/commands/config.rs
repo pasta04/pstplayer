@@ -29,12 +29,14 @@ pub fn config_file_path() -> Result<String, IpcError> {
 /// front (most recent), and cap the list at MAX_HISTORY.
 #[tauri::command]
 pub fn push_history(url: String, channel_name: String) -> Result<(), IpcError> {
-    let mut cfg = config::load().map_err(IpcError::from)?;
     let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
-    cfg.history.recent.retain(|e| e.url != url);
-    cfg.history.recent.insert(0, HistoryEntry { url, channel_name, last_opened_at: now });
-    cfg.history.recent.truncate(MAX_HISTORY);
-    config::save(&cfg).map_err(Into::into)
+    config::update(|cfg| {
+        cfg.history.recent.retain(|e| e.url != url);
+        cfg.history.recent.insert(0, HistoryEntry { url, channel_name, last_opened_at: now });
+        cfg.history.recent.truncate(MAX_HISTORY);
+    })
+    .map(|_| ())
+    .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -45,21 +47,25 @@ pub fn get_history() -> Result<Vec<HistoryEntry>, IpcError> {
 
 #[tauri::command]
 pub fn clear_history() -> Result<(), IpcError> {
-    let mut cfg = config::load().map_err(IpcError::from)?;
-    cfg.history.recent.clear();
-    config::save(&cfg).map_err(Into::into)
+    config::update(|cfg| {
+        cfg.history.recent.clear();
+    })
+    .map(|_| ())
+    .map_err(Into::into)
 }
 
 /// Persist physical window geometry. Other `window.*` fields
 /// (bbs_pane_ratio, always_on_top, etc.) are preserved.
 #[tauri::command]
 pub fn save_window_geometry(x: i32, y: i32, width: u32, height: u32) -> Result<(), IpcError> {
-    let mut cfg = config::load().map_err(IpcError::from)?;
-    cfg.window.x = Some(x);
-    cfg.window.y = Some(y);
-    cfg.window.width = Some(width);
-    cfg.window.height = Some(height);
-    config::save(&cfg).map_err(Into::into)
+    config::update(|cfg| {
+        cfg.window.x = Some(x);
+        cfg.window.y = Some(y);
+        cfg.window.width = Some(width);
+        cfg.window.height = Some(height);
+    })
+    .map(|_| ())
+    .map_err(Into::into)
 }
 
 /// Push a PeerCast host:port into the MRU list. Deduplicates by
@@ -70,9 +76,11 @@ pub fn push_recent_host(host: String, port: u16) -> Result<(), IpcError> {
     if entry.trim().is_empty() {
         return Ok(());
     }
-    let mut cfg = config::load().map_err(IpcError::from)?;
-    cfg.peercast.recent_hosts.retain(|e| e != &entry);
-    cfg.peercast.recent_hosts.insert(0, entry);
-    cfg.peercast.recent_hosts.truncate(MAX_RECENT_HOSTS);
-    config::save(&cfg).map_err(Into::into)
+    config::update(|cfg| {
+        cfg.peercast.recent_hosts.retain(|e| e != &entry);
+        cfg.peercast.recent_hosts.insert(0, entry);
+        cfg.peercast.recent_hosts.truncate(MAX_RECENT_HOSTS);
+    })
+    .map(|_| ())
+    .map_err(Into::into)
 }

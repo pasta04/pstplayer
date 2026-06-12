@@ -98,6 +98,30 @@ pub fn make_filename(channel_name: &str, ext: &str) -> String {
     format!("{ts}{name_part}.{ext}")
 }
 
+/// `dir/filename` が既に存在していたら、ファイル名末尾 (拡張子の前) に
+/// `_2`, `_3`, ... を付けて衝突を回避する。録画やスナップショットを
+/// 同秒内に複数取った時の上書きを防ぐ目的。
+///
+/// `ext` は拡張子の文字列 (`"png"` 等、ドットなし)。`filename` の末尾と
+/// 一致している前提。最大 99 まで試して見つからなければ元の path を
+/// 返す (= 上書きを許容。99 ファイル衝突は現実的にあり得ない)。
+pub fn unique_path(dir: &Path, filename: &str, ext: &str) -> PathBuf {
+    let p = dir.join(filename);
+    if !p.exists() {
+        return p;
+    }
+    let base = filename
+        .strip_suffix(&format!(".{ext}"))
+        .unwrap_or(filename);
+    for counter in 2..100 {
+        let candidate = dir.join(format!("{base}_{counter}.{ext}"));
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    p
+}
+
 fn expand_tilde(s: &str) -> PathBuf {
     if let Some(rest) = s.strip_prefix("~/") {
         if let Some(home) = home_dir() {
@@ -178,5 +202,24 @@ mod tests {
         let r = resolve_dir(&cfg, None);
         assert_eq!(r.dir, PathBuf::from("/tmp/foo"));
         assert!(!r.fell_back);
+    }
+
+    #[test]
+    fn unique_path_returns_original_when_not_existing() {
+        let dir = std::env::temp_dir().join("pst-unique-test-a");
+        let _ = std::fs::create_dir_all(&dir);
+        let p = unique_path(&dir, "missing.png", "png");
+        assert_eq!(p, dir.join("missing.png"));
+    }
+
+    #[test]
+    fn unique_path_appends_counter_on_collision() {
+        let dir = std::env::temp_dir().join("pst-unique-test-b");
+        let _ = std::fs::create_dir_all(&dir);
+        let occupied = dir.join("shot.png");
+        let _ = std::fs::write(&occupied, b"x");
+        let p = unique_path(&dir, "shot.png", "png");
+        assert_eq!(p, dir.join("shot_2.png"));
+        let _ = std::fs::remove_file(&occupied);
     }
 }

@@ -4,9 +4,11 @@
 // 時もすぐに返せること。ライブ視聴 (HLS) と API レスポンス (/api/*) は
 // キャッシュ対象外 — 常にネットワーク優先。
 
-// hls.js を新版に差し替える時 (例: 1.6.16 → 1.7.0) は CACHE のバージョン
-// 番号を bump して旧キャッシュを破棄させること。
-const CACHE = 'pstplayer-web-v7';
+// 静的アセットを更新したら (hls.js のバージョン上げ、app.js / style.css の
+// 変更、Web マニフェストの修正、アイコン差し替え等) は CACHE のバージョン
+// 番号を bump して旧キャッシュを破棄させること。bump し忘れるとユーザ側
+// ブラウザは古い app.js を返し続け、新機能が動かない / 古いバグが残る。
+const CACHE = 'pstplayer-web-v8';
 const STATIC = [
 	'/',
 	'/index.html',
@@ -17,6 +19,10 @@ const STATIC = [
 	'/settings.js',
 	'/manifest.webmanifest',
 	'/vendor/hls.min.js',
+	// PWA アイコン (manifest 経由でブラウザがフェッチする。ホーム画面追加
+	// 時にオフラインでも参照されるためキャッシュ対象)。
+	'/icon-192.svg',
+	'/icon-512.svg',
 ];
 
 self.addEventListener('install', (event) => {

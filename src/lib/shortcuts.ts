@@ -185,11 +185,45 @@ export const HOTKEY_DEFS: HotkeyDef[] = [
 ];
 
 /**
+ * カスタマイズ不可な「予約済み」キー一覧。`installShortcuts` 内で
+ * `actions` の前に発火するため、ユーザが普通のホットキーに割り当てても
+ * 黙って奪われる (= silent failure)。`detectConflicts` でこれを表示する
+ * ために事前に signature 化しておく。
+ *
+ * - `Ctrl+1`..`Ctrl+9`: サイズプリセット
+ * - `Alt+1`..`Alt+7`: アスペクト比
+ * - `Alt+Enter`: 全画面切替の代替バインディング
+ * - `Escape`: 全画面解除 (input 内でも有効)
+ */
+const RESERVED_BINDINGS: { label: string; sig: string }[] = (() => {
+	const out: { label: string; sig: string }[] = [];
+	for (let i = 1; i <= 9; i++) out.push({ label: `Ctrl+${i} (サイズ)`, sig: `c|${i}` });
+	for (let i = 1; i <= 7; i++) out.push({ label: `Alt+${i} (アスペクト比)`, sig: `a|${i}` });
+	out.push({ label: 'Alt+Enter (全画面)', sig: 'a|enter' });
+	out.push({ label: 'Esc (全画面解除)', sig: '|escape' });
+	return out;
+})();
+
+function bindingSig(p: ParsedBinding): string {
+	return `${p.ctrl ? 'c' : ''}${p.shift ? 's' : ''}${p.alt ? 'a' : ''}|${p.key}`;
+}
+
+/**
  * バインディングの衝突 (同じキー組合せに 2 つ以上のアクション) を検査。
  * 返り値: id ごとの衝突相手 id 一覧。
+ *
+ * カスタマイズ不可な「予約済み」キー (Ctrl+1〜9 / Alt+1〜7 / Alt+Enter /
+ * Esc) との衝突も含めて検出する。これらと被るとユーザのカスタム binding
+ * が silent に効かなくなる (予約済みが先に発火) ため、設定 UI で警告
+ * できるようにする。
  */
 export function detectConflicts(custom: Record<string, string>): Record<string, string[]> {
 	const bySig = new Map<string, string[]>();
+	// 予約済みキーを先に登録 (HOTKEY_DEFS の id と衝突しないよう "reserved:"
+	// プレフィクスを付ける)。
+	for (const r of RESERVED_BINDINGS) {
+		bySig.set(r.sig, [`reserved:${r.label}`]);
+	}
 	const allBindings = new Map<string, string>();
 	for (const def of HOTKEY_DEFS) {
 		allBindings.set(def.id, (custom[def.id] ?? def.defaultBinding).trim());
@@ -198,7 +232,7 @@ export function detectConflicts(custom: Record<string, string>): Record<string, 
 		if (!b) continue;
 		const parsed = parseBinding(b);
 		if (!parsed) continue;
-		const sig = `${parsed.ctrl ? 'c' : ''}${parsed.shift ? 's' : ''}${parsed.alt ? 'a' : ''}|${parsed.key}`;
+		const sig = bindingSig(parsed);
 		const list = bySig.get(sig) ?? [];
 		list.push(id);
 		bySig.set(sig, list);
@@ -207,6 +241,7 @@ export function detectConflicts(custom: Record<string, string>): Record<string, 
 	for (const ids of bySig.values()) {
 		if (ids.length < 2) continue;
 		for (const id of ids) {
+			if (id.startsWith('reserved:')) continue;
 			result[id] = ids.filter((x) => x !== id);
 		}
 	}

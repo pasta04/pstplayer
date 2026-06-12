@@ -95,7 +95,11 @@ pub fn player_snapshot(
         "png"
     };
     let name = snapshot::make_filename(channel_name.as_deref().unwrap_or(""), ext);
-    let full = resolved.dir.join(&name);
+    // 同秒に F2 連打されてもファイル上書きしないよう `_2`, `_3`, ... を
+    // 付ける。F2 自体は通知側で 1 秒 debounce されるが、連打を受け付け
+    // ないとしても snapshot を撮りたい全てのケース (右クリック等) で
+    // 同秒衝突は起き得るので保険として入れる。
+    let full = snapshot::unique_path(&resolved.dir, &name, ext);
     let full_str = full.to_string_lossy().into_owned();
     engine.screenshot_to_file(&full_str, "subtitles").map_err(IpcError::from)?;
     Ok(full_str)
@@ -120,7 +124,9 @@ pub fn player_record_start(
     let raw_ext = cfg.player.recording_ext.trim().trim_start_matches('.');
     let ext = if raw_ext.is_empty() { "flv" } else { raw_ext };
     let name = snapshot::make_filename(channel_name.as_deref().unwrap_or(""), ext);
-    let full = resolved.dir.join(&name);
+    // 同秒に録画停止 → 即再開した時に旧ファイルを上書きしないよう
+    // `_2`, `_3`, ... を付ける (pst-server::recording と同じパターン)。
+    let full = snapshot::unique_path(&resolved.dir, &name, ext);
     let full_str = full.to_string_lossy().into_owned();
     engine.start_record(&full_str).map_err(IpcError::from)?;
     Ok(full_str)
