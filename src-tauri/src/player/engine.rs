@@ -74,6 +74,13 @@ pub struct EngineState {
     pub user_stop: bool,
     /// config.player.auto_reconnect の現在値 (キャッシュ)。
     pub enabled: bool,
+    /// ユーザ操作 (load / stop) のたびにインクリメントされる世代番号。
+    /// 再接続 worker は spawn 時の世代を覚えておき、sleep 明けに番号が
+    /// 変わっていたら「ユーザが既に別の操作をした」とみなして reload を
+    /// 中止する。URL 文字列の比較だと「同じ URL を手動 reload した」
+    /// ケースを区別できない (= 余計な reload がもう 1 回走る) ため、
+    /// 世代番号で判定する。
+    pub generation: u64,
 }
 
 // ── 判定結果 ──────────────────────────────────────────────────
@@ -231,7 +238,8 @@ impl PlayerEngine {
     }
 
     /// Load `url` and start playback (`replace` the current entry).
-    /// state の再接続シーケンスをリセットする。
+    /// state の再接続シーケンスをリセットし、世代番号を進めて待機中の
+    /// 再接続 worker を無効化する。
     pub fn load(&self, url: &str) -> AppResult<()> {
         {
             let mut s = self.state.lock().expect("engine state lock");
@@ -241,12 +249,13 @@ impl PlayerEngine {
             s.last_load_at = Some(Instant::now());
             s.immediate_disconnects = 0;
             s.user_stop = false;
+            s.generation = s.generation.wrapping_add(1);
         }
         self.mpv.command("loadfile", &[url, "replace"]).map_err(map_err)
     }
 
     /// Stop playback. `user_stop` フラグを立てて、続いて来る EndFile を
-    /// 無視させる。
+    /// 無視させる。世代番号も進めて待機中の再接続 worker を無効化する。
     pub fn stop(&self) -> AppResult<()> {
         {
             let mut s = self.state.lock().expect("engine state lock");
@@ -255,6 +264,7 @@ impl PlayerEngine {
             s.attempts = 0;
             s.series_started_at = None;
             s.immediate_disconnects = 0;
+            s.generation = s.generation.wrapping_add(1);
         }
         self.mpv.command("stop", &[]).map_err(map_err)
     }
@@ -357,7 +367,7 @@ fn event_loop<R: Runtime + 'static>(
 
 fn handle_end_file<R: Runtime + 'static>(
     reason: u32,
-    state: &Mutex<EngineState>,
+    state: &Arc<Mutex<EngineState>>,
     mpv: &Arc<Mpv>,
     app: &AppHandle<R>,
 ) {
@@ -386,7 +396,7 @@ fn handle_end_file<R: Runtime + 'static>(
             // state を mutate。即切断カウンタは「今が即切断だったか」を
             // 計算し直す (snapshot 取得後にユーザ操作で last_load_at が
             // 動いている可能性は低いが安全側で取り直す)。
-            let url = {
+            let (url, generation) = {
                 let mut s = state.lock().expect("engine state lock");
                 // user_stop / disabled / no_url は Skip 経由なのでここに来ない。
                 let is_immediate = s
@@ -406,7 +416,7 @@ fn handle_end_file<R: Runtime + 'static>(
                     s.series_started_at = Some(now);
                 }
                 s.attempts = attempt;
-                s.last_url.clone()
+                (s.last_url.clone(), s.generation)
             };
             let Some(url) = url else {
                 return;
@@ -422,19 +432,30 @@ fn handle_end_file<R: Runtime + 'static>(
                 },
             );
 
-            thread::sleep(delay);
-
-            // 待機中にユーザが stop した / config が OFF になった場合は
-            // 再接続をキャンセル。
-            {
-                let s = state.lock().expect("engine state lock");
-                if !s.enabled || s.user_stop || s.last_url.as_deref() != Some(url.as_str()) {
-                    return;
-                }
-            }
-            state.lock().expect("engine state lock").last_load_at = Some(Instant::now());
-            if let Err(e) = mpv.command("loadfile", &[url.as_str(), "replace"]) {
-                eprintln!("auto-reconnect loadfile failed: {e:?}");
+            // sleep + reload は worker スレッドへ。イベントループ自体を
+            // 最大 30 秒塞がない (塞ぐと後続イベントの処理が遅延し、
+            // mpv のイベントキューが詰まる可能性がある)。
+            let state_w = Arc::clone(state);
+            let mpv_w = Arc::clone(mpv);
+            let spawned =
+                thread::Builder::new().name("pst-mpv-reconnect".into()).spawn(move || {
+                    thread::sleep(delay);
+                    // 待機中にユーザが stop / 別チャンネル load / 同一 URL を
+                    // 手動 reload した場合は世代番号が進んでいるので中止。
+                    // (URL 比較だと「同じ URL の手動 reload」を検出できない)
+                    {
+                        let mut s = state_w.lock().expect("engine state lock");
+                        if !s.enabled || s.user_stop || s.generation != generation {
+                            return;
+                        }
+                        s.last_load_at = Some(Instant::now());
+                    }
+                    if let Err(e) = mpv_w.command("loadfile", &[url.as_str(), "replace"]) {
+                        eprintln!("auto-reconnect loadfile failed: {e:?}");
+                    }
+                });
+            if let Err(e) = spawned {
+                eprintln!("auto-reconnect worker spawn failed: {e}");
             }
         }
         ReconnectDecision::Skip { reason: skip_reason } => {
@@ -484,6 +505,7 @@ mod tests {
             immediate_disconnects: 0,
             user_stop: false,
             enabled: true,
+            generation: 0,
         }
     }
 

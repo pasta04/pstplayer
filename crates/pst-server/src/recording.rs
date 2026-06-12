@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use futures_util::StreamExt;
 use pst_core::snapshot::make_filename;
-use pst_core::util::http::CLIENT;
+use pst_core::util::http::STREAM_CLIENT;
 use serde::Serialize;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex;
@@ -259,7 +259,10 @@ async fn run_recording(
     auth_pass: Option<String>,
     stop_flag: Arc<std::sync::atomic::AtomicBool>,
 ) -> Result<(), String> {
-    let mut req = CLIENT.get(&upstream);
+    // 録画は何時間でも続く可能性があるため total timeout の無い
+    // STREAM_CLIENT を使う (CLIENT の 5 秒 total timeout を使うと
+    // 録画が必ず 5 秒で切断される)。
+    let mut req = STREAM_CLIENT.get(&upstream);
     if let (Some(u), Some(p)) = (auth_user.as_deref(), auth_pass.as_deref()) {
         if !u.is_empty() {
             req = req.basic_auth(u, Some(p));

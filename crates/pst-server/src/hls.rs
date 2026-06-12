@@ -16,7 +16,7 @@ use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
-use pst_core::util::http::CLIENT;
+use pst_core::util::http::STREAM_CLIENT;
 use reqwest::header::{
     HeaderName, HeaderValue, CACHE_CONTROL, CONTENT_LENGTH, CONTENT_TYPE, IF_MODIFIED_SINCE,
     LAST_MODIFIED, RANGE,
@@ -63,8 +63,11 @@ async fn upstream_auth(state: &AppState) -> (Option<String>, Option<String>) {
 }
 
 /// 上流レスポンスを axum レスポンスに変換。stream で本体を透過する。
+/// セグメント転送は低速 LAN だと数秒かかることがあるため、total
+/// timeout 付きの CLIENT ではなく STREAM_CLIENT (connect + チャンク間
+/// timeout のみ) を使う。
 async fn proxy_get(url: String, headers: HeaderMap, state: &AppState) -> ApiResult<Response> {
-    let mut req = CLIENT.get(&url);
+    let mut req = STREAM_CLIENT.get(&url);
     // 受け取った Range / If-Modified-Since はそのまま上流に転送 (再生開始
     // 直後の再開や、playlist の差分取得で有用)。
     for h in [RANGE, IF_MODIFIED_SINCE] {

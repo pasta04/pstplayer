@@ -258,29 +258,47 @@ pub fn read_existing(channel_id: &str) -> Option<LockInfo> {
 
 /// 現在生きている (probe で応答する) ロック全部の一覧を返す。死んでる
 /// stale ロックは best-effort で削除する。ハブ画面の「視聴中」タブ表示用。
+///
+/// probe は並列に行う。直列だと、フリーズした viewer (接続は受けるが
+/// pong を返さない) が 1 つあるごとに read timeout の 500ms ずつ待た
+/// される。ハブはこれを 5 秒間隔でポーリングするため、数本フリーズ
+/// するだけでポーリング周期を超えてしまう。
 pub fn list_active() -> Vec<LockInfo> {
     let dir = lock_dir();
     let Ok(read) = fs::read_dir(&dir) else {
         return Vec::new();
     };
+    // 先にロックファイルを全部読み出してから、probe だけを並列化する。
+    let candidates: Vec<(PathBuf, LockInfo)> = read
+        .flatten()
+        .filter_map(|entry| {
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) != Some("lock") {
+                return None;
+            }
+            let s = fs::read_to_string(&path).ok()?;
+            let info = toml::from_str::<LockInfo>(&s).ok()?;
+            Some((path, info))
+        })
+        .collect();
+
     let mut out = Vec::new();
-    for entry in read.flatten() {
-        let path = entry.path();
-        if path.extension().and_then(|s| s.to_str()) != Some("lock") {
-            continue;
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = candidates
+            .into_iter()
+            .map(|(path, info)| scope.spawn(move || (path, probe_alive(info.ipc_addr), info)))
+            .collect();
+        for h in handles {
+            let Ok((path, alive, info)) = h.join() else {
+                continue;
+            };
+            if alive {
+                out.push(info);
+            } else {
+                let _ = fs::remove_file(&path);
+            }
         }
-        let Ok(s) = fs::read_to_string(&path) else {
-            continue;
-        };
-        let Ok(info) = toml::from_str::<LockInfo>(&s) else {
-            continue;
-        };
-        if probe_alive(info.ipc_addr) {
-            out.push(info);
-        } else {
-            let _ = fs::remove_file(&path);
-        }
-    }
+    });
     out
 }
 
