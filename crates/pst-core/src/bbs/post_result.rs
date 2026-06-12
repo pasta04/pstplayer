@@ -54,8 +54,16 @@ pub fn classify_shitaraba(body: &str) -> PostOutcome {
     if body.contains("書きこみました") || body.contains("書き込みました") {
         return PostOutcome::Success;
     }
-    // クッキー確認が必要な系統 (旧仕様)。
-    if body.contains("クッキー") && body.contains("有効") {
+    // クッキー確認系。
+    // - `RESULT::CHECK` は「Cookie 確認画面に遷移しろ」のシグナル。
+    //   ブラウザは即座に同じ POST を再送する設計で、本クライアントも
+    //   Cookie Jar が更新済みなので 2 度目の POST で通る (= ch2 系と
+    //   同じ二段階確認パターン)。決して成功扱いにしない (旧実装は
+    //   ここで Ok を返してしまっていたため、書き込みが反映されていない
+    //   のに UI 上は「投稿成功」と出るバグがあった)。
+    // - 「クッキー … 有効」を含む確認画面 (旧仕様)。
+    if body.contains("RESULT::CHECK") || (body.contains("クッキー") && body.contains("有効"))
+    {
         return PostOutcome::NeedsCookieConfirm;
     }
     PostOutcome::Rejected(classify_reject(body))
@@ -164,6 +172,30 @@ mod tests {
             PostOutcome::Rejected(RejectKind::Regulated(_)) => {}
             other => panic!("expected Regulated, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn shitaraba_result_check_is_cookie_confirm_not_success() {
+        // RESULT::CHECK は「Cookie 確認画面に遷移しろ」のサーバシグナル。
+        // ブラウザは即座に同じ POST を再送する。本クライアントも二段階
+        // 確認として扱う必要があり、これを Success にすると書き込み
+        // していないのに UI 上「投稿成功」と表示されるバグになる。
+        assert_eq!(
+            classify_shitaraba("RESULT::CHECK"),
+            PostOutcome::NeedsCookieConfirm
+        );
+        assert_eq!(
+            classify_shitaraba("<html>some preamble RESULT::CHECK trailer</html>"),
+            PostOutcome::NeedsCookieConfirm
+        );
+    }
+
+    #[test]
+    fn shitaraba_legacy_cookie_confirm() {
+        assert_eq!(
+            classify_shitaraba("<html>クッキーを有効にしてください</html>"),
+            PostOutcome::NeedsCookieConfirm
+        );
     }
 
     #[test]

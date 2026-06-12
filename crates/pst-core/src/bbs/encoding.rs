@@ -2,7 +2,7 @@
 //!
 //! See `docs/protocols/bbs.md` §1 and §6.
 
-use crate::util::errors::{AppError, AppResult};
+use crate::util::errors::AppResult;
 use encoding_rs::{EUC_JP, SHIFT_JIS, UTF_8};
 
 #[derive(Debug, Clone, Copy)]
@@ -22,12 +22,19 @@ impl BoardEncoding {
     }
 
     pub fn decode(self, bytes: &[u8]) -> AppResult<String> {
+        // encoding_rs は不正バイトを U+FFFD (REPLACEMENT CHARACTER) で
+        // 置換しつつ `had_errors=true` を返す。BBS では稀に外字 / 機種依存
+        // 文字 / 絵文字 / 別エンコーディングの混入が起きるが、それを
+        // 全体 Err にすると 1 バイトの不正でスレッドが完全に表示できなく
+        // なってしまう (実害が大きい)。よって had_errors でも置換後の
+        // 文字列をそのまま返し、debug ログだけ出す方針。
         let (cow, _, had_errors) = self.to_encoding().decode(bytes);
         if had_errors {
-            return Err(AppError::Decode(format!(
-                "failed to decode bytes as {:?}",
-                self
-            )));
+            eprintln!(
+                "bbs decode: {:?} で {} バイト中に置換が発生 (U+FFFD で継続)",
+                self,
+                bytes.len()
+            );
         }
         Ok(cow.into_owned())
     }
@@ -153,5 +160,24 @@ mod tests {
         assert_eq!(percent_encode(b"a=b&c"), "a%3Db%26c");
         // EUC-JP-encoded katakana "ア" (0xA5 0xA2).
         assert_eq!(percent_encode(&[0xA5, 0xA2]), "%A5%A2");
+    }
+
+    #[test]
+    fn decode_returns_replacement_for_partial_corruption() {
+        // Shift_JIS の中に EUC-JP / UTF-8 由来の不正バイトが 1 か所だけ
+        // 混ざっても、スレッド全体が読めなくならず U+FFFD で続行できる。
+        // ("ア" = 0xA5 0xA2 は EUC-JP のバイト列で、Shift_JIS としては
+        // 不完全な先頭バイト 0xA5 になる。0xA2 は 0xA1-0xDF 範囲の半角
+        // カナとして解釈されてしまうが、いずれにせよ Err にしない)。
+        let mixed = b"hello\xA5\xA2world";
+        let out = BoardEncoding::ShiftJis.decode(mixed).unwrap();
+        assert!(out.starts_with("hello"));
+        assert!(out.ends_with("world"));
+
+        // 完全に不正なバイト列でも Err にせず、置換後の文字列を返す。
+        let bad = b"head\xFF\xFE\xFDtail";
+        let out = BoardEncoding::EucJp.decode(bad).unwrap();
+        assert!(out.contains("head"));
+        assert!(out.contains("tail"));
     }
 }

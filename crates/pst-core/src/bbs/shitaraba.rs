@@ -147,6 +147,14 @@ impl ShitarabaClient {
 
     /// Post to `write.cgi`. The caller is responsible for confirming
     /// with the user before invoking this.
+    ///
+    /// したらばは「初回 POST → RESULT::CHECK (Cookie 確認シグナル) →
+    /// Cookie 付きで再 POST」という 2 段階で完了することがある。
+    /// `cookie_client` は Set-Cookie を Jar に保持しているので、同じ
+    /// body をそのまま再送すれば 2 度目で通る。これを単発 POST で
+    /// 「RESULT::CHECK が返ったら Ok」にしてしまうと、実際は書き込んで
+    /// いないのに UI 上「成功」と表示されるバグになるため、ch2 と同様
+    /// に明示的に再送する。
     pub async fn post(&self, thread_url: &str, req: &PostRequest) -> AppResult<()> {
         let loc = Self::parse_loc(thread_url)?;
         let key = loc
@@ -178,11 +186,34 @@ impl ShitarabaClient {
             enc("書き込む"),
         );
 
+        match self.do_post(&url, &referer, body.clone()).await? {
+            PostOutcome::Success => Ok(()),
+            PostOutcome::Rejected(kind) => Err(kind.into_error()),
+            PostOutcome::NeedsCookieConfirm => {
+                // 2 度目の POST。Cookie Jar が更新されているのでそれだけで
+                // 通る期待。それでも CHECK が返ってきたら諦め。
+                match self.do_post(&url, &referer, body).await? {
+                    PostOutcome::Success => Ok(()),
+                    PostOutcome::Rejected(kind) => Err(kind.into_error()),
+                    PostOutcome::NeedsCookieConfirm => Err(AppError::PostRejected(
+                        "Cookie 確認の再送でも投稿が通りませんでした".into(),
+                    )),
+                }
+            }
+        }
+    }
+
+    /// 単発 POST + レスポンス分類。Cookie 確認再送ロジックは呼び出し側で
+    /// ハンドルする (= post()  本体)。
+    async fn do_post(&self, url: &str, referer: &str, body: String) -> AppResult<PostOutcome> {
         let resp = self
             .http
-            .post(&url)
-            .header("Referer", referer)
-            .header("Content-Type", "application/x-www-form-urlencoded")
+            .post(url)
+            .header(reqwest::header::REFERER, referer)
+            .header(
+                reqwest::header::CONTENT_TYPE,
+                "application/x-www-form-urlencoded",
+            )
             .body(body)
             .send()
             .await?;
@@ -190,19 +221,7 @@ impl ShitarabaClient {
         let text = BoardEncoding::EucJp
             .decode(&text_bytes)
             .unwrap_or_else(|_| String::new());
-        // RESULT::CHECK は (旧仕様の) Cookie 確認ステップに使われる
-        // ことがあるため成功扱い。残りは post_result の判定に任せる。
-        if text.contains("RESULT::CHECK") {
-            return Ok(());
-        }
-        match classify_shitaraba(&text) {
-            PostOutcome::Success => Ok(()),
-            PostOutcome::NeedsCookieConfirm => Err(AppError::PostRejected(
-                "Cookie 確認画面が返ってきました (ブラウザで一度書き込んで確認画面を抜けてください)"
-                    .into(),
-            )),
-            PostOutcome::Rejected(kind) => Err(kind.into_error()),
-        }
+        Ok(classify_shitaraba(&text))
     }
 }
 
