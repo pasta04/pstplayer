@@ -16,32 +16,46 @@ pub struct SubjectEntry {
     pub count: u32,
 }
 
+/// 同一 `key` のスレッドを除去する (最初の出現を採用)。したらばは
+/// 最近書き込まれたスレを subject.txt の **先頭と末尾の両方** に重複して
+/// 載せることがある。重複 key が残るとフロントの keyed each が例外を投げて
+/// 一覧描画が壊れる (実機 QA で発覚) ため、パーサ側で潰しておく。
+fn dedup_by_key(mut entries: Vec<SubjectEntry>) -> Vec<SubjectEntry> {
+    let mut seen = std::collections::HashSet::new();
+    entries.retain(|e| seen.insert(e.key.clone()));
+    entries
+}
+
 /// Parse a shitaraba `subject.txt`.
 ///
 /// Format (per line): `{datNumber}.cgi,{title} ({count})\n`
 pub fn parse_shitaraba_subject(body: &str) -> Vec<SubjectEntry> {
-    body.lines()
+    let entries = body
+        .lines()
         .filter_map(|line| {
             let (file, rest) = line.split_once(',')?;
             let key = file.strip_suffix(".cgi").unwrap_or(file).to_string();
             let (title, count) = split_title_and_count(rest)?;
             Some(SubjectEntry { key, title, count })
         })
-        .collect()
+        .collect();
+    dedup_by_key(entries)
 }
 
 /// Parse a 2ch-compatible `subject.txt`.
 ///
 /// Format (per line): `{datNumber}.dat<>{title} ({count})\n`
 pub fn parse_ch2_subject(body: &str) -> Vec<SubjectEntry> {
-    body.lines()
+    let entries = body
+        .lines()
         .filter_map(|line| {
             let (file, rest) = line.split_once("<>")?;
             let key = file.strip_suffix(".dat").unwrap_or(file).to_string();
             let (title, count) = split_title_and_count(rest)?;
             Some(SubjectEntry { key, title, count })
         })
-        .collect()
+        .collect();
+    dedup_by_key(entries)
 }
 
 /// Tease apart `"title(123)"` / `"title (123)"` into `("title", 123)`.
@@ -210,6 +224,17 @@ mod tests {
         let v = parse_shitaraba_subject("1.cgi,グラブル(神)(1000)\n");
         assert_eq!(v[0].title, "グラブル(神)");
         assert_eq!(v[0].count, 1000);
+    }
+
+    #[test]
+    fn shitaraba_subject_dedups_duplicate_key() {
+        // したらばは最新スレを先頭と末尾の両方に載せることがある。
+        // 重複 key を残すとフロントの keyed each が壊れるので除去する。
+        let body = "1760675037.cgi,ナイトレン(484)\n1696385564.cgi,90(1000)\n1760675037.cgi,ナイトレン(484)\n";
+        let v = parse_shitaraba_subject(body);
+        assert_eq!(v.len(), 2);
+        assert_eq!(v[0].key, "1760675037");
+        assert_eq!(v[1].key, "1696385564");
     }
 
     #[test]

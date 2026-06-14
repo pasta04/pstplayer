@@ -46,7 +46,7 @@
 		type SubjectEntry,
 	} from '$lib/api';
 	import { formatUptime, linkifySanitized, renderBodyHtml, renderIdHtml } from '$lib/format';
-	import { openSettings, openThreadList, openYpList } from '$lib/windows';
+	import { openSettings, openYpList } from '$lib/windows';
 	import { installShortcuts, setAlwaysOnTop, setDecorations } from '$lib/shortcuts';
 	import { notify } from '$lib/notifications';
 	import { initTheme } from '$lib/theme';
@@ -97,6 +97,9 @@
 	const THREAD_FULL_FALLBACK = 1000;
 	// 自動スレ移動中の再入防止。
 	let advancingThread = false;
+	// スレ一覧オーバーレイパネルの開閉 / 読み込み状態。
+	let showThreadList = $state(false);
+	let threadListLoading = $state(false);
 
 	let writeName = $state('');
 	let writeMail = $state('sage');
@@ -827,18 +830,7 @@
 	// ── BBS actions ──────────────────────────────────────────────────
 
 	async function pickThread(entry: SubjectEntry) {
-		if (!channelInfo?.url) return;
-		// Build a thread URL relative to the board URL.
-		const base = channelInfo.url.replace(/\/+$/, '');
-		// shitaraba: ${base}/bbs/read.cgi/${cat}/${board}/${key}/  but
-		// we don't have cat/board parsed here, so try /${key}/ first.
-		// In practice, contact URL points to the thread directly,
-		// so this branch only runs for board-top contact URLs.
-		const url = `${base}/${entry.key}/`;
-		currentThreadUrl = url;
-		fetchState = null;
-		posts = [];
-		await loadCurrentThread(true);
+		await pickThreadFromPanel(entry);
 	}
 
 	async function onSubmit() {
@@ -1010,13 +1002,45 @@
 		}
 	}
 
+	// スレ一覧はメインウィンドウ内のオーバーレイパネルで開閉する。
+	// 別ウィンドウ (WebView2 セカンダリ) はコンポジタ凍結で描画されない
+	// ため使わない (実機 QA で確定)。
 	async function onOpenThreadList() {
-		if (!channelInfo?.url) return;
+		if (showThreadList) {
+			showThreadList = false;
+			return;
+		}
+		if (!currentBoardUrl && !channelInfo?.url) return;
+		showThreadList = true;
+		await refreshThreadListPanel();
+	}
+
+	async function refreshThreadListPanel() {
+		const board = currentBoardUrl ?? channelInfo?.url;
+		if (!board) return;
+		threadListLoading = true;
 		try {
-			await openThreadList(channelInfo.url);
+			threadList = await listThreads(board);
 		} catch (e) {
 			lastError = errorMessage(e);
+		} finally {
+			threadListLoading = false;
 		}
+	}
+
+	async function pickThreadFromPanel(entry: SubjectEntry) {
+		const board = currentBoardUrl ?? channelInfo?.url;
+		if (!board) return;
+		try {
+			currentThreadUrl = await threadUrlOf(board, entry.key);
+		} catch {
+			currentThreadUrl = `${board.replace(/\/+$/, '')}/${entry.key}/`;
+		}
+		fetchState = null;
+		posts = [];
+		showThreadList = false;
+		await loadCurrentThread(true);
+		await maybeAdvanceToNewestThread();
 	}
 
 	function onWriteKey(e: KeyboardEvent) {
@@ -1203,6 +1227,33 @@
 		</div>
 
 		<div class="bbs">
+			{#if showThreadList}
+				<div class="threadlist-overlay">
+					<div class="tl-head">
+						<span class="tl-title">スレッド一覧</span>
+						<button
+							class="tl-btn"
+							onclick={refreshThreadListPanel}
+							disabled={threadListLoading}
+							title="再取得">{threadListLoading ? '更新中…' : '↻'}</button
+						>
+						<button class="tl-btn" onclick={() => (showThreadList = false)} title="閉じる">✕</button>
+					</div>
+					<ul class="tl-list">
+						{#each threadList as t (t.key)}
+							<li>
+								<button class="tl-item" onclick={() => pickThreadFromPanel(t)}>
+									<span class="tl-item-title">{t.title}</span>
+									<span class="tl-item-count">({t.count})</span>
+								</button>
+							</li>
+						{/each}
+						{#if !threadListLoading && threadList.length === 0}
+							<li class="tl-empty">スレッドがありません。</li>
+						{/if}
+					</ul>
+				</div>
+			{/if}
 			{#if posts.length === 0 && !currentThreadUrl}
 				<div class="bbs-empty">
 					{#if threadList.length > 0}
@@ -1747,6 +1798,83 @@
 		min-height: 0;
 		font-size: 0.85rem;
 		color: var(--fg);
+		position: relative;
+	}
+
+	/* スレ一覧オーバーレイ (別ウィンドウの代替)。BBS ペイン上に被せる。 */
+	.threadlist-overlay {
+		position: absolute;
+		inset: 0;
+		z-index: 20;
+		background: var(--bg-elev);
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+	}
+	.tl-head {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.4rem 0.6rem;
+		border-bottom: 1px solid var(--border);
+		flex: 0 0 auto;
+	}
+	.tl-title {
+		flex: 1;
+		font-weight: 600;
+	}
+	.tl-btn {
+		background: var(--bg);
+		color: inherit;
+		border: 1px solid var(--border-strong);
+		border-radius: 3px;
+		padding: 0.15rem 0.5rem;
+		cursor: pointer;
+		font-family: inherit;
+		font-size: 0.8rem;
+	}
+	.tl-btn:disabled {
+		opacity: 0.6;
+		cursor: default;
+	}
+	.tl-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		overflow-y: auto;
+		flex: 1 1 0;
+		min-height: 0;
+	}
+	.tl-item {
+		display: flex;
+		width: 100%;
+		text-align: left;
+		background: transparent;
+		color: inherit;
+		border: none;
+		border-bottom: 1px solid var(--border);
+		padding: 0.45rem 0.6rem;
+		cursor: pointer;
+		font-family: inherit;
+		font-size: 0.85rem;
+	}
+	.tl-item:hover {
+		background: var(--border);
+	}
+	.tl-item-title {
+		flex: 1;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.tl-item-count {
+		color: var(--fg-muted);
+		font-size: 0.78rem;
+		margin-left: 0.5rem;
+	}
+	.tl-empty {
+		padding: 0.6rem;
+		color: var(--fg-muted);
 	}
 
 	.bbs-empty {

@@ -138,6 +138,27 @@ fn start_focus_listener<R: Runtime>(mut handle: LockHandle, app: AppHandle<R>) -
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Windows: WebView2 (Chromium) は前面に居ないウィンドウのタイマー /
+    // レンダラを throttling し、occlusion 判定で renderer を凍結することが
+    // ある。本アプリはハブ + 視聴 (複数) を併用するので、背面ウィンドウでも
+    // BBS 自動更新やプレイヤー状態ポーリングを止めないよう、該当フラグを
+    // 無効化する。WebView2 環境作成より前 (= ウィンドウ生成より前) に設定
+    // する必要があるので run() 冒頭で行う。
+    #[cfg(target_os = "windows")]
+    {
+        const NO_THROTTLE: &str = "--disable-background-timer-throttling \
+             --disable-renderer-backgrounding --disable-backgrounding-occluded-windows \
+             --disable-features=CalculateNativeWinOcclusion";
+        match std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") {
+            Ok(existing) if existing.contains("--disable-background-timer-throttling") => {}
+            Ok(existing) => std::env::set_var(
+                "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+                format!("{existing} {NO_THROTTLE}"),
+            ),
+            Err(_) => std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", NO_THROTTLE),
+        }
+    }
+
     let cli_args = cli::parse(&std::env::args().skip(1).collect::<Vec<_>>());
 
     // channel_id 単位の single_instance チェック。URL 起動 + 既存プロセスが
