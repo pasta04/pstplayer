@@ -147,6 +147,10 @@
 
 	let writeName = $state('');
 	let writeMail = $state('sage');
+	// reloadBbsPrefs() の中で初回 mount 時だけ config から writeName /
+	// writeMail を流し込むためのフラグ。$state ではないので Svelte の
+	// reactivity には乗らない (= 単なる副作用フラグ)。
+	let bbsPrefsInitialised = false;
 	let writeBody = $state('');
 	let writeSending = $state(false);
 
@@ -478,6 +482,18 @@
 			{
 				const sp = Number(cfg?.bbs?.autoscrollSpeed);
 				autoscrollSpeed = Number.isFinite(sp) && sp > 0 ? sp : 600;
+			}
+			// 書き込み欄の名前 / メールは「初回 mount 時だけ」config から
+			// 流し込む。config:saved やフォーカス復帰での再読込時は触らない
+			// (ユーザが書きかけの値を消してしまう事故を防ぐため)。設定値が
+			// 空のメールは sage 進行が PeerCast BBS の慣習に合うので 'sage'
+			// で埋める。名前は空のままにして「名無しさん」扱いに委ねる。
+			if (!bbsPrefsInitialised) {
+				const cfgName = (cfg?.bbs?.defaultName ?? '').trim();
+				const cfgMail = (cfg?.bbs?.defaultMail ?? '').trim();
+				writeName = cfgName;
+				writeMail = cfgMail || 'sage';
+				bbsPrefsInitialised = true;
 			}
 		} catch {
 			/* defaults */
