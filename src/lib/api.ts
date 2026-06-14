@@ -349,6 +349,7 @@ export interface BbsConfig {
 	submitKey: 'ctrl_enter' | 'shift_enter';
 	notifyOnNewPost: boolean;
 	autoscroll: boolean;
+	autoscrollSpeed: number;
 }
 
 export interface PlayerCfg {

@@ -75,6 +75,45 @@
 	let showFrame = $state(true); // window decorations
 	let alwaysOnTop = $state(false);
 
+	// BBS ペインの幅 (px)。プレイヤーとの境界スプリッターをドラッグして変更し
+	// localStorage に保存する (#14)。
+	const BBS_W_MIN = 180;
+	const BBS_W_MAX = 900;
+	let bbsWidth = $state(loadBbsWidth());
+	let bbsResize: { startX: number; startW: number } | null = null;
+
+	function loadBbsWidth(): number {
+		try {
+			const v = Number(localStorage.getItem('pst.bbsWidth'));
+			if (Number.isFinite(v) && v >= BBS_W_MIN && v <= BBS_W_MAX) return v;
+		} catch {
+			/* ignore */
+		}
+		return 320;
+	}
+	function startBbsResize(e: MouseEvent) {
+		e.preventDefault();
+		bbsResize = { startX: e.clientX, startW: bbsWidth };
+		window.addEventListener('mousemove', onBbsResizeMove);
+		window.addEventListener('mouseup', onBbsResizeUp);
+	}
+	function onBbsResizeMove(e: MouseEvent) {
+		if (!bbsResize) return;
+		// BBS は右側なので、スプリッターを左へドラッグ (clientX 減) で幅が増える。
+		const w = bbsResize.startW - (e.clientX - bbsResize.startX);
+		bbsWidth = Math.min(BBS_W_MAX, Math.max(BBS_W_MIN, w));
+	}
+	function onBbsResizeUp() {
+		bbsResize = null;
+		window.removeEventListener('mousemove', onBbsResizeMove);
+		window.removeEventListener('mouseup', onBbsResizeUp);
+		try {
+			localStorage.setItem('pst.bbsWidth', String(Math.round(bbsWidth)));
+		} catch {
+			/* ignore */
+		}
+	}
+
 	let streamUrl = $state<string | null>(null);
 	let endpoint = $state<PeerCastEndpoint | null>(null);
 	let channelId = $state<string | null>(null);
@@ -129,6 +168,9 @@
 	// Auto-scroll the post list to the bottom when new posts arrive,
 	// unless the user has manually scrolled up.
 	let autoscroll = $state(true);
+	// 自動スクロールの速度 (px/秒)。新着時に一瞬で飛ばずスムーズに流して
+	// 読めるようにするための値。設定 (bbs.autoscrollSpeed) から読む (#20)。
+	let autoscrollSpeed = $state(600);
 	let postsEl: HTMLDivElement | null = $state(null);
 	// Cache of sanitised HTML per post number to avoid re-fetching on
 	// every render.
@@ -407,6 +449,7 @@
 		videoRectObserver?.disconnect();
 		window.removeEventListener('resize', syncVideoRect);
 		if (videoRectRaf) cancelAnimationFrame(videoRectRaf);
+		cancelSmoothScroll();
 		stopChannelPolling().catch(() => undefined);
 	});
 
@@ -417,6 +460,10 @@
 			submitKey = cfg?.bbs?.submitKey === 'shift_enter' ? 'shift_enter' : 'ctrl_enter';
 			notifyOnNewPost = cfg?.bbs?.notifyOnNewPost === true;
 			autoscroll = cfg?.bbs?.autoscroll !== false;
+			{
+				const sp = Number(cfg?.bbs?.autoscrollSpeed);
+				autoscrollSpeed = Number.isFinite(sp) && sp > 0 ? sp : 600;
+			}
 		} catch {
 			/* defaults */
 		}
@@ -486,6 +533,44 @@
 
 	function scrollPostsToBottom() {
 		if (postsEl) postsEl.scrollTop = postsEl.scrollHeight;
+	}
+
+	// 新着レス到着時の自動スクロール (#20)。一瞬で飛ばず autoscrollSpeed
+	// (px/秒) でスムーズに最下部へ流して読めるようにする。毎フレーム最下部を
+	// 測り直すのでスクロール中にさらに新着が来ても追従する。前のアニメは
+	// 取り消し、ユーザーが手動で上にスクロールしたら止める (cancelSmoothScroll)。
+	let smoothScrollRaf = 0;
+	function smoothScrollToBottom() {
+		const el = postsEl;
+		if (!el) return;
+		if (smoothScrollRaf) cancelAnimationFrame(smoothScrollRaf);
+		const speed = Math.max(50, autoscrollSpeed);
+		let last = performance.now();
+		const step = (now: number) => {
+			const el2 = postsEl;
+			if (!el2) {
+				smoothScrollRaf = 0;
+				return;
+			}
+			const dt = (now - last) / 1000;
+			last = now;
+			const target = el2.scrollHeight - el2.clientHeight;
+			const remaining = target - el2.scrollTop;
+			if (remaining <= 1) {
+				el2.scrollTop = target;
+				smoothScrollRaf = 0;
+				return;
+			}
+			el2.scrollTop += Math.min(remaining, speed * dt);
+			smoothScrollRaf = requestAnimationFrame(step);
+		};
+		smoothScrollRaf = requestAnimationFrame(step);
+	}
+	function cancelSmoothScroll() {
+		if (smoothScrollRaf) {
+			cancelAnimationFrame(smoothScrollRaf);
+			smoothScrollRaf = 0;
+		}
 	}
 
 	/// 初回ロード時の「最下部へ」。多数レスやサニタイズ後にレイアウト高さが
@@ -559,6 +644,16 @@
 		const size =
 			playerStat?.width && playerStat?.height ? `${playerStat.width}×${playerStat.height}` : '';
 		return { name, br, up, ldir, lrel, fps, size };
+	});
+
+	// ウィンドウタイトル (= タスクバー表示) にチャンネル名を出す (#18)。複数
+	// 配信を同時に開いたときにタスクバーで区別できるようにするため。
+	$effect(() => {
+		const name = channelInfo?.name?.trim();
+		const title = name ? `${name} - PSTPlayer` : 'PSTPlayer';
+		import('@tauri-apps/api/window')
+			.then(({ getCurrentWindow }) => getCurrentWindow().setTitle(title))
+			.catch(() => undefined);
 	});
 
 	// ── URL paste / load channel ─────────────────────────────────────
@@ -659,40 +754,81 @@
 		return `${url.slice(0, idx)}/${key}/`;
 	}
 
+	// コンタクト URL がスレッドを指す場合はそのスレッド key を、板 (掲示板)
+	// URL の場合は null を返す。read.cgi / rawmode.cgi / dat 形式、または
+	// したらば短縮スレ形式 (cat/board/key の 3 階層) をスレッドとみなす。
+	// 板 URL (cat/board の 2 階層 / 2ch の host/board) は null。
+	function threadKeyFromContact(url: string): string | null {
+		const hasCgi = /\/(?:read|rawmode|write)\.cgi\//.test(url) || /\/dat\/\d+\.dat/.test(url);
+		if (hasCgi) {
+			const m = url.match(/.*\/(\d+)(?:\/[^/]*)?\/?$/);
+			return m ? m[1] : null;
+		}
+		const sm = url.match(/^https?:\/\/jbbs\.shitaraba\.net\/[^/]+\/[^/]+\/(\d+)\/?$/);
+		if (sm) return sm[1];
+		return null; // 板 URL
+	}
+
 	async function tryLoadBoard(contactUrl: string) {
 		try {
 			threadList = await listThreads(contactUrl);
-			// 板トップ URL と最大レス数を控えておく (自動スレ移動用)。
-			// 失敗してもスレ表示自体は続ける。
-			boardUrlOf(contactUrl)
-				.then((b) => (currentBoardUrl = b))
-				.catch(() => (currentBoardUrl = null));
+			// 板トップ URL を先に確定する (板 URL 時の最新スレ選択で使う)。
+			try {
+				currentBoardUrl = await boardUrlOf(contactUrl);
+			} catch {
+				currentBoardUrl = null;
+			}
 			fetchBoardSetting(contactUrl)
 				.then((s) => (boardMaxRes = s.maxRes))
 				.catch(() => (boardMaxRes = 0));
-			// Auto-pick the contact URL if it already names a thread.
-			// 末尾のサフィックス (l30, 501-1000 等) があっても許容し、
-			// canonical /{key}/ 形に正規化してから保存する。
-			//
-			// 先頭 `.*` を貪欲に消費させて **最後の数字セグメント** を key と
-			// して捕捉する。これが無いと shitaraba の read.cgi URL
-			// (`/read.cgi/{cat}/{board}/{key}/`) で board が数字 (例 22667)
-			// の場合に左端マッチで board を key と誤認し、スレッドキー欠落の
-			// board URL を作ってしまう (実機 QA で発覚)。
-			const m = contactUrl.match(/.*\/(\d+)(?:\/[^/]*)?\/?$/);
-			if (m) {
-				const key = m[1];
+
+			const key = threadKeyFromContact(contactUrl);
+			if (key) {
+				// コンタクトがスレッドを直接指している → そのスレを開く。
 				currentThreadUrl = normalizeThreadUrl(contactUrl, key);
 				await loadCurrentThread(true);
 				// 初回ロード時点で既に満レスなら最新スレへ移動する。
 				await maybeAdvanceToNewestThread();
-			} else if (threadList.length > 0) {
-				// Use shitaraba/2ch URL builder from contact URL + key.
-				currentThreadUrl = null;
-				posts = [];
+			} else {
+				// コンタクトが板 URL → その板の最新スレを開く (#17)。
+				await openNewestThread();
 			}
 		} catch (e) {
 			console.warn('board load failed', e);
+		}
+	}
+
+	/// 現チャンネルの板の最新スレ (作成時刻 = 数値 key が最大) を開く。
+	/// コンタクトが板 URL のときの初期表示に使う。ポーリングからも再試行
+	/// されるので、多重実行を `openingBoard` で防ぎ、各 invoke は withTimeout
+	/// でハングを防いで finally でフラグを必ず解放する。
+	let openingBoard = false;
+	async function openNewestThread() {
+		if (openingBoard) return;
+		const board = currentBoardUrl;
+		if (!board) return;
+		openingBoard = true;
+		try {
+			let list = threadList;
+			if (list.length === 0) {
+				list = await withTimeout(listThreads(board), 10_000, 'listThreads');
+				threadList = list;
+			}
+			if (list.length === 0) {
+				currentThreadUrl = null;
+				posts = [];
+				return;
+			}
+			const newest = list.reduce((a, b) => (Number(b.key) > Number(a.key) ? b : a));
+			if (!newest.key) return;
+			currentThreadUrl = await withTimeout(threadUrlOf(board, newest.key), 8_000, 'threadUrlOf');
+			fetchState = null;
+			posts = [];
+			await loadCurrentThread(true);
+		} catch (e) {
+			console.warn('openNewestThread failed', e);
+		} finally {
+			openingBoard = false;
 		}
 	}
 
@@ -732,6 +868,27 @@
 		return /\b(404|410)\b/.test(msg) || /not found/i.test(msg) || /gone/i.test(msg);
 	}
 
+	// invoke の応答が起動直後の輻輳でまれに取りこぼされ、await が永久に
+	// 解決しないことがある (Tauri の並行 invoke で観測)。そのまま放置すると
+	// threadLoading が true で固着し、ポーリングの `!threadLoading` 条件で
+	// 再試行が永久にスキップされてレスが 0 件のまま固まる。タイムアウトで
+	// 強制 reject し、finally でフラグを解放して次回ポーリングに再試行を委ねる。
+	function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+		return new Promise<T>((resolve, reject) => {
+			const t = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+			p.then(
+				(v) => {
+					clearTimeout(t);
+					resolve(v);
+				},
+				(e) => {
+					clearTimeout(t);
+					reject(e);
+				},
+			);
+		});
+	}
+
 	async function loadCurrentThread(forceReset: boolean) {
 		if (!currentThreadUrl) return;
 		// 一度スレ落ち判定したら自動更新をスキップ (手動 reloadThreadFull
@@ -742,7 +899,11 @@
 		if (forceReset) threadReloading = true;
 		try {
 			const prev = forceReset ? null : fetchState;
-			const [newPosts, newState] = await fetchThread(currentThreadUrl, prev);
+			const [newPosts, newState] = await withTimeout(
+				fetchThread(currentThreadUrl, prev),
+				12_000,
+				'fetchThread',
+			);
 			// Snapshot whether the user was anchored to the bottom *before*
 			// we mutate `posts`, so reactive re-render extends the
 			// scrollable area without losing the anchor.
@@ -766,8 +927,9 @@
 				// 状態にする。多数レスでもレイアウト確定後に確実に最下部へ。
 				await scrollPostsToBottomSettled();
 			} else if (appendedNew && autoscroll && wasAtBottom) {
+				// 新着レスは一瞬で飛ばず、設定速度でスムーズに流す (#20)。
 				await tick();
-				scrollPostsToBottom();
+				smoothScrollToBottom();
 			}
 
 			// Pre-fetch sanitised HTML for the new posts in HTML mode.
@@ -806,9 +968,15 @@
 		}
 		threadTimer = setInterval(async () => {
 			if (currentThreadUrl && !threadLoading) {
-				await loadCurrentThread(false);
+				// 起動時の輻輳等で 0 件のまま固着していたら、増分ではなく
+				// 全件再取得 (forceReset) で回復を試みる。通常時は増分取得。
+				await loadCurrentThread(posts.length === 0 && !threadDead);
 				// 視聴中にスレが満レスになったら最新スレへ自動移動。
 				await maybeAdvanceToNewestThread();
+			} else if (!currentThreadUrl && currentBoardUrl && !threadLoading) {
+				// 板 URL は判明しているのにスレ未選択 = 起動時に
+				// openNewestThread が失敗した状態。再試行する。
+				await openNewestThread();
 			}
 			refreshCountdown = REFRESH_SEC;
 		}, REFRESH_SEC * 1_000);
@@ -868,6 +1036,19 @@
 			lastError = errorMessage(e);
 		} finally {
 			writeSending = false;
+		}
+	}
+
+	// 動画領域をクリックしたらウィンドウを前面化 + フォーカスする (#15)。
+	// (子ウィンドウは WS_EX_TRANSPARENT でマウス透過なのでここに届く)
+	async function onPlayerClick() {
+		try {
+			const { getCurrentWindow } = await import('@tauri-apps/api/window');
+			const w = getCurrentWindow();
+			await w.show();
+			await w.setFocus();
+		} catch {
+			/* best-effort */
 		}
 	}
 
@@ -1204,10 +1385,11 @@
 	class:hide-title={!showTitleBar}
 >
 	<!-- Player + BBS panes -->
-	<div class="panes">
+	<div class="panes" style:grid-template-columns={showBbsPane ? `1fr 5px ${bbsWidth}px` : '1fr'}>
 		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
 		<div
 			class="player"
+			onclick={onPlayerClick}
 			oncontextmenu={onPlayerContextMenu}
 			onwheel={onPlayerWheel}
 			ondblclick={ctxToggleFullscreen}
@@ -1245,6 +1427,16 @@
 				</div>
 			{/if}
 		</div>
+
+		{#if showBbsPane}
+			<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+			<div
+				class="pane-splitter"
+				role="separator"
+				aria-label="BBS ペインの幅を変更"
+				onmousedown={startBbsResize}
+			></div>
+		{/if}
 
 		<div class="bbs">
 			{#if showThreadList}
@@ -1316,6 +1508,7 @@
 					class="posts"
 					role="list"
 					bind:this={postsEl}
+					onwheel={cancelSmoothScroll}
 					onclick={onPostsClick}
 					onkeydown={onPostsKeyDown}
 					onmouseover={onPostsHover}
@@ -1366,6 +1559,9 @@
 			onclick={onOpenThreadList}
 			disabled={!channelInfo?.url}
 		>
+			<!-- 先頭にもスペーサーを入れ、末尾の t-grow と挟んでスレタイを
+			     中央寄せにする (#16)。 -->
+			<span class="t-grow"></span>
 			{#if currentThreadUrl}
 				<span class="t-title-main" title={currentThreadUrl}>
 					{currentThreadTitle || '(無題)'}
@@ -1750,8 +1946,19 @@
 
 	.panes {
 		display: grid;
-		grid-template-columns: 1fr 320px;
+		/* 既定。実際の列幅はインライン style (bbsWidth) で上書きされる。 */
+		grid-template-columns: 1fr 5px 320px;
 		min-height: 0; /* allow children to shrink */
+	}
+
+	/* プレイヤーと BBS ペインの境界スプリッター (ドラッグで BBS 幅変更) (#14)。 */
+	.pane-splitter {
+		cursor: col-resize;
+		background: var(--border);
+		min-height: 0;
+	}
+	.pane-splitter:hover {
+		background: var(--accent);
 	}
 
 	.player {

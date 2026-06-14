@@ -204,7 +204,12 @@ impl Default for PeerCastConfig {
     }
 }
 
+// フロント (api.ts / 設定 UI / viewer) は bbs 設定を camelCase で読み書き
+// するので、ここで rename_all = camelCase に揃える。これが無いと
+// display_mode / submit_key / auto_refresh_sec 等が JS 側で undefined になり
+// 設定が round-trip しない (実機で判明した潜在バグ)。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BbsConfig {
     #[serde(default)]
     pub default_name: String,
@@ -230,6 +235,14 @@ pub struct BbsConfig {
     /// は追従しない。既定 ON。
     #[serde(default = "default_autoscroll")]
     pub autoscroll: bool,
+    /// 新着レスへ自動スクロールする際の速度 (px/秒)。スムーズに流して
+    /// 読めるようにするための値。大きいほど速い。既定 600。
+    #[serde(default = "default_autoscroll_speed")]
+    pub autoscroll_speed: u32,
+}
+
+fn default_autoscroll_speed() -> u32 {
+    600
 }
 
 fn default_refresh_sec() -> u32 {

@@ -17,8 +17,8 @@ mod imp {
     use windows::core::w;
     use windows::Win32::Foundation::{HWND, LPARAM, RECT, WPARAM};
     use windows::Win32::UI::WindowsAndMessaging::{
-        CreateWindowExW, SetWindowPos, HMENU, HWND_TOP, SWP_NOACTIVATE, SWP_SHOWWINDOW,
-        WS_CHILD, WS_EX_TRANSPARENT, WS_VISIBLE,
+        CreateWindowExW, SetWindowPos, HMENU, HWND_TOP, SWP_NOACTIVATE, SWP_SHOWWINDOW, WS_CHILD,
+        WS_EX_TRANSPARENT, WS_VISIBLE,
     };
 
     /// 作成済みの子ウィンドウ HWND を保持する。Tauri の managed state として

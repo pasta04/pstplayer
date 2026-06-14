@@ -15,7 +15,14 @@ pub fn player_load(url: String, engine: State<'_, PlayerEngine>) -> Result<(), I
     if let Ok(cfg) = config::load() {
         engine.set_auto_reconnect(cfg.player.auto_reconnect);
     }
-    engine.load(&url).map_err(Into::into)
+    engine.load(&url)?;
+    // 開発中 (QA スクリプト起動) はうるさいので配信音声をミュートする。
+    // 環境変数 PST_DEV_MUTE が立っているときだけ効くので、通常起動や
+    // リリースビルドには一切影響しない (run-viewer.ps1 が env を立てる)。
+    if env::var("PST_DEV_MUTE").is_ok_and(|v| !v.is_empty() && v != "0") {
+        let _ = engine.set_mute(true);
+    }
+    Ok(())
 }
 
 /// 設定ダイアログでユーザが auto_reconnect の ON/OFF を変えた直後に

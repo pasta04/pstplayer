@@ -583,6 +583,18 @@
 					<input type="checkbox" bind:checked={cfg.bbs.autoscroll} />
 					新着レス到着時に末尾へ自動スクロール (手動スクロール中は一時停止)
 				</label>
+				{#if cfg.bbs.autoscroll}
+					<label>
+						自動スクロール速度 (px/秒・大きいほど速い)
+						<input
+							type="number"
+							min="100"
+							max="3000"
+							step="50"
+							bind:value={cfg.bbs.autoscrollSpeed}
+						/>
+					</label>
+				{/if}
 			{:else if tab === 'player'}
 				<label>
 					初期音量 (0-100)
