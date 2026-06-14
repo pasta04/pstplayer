@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onDestroy, onMount, tick } from 'svelte';
-	import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+	import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event';
 	import {
 		CommandError,
 		bumpChannel,
@@ -32,6 +32,7 @@
 		pushHistory,
 		resolveStreamUrl,
 		sanitizeHtml,
+		setConfig,
 		startChannelPolling,
 		stopChannel,
 		stopChannelPolling,
@@ -215,6 +216,7 @@
 	let shortcutsUnlisten: (() => void) | null = null;
 	let themeUnlisten: (() => void) | null = null;
 	let windowGeomUnlisten: (() => void) | null = null;
+	let focusUnlisten: UnlistenFn | null = null;
 
 	// libmpv 描画用子ウィンドウを `.player-canvas` の物理ピクセル矩形へ
 	// 合わせる。getBoundingClientRect() は CSS px・クライアント原点基準
@@ -279,6 +281,18 @@
 			reinstallShortcuts();
 			syncAutoReconnect();
 		});
+
+		// 設定ウィンドウが別プロセス (hub から spawn された視聴ウィンドウ等) で
+		// 開かれていると config:saved の emit が届かないことがある。ウィンドウに
+		// フォーカスが戻ったタイミングで設定を読み直し、変更を取りこぼさない。
+		try {
+			const { getCurrentWindow } = await import('@tauri-apps/api/window');
+			focusUnlisten = await getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+				if (focused) reloadBbsPrefs();
+			});
+		} catch {
+			/* best-effort */
+		}
 
 		threadSelectedUnlisten = await listen<{
 			boardUrl: string;
@@ -439,6 +453,7 @@
 		if (reconnectStatusTimer) clearTimeout(reconnectStatusTimer);
 		threadSelectedUnlisten?.();
 		configSavedUnlisten?.();
+		focusUnlisten?.();
 		channelStatusUnlisten?.();
 		reconnectingUnlisten?.();
 		reconnectStoppedUnlisten?.();
@@ -466,6 +481,24 @@
 			}
 		} catch {
 			/* defaults */
+		}
+	}
+
+	// 視聴ウィンドウ側から新着自動スクロールの ON/OFF を切り替える。即時に
+	// 反映 (autoscroll 状態) しつつ config に永続化し、同プロセスの他ウィンドウ
+	// (設定画面等) へ config:saved で伝える。別プロセスの視聴ウィンドウへは
+	// フォーカス時の reloadBbsPrefs で伝わる。
+	async function toggleAutoscroll() {
+		autoscroll = !autoscroll;
+		try {
+			const cfg = await getConfig();
+			if (cfg?.bbs) {
+				cfg.bbs.autoscroll = autoscroll;
+				await setConfig(cfg);
+				await emit('config:saved');
+			}
+		} catch {
+			/* best-effort: 状態だけは即時反映済み */
 		}
 	}
 
@@ -1211,9 +1244,23 @@
 			showThreadList = false;
 			return;
 		}
-		if (!currentBoardUrl && !channelInfo?.url) return;
+		// 板が判明していなくてもパネルは開く。配信者がコンタクト URL を設定して
+		// いないが実際は掲示板を使っているケースに備え、ユーザーが URL を手入力
+		// してスレッドを適用できるようにするため。板がある時だけ一覧を取得する。
 		showThreadList = true;
-		await refreshThreadListPanel();
+		if (currentBoardUrl || channelInfo?.url) await refreshThreadListPanel();
+	}
+
+	// スレ選択パネルでユーザーが手入力した URL (スレ or 板) を適用する。
+	// コンタクト URL の有無に関係なく、任意の掲示板/スレッドを開ける。
+	let manualThreadUrl = $state('');
+	async function applyManualUrl() {
+		const u = manualThreadUrl.trim();
+		if (!u) return;
+		showThreadList = false;
+		// tryLoadBoard はスレ URL ならそのスレを、板 URL ならその板の最新スレを
+		// 開く。手入力 URL もこれで賄える。
+		await tryLoadBoard(u);
 	}
 
 	async function refreshThreadListPanel() {
@@ -1452,6 +1499,24 @@
 						<button class="tl-btn" onclick={() => (showThreadList = false)} title="閉じる">✕</button
 						>
 					</div>
+					<!-- 任意 URL の手入力。配信者がコンタクト URL 未設定でも、実際に
+					     使っている掲示板/スレッドの URL を貼って適用できる。 -->
+					<form
+						class="tl-urlbar"
+						onsubmit={(e) => {
+							e.preventDefault();
+							applyManualUrl();
+						}}
+					>
+						<input
+							type="text"
+							bind:value={manualThreadUrl}
+							placeholder="掲示板/スレッドの URL を貼り付けて適用 (コンタクト未設定でも可)"
+							autocomplete="off"
+							spellcheck="false"
+						/>
+						<button class="tl-btn" type="submit" disabled={!manualThreadUrl.trim()}>適用</button>
+					</form>
 					<ul class="tl-list">
 						{#each threadList as t (t.key)}
 							<li>
@@ -1555,9 +1620,9 @@
 	<div class="thread-bar">
 		<button
 			class="thread-bar-button"
-			title="スレッド一覧を開く"
+			title="スレッド一覧 / URL 手入力を開く"
 			onclick={onOpenThreadList}
-			disabled={!channelInfo?.url}
+			disabled={!streamUrl}
 		>
 			<!-- 先頭にもスペーサーを入れ、末尾の t-grow と挟んでスレタイを
 			     中央寄せにする (#16)。 -->
@@ -1635,6 +1700,15 @@
 				<button class="ctx-item" onclick={ctxToggleFullscreen}>⛶ 全画面切替</button>
 				<button class="ctx-item" onclick={ctxToggleAlwaysOnTop}>
 					{alwaysOnTop ? '✓' : '　'} 常に最前面
+				</button>
+				<button
+					class="ctx-item"
+					onclick={() => {
+						closeCtxMenu();
+						toggleAutoscroll();
+					}}
+				>
+					{autoscroll ? '✓' : '　'} 新着レス自動スクロール
 				</button>
 				<button class="ctx-item" onclick={ctxOpenContactUrl} disabled={!channelInfo?.url}>
 					🔗 コンタクト URL を開く
@@ -2078,6 +2152,29 @@
 		opacity: 0.6;
 		cursor: default;
 	}
+	.tl-urlbar {
+		display: flex;
+		gap: 0.4rem;
+		padding: 0.4rem 0.6rem;
+		border-bottom: 1px solid var(--border);
+		flex: 0 0 auto;
+	}
+	.tl-urlbar input {
+		flex: 1;
+		min-width: 0;
+		background: var(--bg-input);
+		color: inherit;
+		border: 1px solid var(--border);
+		border-radius: 3px;
+		padding: 0.25rem 0.45rem;
+		font-family: inherit;
+		font-size: 0.8rem;
+	}
+	.tl-urlbar input:focus {
+		outline: 2px solid var(--accent);
+		border-color: transparent;
+	}
+
 	.tl-list {
 		list-style: none;
 		margin: 0;

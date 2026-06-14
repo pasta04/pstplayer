@@ -208,7 +208,13 @@ impl Default for PeerCastConfig {
 // するので、ここで rename_all = camelCase に揃える。これが無いと
 // display_mode / submit_key / auto_refresh_sec 等が JS 側で undefined になり
 // 設定が round-trip しない (実機で判明した潜在バグ)。
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+//
+// Default は derive せず手書きする。`#[serde(default = "...")]` は TOML を
+// パースする時 (= キー欠落時) しか効かず、config.toml が無い / [bbs] セクション
+// 欠落時に使われる `BbsConfig::default()` には反映されない。derive(Default) だと
+// bool=false / String="" / u32=0 になり、autoscroll が既定で OFF・display_mode
+// が空…と意図しない既定になってしまう (実機で発覚)。
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BbsConfig {
     #[serde(default)]
@@ -259,6 +265,21 @@ fn default_submit_key() -> String {
 
 fn default_autoscroll() -> bool {
     true
+}
+
+impl Default for BbsConfig {
+    fn default() -> Self {
+        Self {
+            default_name: String::new(),
+            default_mail: String::new(),
+            auto_refresh_sec: default_refresh_sec(),
+            display_mode: default_display_mode(),
+            submit_key: default_submit_key(),
+            notify_on_new_post: false,
+            autoscroll: default_autoscroll(),
+            autoscroll_speed: default_autoscroll_speed(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
