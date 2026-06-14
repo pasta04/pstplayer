@@ -1237,7 +1237,8 @@
 							disabled={threadListLoading}
 							title="再取得">{threadListLoading ? '更新中…' : '↻'}</button
 						>
-						<button class="tl-btn" onclick={() => (showThreadList = false)} title="閉じる">✕</button>
+						<button class="tl-btn" onclick={() => (showThreadList = false)} title="閉じる">✕</button
+						>
 					</div>
 					<ul class="tl-list">
 						{#each threadList as t (t.key)}
@@ -1673,6 +1674,15 @@
 		{:else}
 			<span class="muted">未接続</span>
 		{/if}
+		{#if currentThreadUrl}
+			<!-- スレッド表示中のレス件数。`statusLine` $derived は posts を
+			     依存に持たないので分けて直接バインドする (これで Svelte 5 で
+			     確実に reactive になる)。フィルタ中はそのカウントも併記。 -->
+			<span class="s-posts" title="現スレッドのレス件数 (フィルタ中は表示中 / 全件)">
+				📝 {#if visiblePosts.length !== posts.length}{visiblePosts.length} /
+				{/if}{posts.length}
+			</span>
+		{/if}
 		{#if reconnectStatus}
 			<span class="reconnect" title="自動再接続の状態 (詳細は engine.rs)">⟳ {reconnectStatus}</span>
 		{/if}
@@ -2083,8 +2093,13 @@
 	.s-info,
 	.s-up,
 	.s-size,
-	.s-vol {
+	.s-vol,
+	.s-posts {
 		color: rgba(255, 255, 255, 0.85);
+	}
+	.s-posts {
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
 	}
 	.s-vol {
 		min-width: 3rem;
