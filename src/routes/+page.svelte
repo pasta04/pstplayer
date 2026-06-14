@@ -86,6 +86,10 @@
 	let posts = $state<Post[]>([]);
 	let fetchState = $state<FetchState | null>(null);
 	let threadLoading = $state(false);
+	// 「更新中…」インジケータ表示用。5 秒毎のサイレント自動更新では出さず、
+	// 初回表示 / スレ切替 / 手動の全再取得 (forceReset) の時だけ出す。
+	// 自動更新のたびに点滅すると鬱陶しい (実機 QA で発覚)。
+	let threadReloading = $state(false);
 	// dat / rawmode が 404 / 410 / DAT_NOT_FOUND 系を返したら、スレが
 	// 落ちた (削除 or 過去ログ送り) と判定し以降の自動更新を止める。
 	let threadDead = $state(false);
@@ -721,6 +725,7 @@
 		if (threadDead && !forceReset) return;
 		if (forceReset) threadDead = false;
 		threadLoading = true;
+		if (forceReset) threadReloading = true;
 		try {
 			const prev = forceReset ? null : fetchState;
 			const [newPosts, newState] = await fetchThread(currentThreadUrl, prev);
@@ -772,6 +777,7 @@
 			}
 		} finally {
 			threadLoading = false;
+			threadReloading = false;
 		}
 	}
 
@@ -1327,8 +1333,12 @@
 						</div>
 					{/each}
 				</div>
-				{#if threadLoading}
-					<div class="muted small">更新中…</div>
+				{#if threadReloading}
+					<!-- 絶対配置のオーバーレイにして .posts の高さに影響させない。
+					     兄弟 flex アイテムにすると出入りでスクロールがビクンと
+					     動く。さらに 5 秒毎の自動更新では出さず (threadReloading は
+					     forceReset 時のみ)、点滅で鬱陶しくならないようにする。 -->
+					<div class="refresh-indicator">更新中…</div>
 				{/if}
 			{/if}
 		</div>
@@ -1937,6 +1947,21 @@
 		overflow-y: auto;
 	}
 
+	/* 自動更新インジケータ。.bbs に対する絶対配置でレイアウトに影響させない
+	   (= スクロール領域の高さを変えない)。 */
+	.refresh-indicator {
+		position: absolute;
+		right: 0.5rem;
+		bottom: 0.3rem;
+		z-index: 6;
+		pointer-events: none;
+		font-size: 0.72rem;
+		color: var(--fg-muted);
+		background: color-mix(in srgb, var(--bg-elev) 80%, transparent);
+		padding: 0.05rem 0.35rem;
+		border-radius: 3px;
+	}
+
 	.post {
 		padding: 0.5rem 0.6rem;
 		border-bottom: 1px solid var(--border);
@@ -2136,11 +2161,6 @@
 	.thread-bar .muted,
 	.status-bar .muted {
 		color: rgba(255, 255, 255, 0.75);
-	}
-
-	.small {
-		font-size: 0.75rem;
-		padding: 0.3rem 0.6rem;
 	}
 
 	.hint {
