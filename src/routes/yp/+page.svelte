@@ -201,8 +201,12 @@
 	}
 
 	main {
-		display: grid;
-		grid-template-rows: auto auto auto 1fr;
+		/* flex column にして、テーブルが残り高さを常に埋めるようにする。
+		   以前は grid 4 トラック固定だったが、エラー行 (.err) が条件付きで
+		   消えると table が auto トラックに落ち、項目が少ないとき下部に空白が
+		   できて「ウィンドウ縦幅に追従しない」状態になっていた。 */
+		display: flex;
+		flex-direction: column;
 		height: 100vh;
 	}
 
@@ -265,6 +269,7 @@
 	}
 
 	.table {
+		flex: 1;
 		display: flex;
 		flex-direction: column;
 		overflow: hidden;
