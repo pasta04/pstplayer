@@ -18,7 +18,7 @@ mod imp {
     use windows::Win32::Foundation::{HWND, LPARAM, RECT, WPARAM};
     use windows::Win32::UI::WindowsAndMessaging::{
         CreateWindowExW, SetWindowPos, HMENU, HWND_TOP, SWP_NOACTIVATE, SWP_SHOWWINDOW,
-        WINDOW_EX_STYLE, WS_CHILD, WS_VISIBLE,
+        WS_CHILD, WS_EX_TRANSPARENT, WS_VISIBLE,
     };
 
     /// 作成済みの子ウィンドウ HWND を保持する。Tauri の managed state として
@@ -43,9 +43,15 @@ mod imp {
             }
             // SAFETY: parent_hwnd はメインウィンドウから取得した有効な HWND。
             // STATIC クラスは常に登録済み。失敗時は HWND(0) が返るので検査する。
+            // WS_EX_TRANSPARENT: この子ウィンドウ上のマウスイベント
+            // (ホイール / 右クリック / クリック) をヒットテストで透過させ、
+            // 背後の WebView に通す。これが無いと動画領域上の操作
+            // (音量ホイール・右クリックメニュー・クリックでの前面化) が
+            // 子ウィンドウに吸われて効かない (実機 QA で発覚)。mpv の描画
+            // 自体には影響しない。
             let child = unsafe {
                 CreateWindowExW(
-                    WINDOW_EX_STYLE(0),
+                    WS_EX_TRANSPARENT,
                     w!("STATIC"),
                     w!(""),
                     WS_CHILD | WS_VISIBLE,
