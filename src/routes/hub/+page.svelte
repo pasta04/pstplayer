@@ -64,19 +64,21 @@
 	});
 
 	// ── カラム幅 (手動リサイズ) ──────────────────────────────────
-	// desc (ジャンル列) は可変幅で残りを吸収する。その他の列は固定幅で、
-	// ヘッダー右端のハンドルをドラッグして変更できる。table-layout:fixed +
-	// width:100% なのでウィンドウ幅に合わせた自動フィットも維持される。
-	type ColId = 'name' | 'listeners' | 'bitrate' | 'uptime' | 'type' | 'filter' | 'yp' | 'contact';
+	// 末尾の contact (コンタクト) 列だけを可変幅にして残りを吸収させ、
+	// それ以外の列は固定幅でヘッダー右端のハンドルをドラッグして変更
+	// できる。各列の右境界ハンドル = その列をリサイズ (= 直感に一致) で、
+	// 差分は flex の contact が吸収する。table-layout:fixed + width:100%
+	// なのでウィンドウ幅への自動フィットも維持される。
+	type ColId = 'name' | 'desc' | 'listeners' | 'bitrate' | 'uptime' | 'type' | 'filter' | 'yp';
 	const COL_DEFAULTS: Record<ColId, number> = {
 		name: 160,
+		desc: 360,
 		listeners: 72,
 		bitrate: 56,
 		uptime: 64,
 		type: 48,
 		filter: 96,
 		yp: 44,
-		contact: 240,
 	};
 	const COL_MIN = 32;
 	let colW = $state<Record<ColId, number>>(loadColW());
@@ -785,15 +787,15 @@
 		<table>
 			<colgroup>
 				<col style:width={colW.name + 'px'} />
-				<!-- desc は可変幅 (残りを吸収) -->
-				<col />
+				<col style:width={colW.desc + 'px'} />
 				<col style:width={colW.listeners + 'px'} />
 				<col style:width={colW.bitrate + 'px'} />
 				<col style:width={colW.uptime + 'px'} />
 				<col style:width={colW.type + 'px'} />
 				<col style:width={colW.filter + 'px'} />
 				<col style:width={colW.yp + 'px'} />
-				<col style:width={colW.contact + 'px'} />
+				<!-- contact は可変幅 (残りを吸収) -->
+				<col />
 			</colgroup>
 			<thead>
 				<tr>
@@ -807,7 +809,13 @@
 						></span></th
 					>
 					<th class="col-desc" onclick={() => toggleSort('genre')}
-						>ジャンル - 詳細 「コメント」{arrow('genre')}</th
+						>ジャンル - 詳細 「コメント」{arrow('genre')}<span
+							class="col-resizer"
+							role="separator"
+							aria-label="詳細の幅を変更"
+							onmousedown={(e) => startColResize(e, 'desc')}
+							onclick={(e) => e.stopPropagation()}
+						></span></th
 					>
 					<th class="col-num" onclick={() => toggleSort('listeners')}
 						>👤{arrow('listeners')}<span
@@ -861,14 +869,7 @@
 							onclick={(e) => e.stopPropagation()}
 						></span></th
 					>
-					<th class="col-contact"
-						>コンタクト<span
-							class="col-resizer"
-							role="separator"
-							aria-label="コンタクトの幅を変更"
-							onmousedown={(e) => startColResize(e, 'contact')}
-						></span></th
-					>
+					<th class="col-contact">コンタクト</th>
 				</tr>
 			</thead>
 			<tbody>

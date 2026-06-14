@@ -534,6 +534,20 @@
 		);
 	});
 
+	// 現在開いているスレッドのタイトル。スレッドバーに URL でなくこれを
+	// 出す。1) 取得済みレスのスレタイ (通常 1 レス目)、2) スレ一覧から
+	// 現スレ key で引いたタイトル、の順で探す。どちらも無ければ null。
+	const currentThreadTitle = $derived.by(() => {
+		const fromPost = posts.find((p) => p.threadTitle.trim())?.threadTitle.trim();
+		if (fromPost) return fromPost;
+		const key = currentThreadUrl?.match(/(\d+)\/?$/)?.[1];
+		if (key) {
+			const t = threadList.find((e) => e.key === key)?.title?.trim();
+			if (t) return t;
+		}
+		return null;
+	});
+
 	const statusLine = $derived.by(() => {
 		if (!channelInfo) return null;
 		const name = channelInfo.name || '(unnamed)';
@@ -1353,8 +1367,8 @@
 			disabled={!channelInfo?.url}
 		>
 			{#if currentThreadUrl}
-				<span class="t-title-main">
-					{posts[0]?.threadTitle || currentThreadUrl}
+				<span class="t-title-main" title={currentThreadUrl}>
+					{currentThreadTitle || '(無題)'}
 				</span>
 				<span class="t-count-main">({posts.length})</span>
 				{#if threadDead}
