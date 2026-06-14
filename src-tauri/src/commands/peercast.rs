@@ -253,6 +253,7 @@ pub fn start_viewer_recording(channel_id: String) -> bool {
 pub fn spawn_viewer(
     channel_id: String,
     record: Option<bool>,
+    minimized: Option<bool>,
     tip: Option<String>,
 ) -> Result<SpawnViewerOutcome, IpcError> {
     // channel_id は 32 桁 hex 想定。YP の `id` フィールドをそのまま
@@ -269,6 +270,12 @@ pub fn spawn_viewer(
     // 落ちた、ファイアウォール等) なら新規 spawn にフォールバック。
     if let Some(info) = single_instance::read_existing(channel_id) {
         if single_instance::request_focus(info.ipc_addr).is_ok() {
+            // 既に視聴中のチャンネルに「視聴+録画」した場合、focus だけだと
+            // 録画指示が失われる (D3)。record=true なら録画開始 IPC も送って
+            // 既存ウィンドウで録画を開始させる。
+            if record.unwrap_or(false) {
+                let _ = single_instance::request_start_recording(info.ipc_addr);
+            }
             return Ok(SpawnViewerOutcome::Focused);
         }
         // probe → focus の間に死んだ可能性 → spawn にフォールスルー。
@@ -288,6 +295,10 @@ pub fn spawn_viewer(
     cmd.arg(&url);
     if record.unwrap_or(false) {
         cmd.arg("--record-on-start");
+    }
+    // 「録画のみ」: ウィンドウを最小化して起動 (D2)。録画は継続する。
+    if minimized.unwrap_or(false) {
+        cmd.arg("--minimized");
     }
     cmd.spawn().map_err(|e| {
         IpcError::from(AppError::Network(format!("別プロセスの pstplayer を起動できません: {e}")))

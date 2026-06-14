@@ -35,6 +35,14 @@ fn maybe_acquire_lock(cli: &CliArgs) -> AcquireOutcome {
             if let Err(e) = single_instance::request_focus(info.ipc_addr) {
                 eprintln!("既存ウィンドウへのフォーカス要求が失敗: {e}");
             }
+            // `--record-on-start` 付き (= ハブの「視聴+録画」) で起動された
+            // のに既存ウィンドウがあった場合、focus だけだと録画指示が失わ
+            // れる。既存ウィンドウへ録画開始 IPC も送る (D3)。
+            if cli.record_on_start {
+                if let Err(e) = single_instance::request_start_recording(info.ipc_addr) {
+                    eprintln!("既存ウィンドウへの録画開始要求が失敗: {e}");
+                }
+            }
             AcquireOutcome::ConflictResolved
         }
         Err(e) => {
@@ -173,9 +181,20 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .setup(move |app| {
+            let start_minimized = cli_args.minimized;
             app.handle().manage(cli_args);
             app.handle().manage(ChannelPolling::new());
             app.handle().manage(player::embed::VideoEmbed::new());
+            // single_instance のロックを持っているなら focus / IPC 受け取り
+            // listener を先に起動する。libmpv 初期化より前に serve を回す
+            // ことで、起動直後でもハブの list_active_viewers の probe に即
+            // 応答でき「視聴中」バッジ反映のラグを減らす (E1)。serve の
+            // コールバックは PlayerEngine を try_state 参照するため、まだ
+            // 未 manage の一瞬は no-op になるだけで安全。
+            if let Some(handle) = lock_handle {
+                let h = start_focus_listener(handle, app.handle().clone());
+                app.handle().manage(h);
+            }
             // Initialise libmpv once at startup. If this fails (e.g.
             // libmpv.so missing) we report and continue without the
             // player rather than aborting the whole app.
@@ -194,14 +213,27 @@ pub fn run() {
                     eprintln!("warning: failed to initialise libmpv: {e}");
                 }
             }
-            // single_instance のロックを持っているなら focus 受け取り用
-            // listener を別スレッドで起動し、handle を app state に保持
-            // する (drop で lock ファイル削除)。
-            if let Some(handle) = lock_handle {
-                let h = start_focus_listener(handle, app.handle().clone());
-                app.handle().manage(h);
+            // 「録画のみ」等で `--minimized` 起動された場合はウィンドウを
+            // 最小化する (D2)。録画 (stream-record) はウィンドウ状態に
+            // 依存しないので最小化したまま録り続けられる。
+            if start_minimized {
+                if let Some(win) = app.get_webview_window("main") {
+                    let _ = win.minimize();
+                }
             }
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // 視聴ウィンドウを閉じる前に録画を確実にファイナライズする。
+            // stream-record を空に設定すると libmpv が出力ファイルを正しく
+            // 閉じる (D4)。録画していなければ no-op。メインウィンドウのみ対象。
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                if window.label() == "main" {
+                    if let Some(engine) = window.app_handle().try_state::<PlayerEngine>() {
+                        let _ = engine.stop_record();
+                    }
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::ping,
