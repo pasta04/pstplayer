@@ -62,10 +62,13 @@ impl ShitarabaClient {
         )
     }
 
-    fn write_url(loc: &BoardLocation) -> String {
+    fn write_url(loc: &BoardLocation, key: &str) -> String {
+        // したらばの write.cgi はスレッドキーを URL パスに含める必要がある。
+        // 含めないとサーバは「新規スレッド作成」と解釈し、SUBJECT が無い
+        // として弾く ("ERROR!! ERROR!! サブジェクトがありません")。
         format!(
-            "https://jbbs.shitaraba.net/bbs/write.cgi/{}/{}/",
-            loc.category, loc.board_id
+            "https://jbbs.shitaraba.net/bbs/write.cgi/{}/{}/{}/",
+            loc.category, loc.board_id, key
         )
     }
 
@@ -186,7 +189,7 @@ impl ShitarabaClient {
             .as_deref()
             .ok_or_else(|| AppError::InvalidUrl(format!("missing thread key in: {thread_url}")))?;
 
-        let url = Self::write_url(&loc);
+        let url = Self::write_url(&loc, key);
         let referer = format!(
             "https://jbbs.shitaraba.net/{}/{}/",
             loc.category, loc.board_id
@@ -269,8 +272,8 @@ mod tests {
             "https://jbbs.shitaraba.net/bbs/rawmode.cgi/computer/4567/1234/"
         );
         assert_eq!(
-            ShitarabaClient::write_url(&loc),
-            "https://jbbs.shitaraba.net/bbs/write.cgi/computer/4567/"
+            ShitarabaClient::write_url(&loc, "1234"),
+            "https://jbbs.shitaraba.net/bbs/write.cgi/computer/4567/1234/"
         );
     }
 
