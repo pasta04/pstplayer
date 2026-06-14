@@ -871,6 +871,14 @@
 {/if}
 
 <style>
+	/* body のデフォルトマージン等で外側 (ウィンドウ) にスクロールバーが
+	   出てしまうのを防ぐ。スクロールは内側の一覧 (.table-wrap) だけにする。 */
+	:global(html, body) {
+		margin: 0;
+		height: 100%;
+		overflow: hidden;
+	}
+
 	main {
 		display: grid;
 		grid-template-rows: auto auto auto 1fr auto;
