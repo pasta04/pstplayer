@@ -196,6 +196,8 @@
 
 	// Right-click context menu over the player area.
 	let ctxMenu = $state<{ x: number; y: number } | null>(null);
+	// レス一覧 (.posts) の右クリックメニュー (C5)。動画メニュー (ctxMenu) と独立。
+	let postsMenu = $state<{ x: number; y: number } | null>(null);
 	// 視聴履歴 (右クリックメニューのサブメニュー用に config から都度取得)。
 	let history = $state<HistoryEntry[]>([]);
 	// チャンネル詳細モーダル (リレー / 接続情報の全フィールドを見るため)。
@@ -1187,6 +1189,47 @@
 		ctxMenu = null;
 	}
 
+	// ── レス一覧 (.posts) の右クリックメニュー (C5) ───────────────────
+	function onPostsContextMenu(e: MouseEvent) {
+		e.preventDefault();
+		postsMenu = { x: e.clientX, y: e.clientY };
+	}
+	function closePostsMenu() {
+		postsMenu = null;
+	}
+	function scrollPostsTo(pos: 'top' | 'bottom') {
+		closePostsMenu();
+		const el = postsEl;
+		if (!el) return;
+		cancelSmoothScroll();
+		el.scrollTo({ top: pos === 'top' ? 0 : el.scrollHeight, behavior: 'instant' });
+	}
+	function focusPostsFilter() {
+		closePostsMenu();
+		filterInput?.focus();
+	}
+	async function reloadThreadFromMenu() {
+		closePostsMenu();
+		if (currentThreadUrl) await loadCurrentThread(true);
+	}
+	function toggleAutoscrollFromMenu() {
+		closePostsMenu();
+		void toggleAutoscroll();
+	}
+	async function copyThreadUrl() {
+		closePostsMenu();
+		if (!currentThreadUrl) return;
+		try {
+			await navigator.clipboard.writeText(currentThreadUrl);
+		} catch {
+			/* permission denied */
+		}
+	}
+	async function openThreadExternal() {
+		closePostsMenu();
+		if (currentThreadUrl) await openExternal(currentThreadUrl);
+	}
+
 	async function ctxCopyChannelUrl() {
 		closeCtxMenu();
 		const url = pasteUrl.trim();
@@ -1626,6 +1669,7 @@
 					bind:this={postsEl}
 					onwheel={cancelSmoothScroll}
 					onclick={onPostsClick}
+					oncontextmenu={onPostsContextMenu}
 					onkeydown={onPostsKeyDown}
 					onmouseover={onPostsHover}
 					onmouseleave={onPostsLeave}
@@ -1852,6 +1896,50 @@
 					}}
 				>
 					📡 YP チャンネル一覧
+				</button>
+			</div>
+		</div>
+	{/if}
+
+	<!-- レス一覧 (.posts) 右クリックメニュー (C5) -->
+	{#if postsMenu}
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
+		<div
+			class="ctx-backdrop"
+			role="presentation"
+			onclick={closePostsMenu}
+			oncontextmenu={(e) => {
+				e.preventDefault();
+				closePostsMenu();
+			}}
+		>
+			<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+			<div
+				class="ctx"
+				role="menu"
+				tabindex="-1"
+				style="left: {Math.min(postsMenu.x, window.innerWidth - 220)}px; top: {Math.min(
+					postsMenu.y,
+					window.innerHeight - 260,
+				)}px"
+				onclick={(e) => e.stopPropagation()}
+			>
+				<button class="ctx-item" onclick={focusPostsFilter}>🔍 レスを検索 / 絞り込み</button>
+				<button class="ctx-item" onclick={() => scrollPostsTo('top')}>⤒ 最上部へ</button>
+				<button class="ctx-item" onclick={() => scrollPostsTo('bottom')}>⤓ 最下部へ</button>
+				<div class="ctx-sep"></div>
+				<button class="ctx-item" onclick={toggleAutoscrollFromMenu}>
+					{autoscroll ? '✓' : '　'} 新着レス自動スクロール
+				</button>
+				<button class="ctx-item" onclick={reloadThreadFromMenu} disabled={!currentThreadUrl}>
+					↻ スレッド再取得
+				</button>
+				<div class="ctx-sep"></div>
+				<button class="ctx-item" onclick={copyThreadUrl} disabled={!currentThreadUrl}>
+					📋 スレッド URL をコピー
+				</button>
+				<button class="ctx-item" onclick={openThreadExternal} disabled={!currentThreadUrl}>
+					🌐 スレッドをブラウザで開く
 				</button>
 			</div>
 		</div>
