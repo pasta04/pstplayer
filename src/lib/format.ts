@@ -23,10 +23,12 @@ export function renderBodyHtml(body: string): string {
 		const to = b ? `data-anchor-to="${b}"` : '';
 		return `<a class="anchor" data-anchor-from="${a}" ${to}>&gt;&gt;${a}${b ? `-${b}` : ''}</a>`;
 	});
-	// Linkify bare URLs (http/https).
+	// Linkify bare URLs (http/https) と「h 抜き」URL (ttp:// / ttps://)。
+	// 表示テキストは投稿どおり (h 抜きのまま) にして href だけ正規化する。
 	const withUrls = withAnchors.replace(
-		/(https?:\/\/[\w\-.~:/?#[\]@!$&'()*+,;=%]+)/g,
-		'<a class="external" href="$1" target="_blank" rel="noopener noreferrer">$1</a>',
+		/((?:h?ttps?):\/\/[\w\-.~:/?#[\]@!$&'()*+,;=%]+)/g,
+		(m) =>
+			`<a class="external" href="${hNukiToUrl(m)}" target="_blank" rel="noopener noreferrer">${m}</a>`,
 	);
 	// Convert newlines to <br>.
 	return withUrls.replace(/\n/g, '<br>');
@@ -55,8 +57,9 @@ export function linkifySanitized(html: string): string {
 			return `<a class="anchor" data-anchor-from="${a}" ${to}>&gt;&gt;${a}${b ? `-${b}` : ''}</a>`;
 		});
 		s = s.replace(
-			/(https?:\/\/[\w\-.~:/?#[\]@!$&'()*+,;=%]+)/g,
-			'<a class="external" href="$1" target="_blank" rel="noopener noreferrer">$1</a>',
+			/((?:h?ttps?):\/\/[\w\-.~:/?#[\]@!$&'()*+,;=%]+)/g,
+			(m) =>
+				`<a class="external" href="${hNukiToUrl(m)}" target="_blank" rel="noopener noreferrer">${m}</a>`,
 		);
 		parts[i] = s;
 	}
@@ -70,4 +73,13 @@ function escapeHtml(s: string): string {
 		.replace(/>/g, '&gt;')
 		.replace(/"/g, '&quot;')
 		.replace(/'/g, '&#39;');
+}
+
+/** 「h 抜き」URL (BBS 文化で URL 規制回避のため先頭の h を抜く慣習。例:
+ * `ttps://…` `ttp://…`) を href 用に http(s) へ復元する。表示テキストは投稿
+ * どおり (h 抜きのまま) にして、リンク先だけ正規の URL にする。 */
+function hNukiToUrl(u: string): string {
+	if (u.startsWith('http://') || u.startsWith('https://')) return u;
+	if (u.startsWith('ttp://') || u.startsWith('ttps://')) return 'h' + u;
+	return u;
 }
