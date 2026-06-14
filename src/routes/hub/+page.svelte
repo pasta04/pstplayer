@@ -874,7 +874,12 @@
 	main {
 		display: grid;
 		grid-template-rows: auto auto auto 1fr auto;
-		min-height: 100vh;
+		/* ビューポート固定高さ + overflow:hidden で、ツールバー / タブ
+		   (上) とステータスバー (下) を固定し、一覧 (.table-wrap) だけを
+		   内部スクロールさせる。min-height:100vh だとテーブルが長い時に
+		   ページ全体が伸びてヘッダ / フッタごとスクロールしてしまう。 */
+		height: 100vh;
+		overflow: hidden;
 		background: #fff;
 		color: #1a1a1a;
 		font-size: 12px;
@@ -996,6 +1001,9 @@
 
 	.table-wrap {
 		overflow: auto;
+		/* grid の 1fr セルを縮められるようにして内部スクロールを有効化。
+		   thead th は position:sticky;top:0 でカラムヘッダーも追従固定。 */
+		min-height: 0;
 	}
 
 	table {
