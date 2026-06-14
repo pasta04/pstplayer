@@ -3,6 +3,7 @@
 
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { boardUrlOf } from './api';
 
 /// 引数なしで開くサブウィンドウ向け。既存があれば show + focus、
 /// 無ければ新規作成。URL は label 単位で 1 つしか持たない前提なので
@@ -72,7 +73,16 @@ export async function openSettings(): Promise<void> {
 	});
 }
 
-export async function openThreadList(boardUrl: string): Promise<void> {
+export async function openThreadList(boardOrThreadUrl: string): Promise<void> {
+	// コンタクト URL はスレッド URL のことが多いが、スレ一覧は **板** を
+	// 列挙する。スレ URL のまま渡すと一覧の選択時に組み立てるスレ URL が
+	// 壊れる (board URL + key が前提) ため、必ず板 URL に正規化する。
+	let boardUrl = boardOrThreadUrl;
+	try {
+		boardUrl = await boardUrlOf(boardOrThreadUrl);
+	} catch {
+		// 分類できない URL はそのまま渡してフォールバック。
+	}
 	const url = `/threads?board=${encodeURIComponent(boardUrl)}`;
 	// スレ一覧は boardUrl が URL クエリ引数なので、別チャンネルに切替えた
 	// 後に既存ウィンドウを show するだけだと古い板が見え続ける。reopenWithUrl

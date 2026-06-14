@@ -3,7 +3,7 @@
 //!
 //! No HTTP here: callers feed in a decoded UTF-8 body.
 
-use super::{anchor::find_anchors, encoding::unescape_html, types::Post};
+use super::{anchor::find_anchors, encoding::unescape_html, types::BoardSetting, types::Post};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,18 +44,54 @@ pub fn parse_ch2_subject(body: &str) -> Vec<SubjectEntry> {
         .collect()
 }
 
-/// Tease apart `"title (123)"` into `("title", 123)`.
-/// Accepts both `({n})` and `(n)`. Falls back to 0 if no count present.
+/// Tease apart `"title(123)"` / `"title (123)"` into `("title", 123)`.
+///
+/// 2ch は `タイトル (123)` (括弧前にスペース)、したらばは `タイトル(123)`
+/// (スペース無し) と流儀が違う。スペースの有無に依存せず、**末尾の
+/// `(数字)` グループ** を末尾から探して数える。括弧をタイトルに含むスレ
+/// (例 `グラブル(神)(1000)`) でも最後の `(数字)` だけを count にする。
+/// 末尾が `(数字)` でない場合は count=0 でタイトルそのまま。
 fn split_title_and_count(s: &str) -> Option<(String, u32)> {
     let s = s.trim_end();
-    if let Some(open) = s.rfind(" (") {
-        let (title, count_part) = s.split_at(open);
-        let count_str = count_part.trim_start_matches(" (").trim_end_matches(')');
-        if let Ok(n) = count_str.parse::<u32>() {
-            return Some((title.to_string(), n));
+    if let Some(open) = s.rfind('(') {
+        if s.ends_with(')') {
+            // `(` と `)` は ASCII 1 byte なので byte index で安全に切れる。
+            let count_str = &s[open + 1..s.len() - 1];
+            if !count_str.is_empty() && count_str.bytes().all(|b| b.is_ascii_digit()) {
+                if let Ok(n) = count_str.parse::<u32>() {
+                    return Some((s[..open].trim_end().to_string(), n));
+                }
+            }
         }
     }
     Some((s.to_string(), 0))
+}
+
+/// `KEY=VALUE` 形式の板設定 (SETTING.TXT / setting.cgi) を解釈する。
+/// `max_res` は したらば `BBS_THREAD_STOP` と 2ch 互換 `BBS_RES_MAX` の
+/// どちらか存在する方を採用 (両方あれば THREAD_STOP 優先)。`body` は
+/// 呼び出し側で適切な文字コード (したらば=EUC-JP, 2ch=Shift_JIS) から
+/// デコード済みの文字列を渡すこと。
+pub fn parse_board_setting(body: &str) -> BoardSetting {
+    let mut s = BoardSetting::default();
+    let mut res_max: Option<u32> = None;
+    let mut thread_stop: Option<u32> = None;
+    for line in body.lines() {
+        let Some((key, val)) = line.split_once('=') else {
+            continue;
+        };
+        let key = key.trim();
+        let val = val.trim();
+        match key {
+            "BBS_THREAD_STOP" => thread_stop = val.parse().ok(),
+            "BBS_RES_MAX" => res_max = val.parse().ok(),
+            "BBS_NONAME_NAME" => s.default_name = val.to_string(),
+            "BBS_TITLE" => s.title = val.to_string(),
+            _ => {}
+        }
+    }
+    s.max_res = thread_stop.or(res_max).unwrap_or(0);
+    s
 }
 
 /// Parse a shitaraba `rawmode.cgi` body (already UTF-8).
@@ -156,6 +192,27 @@ mod tests {
     }
 
     #[test]
+    fn shitaraba_subject_no_space_real_format() {
+        // 実機の subject.txt はスペース無し `タイトル(レス数)`。
+        // 旧実装は count=0・タイトルに「(484)」混入になっていた。
+        let body = "1760675037.cgi,ナイトレン(484)\n1696385564.cgi,90(1000)\n";
+        let v = parse_shitaraba_subject(body);
+        assert_eq!(v.len(), 2);
+        assert_eq!(v[0].title, "ナイトレン");
+        assert_eq!(v[0].count, 484);
+        // 数字だけのタイトルでも count と取り違えない。
+        assert_eq!(v[1].title, "90");
+        assert_eq!(v[1].count, 1000);
+    }
+
+    #[test]
+    fn subject_title_with_parens_keeps_last_count() {
+        let v = parse_shitaraba_subject("1.cgi,グラブル(神)(1000)\n");
+        assert_eq!(v[0].title, "グラブル(神)");
+        assert_eq!(v[0].count, 1000);
+    }
+
+    #[test]
     fn ch2_subject_basic() {
         let body = "1672500000.dat<>テストスレ part1 (123)\n1672500100.dat<>雑談 (42)\n";
         let v = parse_ch2_subject(body);
@@ -205,6 +262,29 @@ mod tests {
         let body = "1<>n<>m<>2026 ID:a<>x&#65374;y<>t";
         let posts = parse_shitaraba_dat(body);
         assert_eq!(posts[0].body, "x～y");
+    }
+
+    #[test]
+    fn board_setting_shitaraba_thread_stop() {
+        let body = "TOP=https://jbbs.shitaraba.net/internet/22667/\nBBS_THREAD_STOP=1000\nBBS_NONAME_NAME=名無しさん\nBBS_TITLE=どれいくch\n";
+        let s = parse_board_setting(body);
+        assert_eq!(s.max_res, 1000);
+        assert_eq!(s.default_name, "名無しさん");
+        assert_eq!(s.title, "どれいくch");
+    }
+
+    #[test]
+    fn board_setting_ch2_res_max() {
+        let body = "BBS_TITLE=避難所\nBBS_NONAME_NAME=名無しの麺類\nBBS_RES_MAX=1000\n";
+        let s = parse_board_setting(body);
+        assert_eq!(s.max_res, 1000);
+        assert_eq!(s.default_name, "名無しの麺類");
+    }
+
+    #[test]
+    fn board_setting_missing_max_is_zero() {
+        let s = parse_board_setting("BBS_TITLE=x\n");
+        assert_eq!(s.max_res, 0);
     }
 
     #[test]

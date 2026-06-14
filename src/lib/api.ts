@@ -282,8 +282,32 @@ export interface PostRequest {
 	body: string;
 }
 
+export interface BoardSetting {
+	/// 1 スレッドの最大レス数 (したらば BBS_THREAD_STOP / 2ch BBS_RES_MAX)。
+	/// 0 なら取得できなかった (呼び出し側で 1000 等にフォールバック)。
+	maxRes: number;
+	defaultName: string;
+	title: string;
+}
+
 export async function classifyBoard(url: string): Promise<BoardKind> {
 	return call<BoardKind>('classify_board', { url });
+}
+
+/// 板の SETTING (最大レス数等) を取得。満レス判定 (自動スレ移動) に使う。
+export async function fetchBoardSetting(url: string): Promise<BoardSetting> {
+	return call<BoardSetting>('fetch_board_setting', { url });
+}
+
+/// 任意の (スレ or 板) URL から、その板のトップ URL を正規化して返す。
+export async function boardUrlOf(url: string): Promise<string> {
+	return call<string>('board_url_of', { url });
+}
+
+/// 板 URL + スレッド key から、板の流儀に合った canonical なスレッド
+/// URL を組み立てる (2ch 互換の `/test/read.cgi/` 等を吸収)。
+export async function threadUrlOf(boardUrl: string, key: string): Promise<string> {
+	return call<string>('thread_url_of', { boardUrl, key });
 }
 
 export async function listThreads(boardUrl: string): Promise<SubjectEntry[]> {

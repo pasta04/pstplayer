@@ -69,6 +69,30 @@ impl ShitarabaClient {
         )
     }
 
+    fn setting_url(loc: &BoardLocation) -> String {
+        format!(
+            "https://jbbs.shitaraba.net/bbs/api/setting.cgi/{}/{}",
+            loc.category, loc.board_id
+        )
+    }
+
+    /// 板の SETTING (setting.cgi) を取得して最大レス数等を返す。
+    /// したらばは EUC-JP。`BBS_THREAD_STOP` が最大レス数。
+    pub async fn fetch_setting(&self, board_url: &str) -> AppResult<super::types::BoardSetting> {
+        let loc = Self::parse_loc(board_url)?;
+        let url = Self::setting_url(&loc);
+        let bytes = self
+            .http
+            .get(&url)
+            .send()
+            .await?
+            .error_for_status()?
+            .bytes()
+            .await?;
+        let body = BoardEncoding::EucJp.decode(&bytes)?;
+        Ok(super::parse::parse_board_setting(&body))
+    }
+
     /// Fetch and parse `subject.txt`. Decodes EUC-JP.
     pub async fn list_threads(
         &self,

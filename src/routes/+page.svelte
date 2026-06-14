@@ -4,6 +4,9 @@
 	import {
 		CommandError,
 		bumpChannel,
+		boardUrlOf,
+		threadUrlOf,
+		fetchBoardSetting,
 		endpointForUrl,
 		fetchChannelInfo,
 		fetchChannelStatus,
@@ -86,6 +89,14 @@
 	// dat / rawmode が 404 / 410 / DAT_NOT_FOUND 系を返したら、スレが
 	// 落ちた (削除 or 過去ログ送り) と判定し以降の自動更新を止める。
 	let threadDead = $state(false);
+	// 自動スレ移動用: 現チャンネルの板トップ URL と、その板の最大レス数
+	// (SETTING の BBS_THREAD_STOP / BBS_RES_MAX)。max が取れない時は
+	// THREAD_FULL_FALLBACK を使う。
+	let currentBoardUrl = $state<string | null>(null);
+	let boardMaxRes = $state(0);
+	const THREAD_FULL_FALLBACK = 1000;
+	// 自動スレ移動中の再入防止。
+	let advancingThread = false;
 
 	let writeName = $state('');
 	let writeMail = $state('sage');
@@ -225,8 +236,14 @@
 			key: string;
 			title: string;
 		}>('thread:selected', async (e) => {
-			const base = e.payload.boardUrl.replace(/\/+$/, '');
-			currentThreadUrl = `${base}/${e.payload.key}/`;
+			// 板 URL + key から板の流儀に合ったスレ URL をバックエンドで
+			// 構築する (`${base}/${key}/` の素朴連結は 2ch 互換で壊れる)。
+			try {
+				currentThreadUrl = await threadUrlOf(e.payload.boardUrl, e.payload.key);
+			} catch {
+				const base = e.payload.boardUrl.replace(/\/+$/, '');
+				currentThreadUrl = `${base}/${e.payload.key}/`;
+			}
 			fetchState = null;
 			posts = [];
 			await loadCurrentThread(true);
@@ -464,6 +481,18 @@
 		if (postsEl) postsEl.scrollTop = postsEl.scrollHeight;
 	}
 
+	/// 初回ロード時の「最下部へ」。多数レスやサニタイズ後にレイアウト高さが
+	/// 後から確定するため、tick 後に加えて次の 2 フレームでも測り直して
+	/// 確実に最新レスを画面内に収める。
+	async function scrollPostsToBottomSettled() {
+		await tick();
+		scrollPostsToBottom();
+		requestAnimationFrame(() => {
+			scrollPostsToBottom();
+			requestAnimationFrame(() => scrollPostsToBottom());
+		});
+	}
+
 	// ── Derived ──────────────────────────────────────────────────────
 
 	const visiblePosts = $derived.by(() => {
@@ -612,6 +641,14 @@
 	async function tryLoadBoard(contactUrl: string) {
 		try {
 			threadList = await listThreads(contactUrl);
+			// 板トップ URL と最大レス数を控えておく (自動スレ移動用)。
+			// 失敗してもスレ表示自体は続ける。
+			boardUrlOf(contactUrl)
+				.then((b) => (currentBoardUrl = b))
+				.catch(() => (currentBoardUrl = null));
+			fetchBoardSetting(contactUrl)
+				.then((s) => (boardMaxRes = s.maxRes))
+				.catch(() => (boardMaxRes = 0));
 			// Auto-pick the contact URL if it already names a thread.
 			// 末尾のサフィックス (l30, 501-1000 等) があっても許容し、
 			// canonical /{key}/ 形に正規化してから保存する。
@@ -626,6 +663,8 @@
 				const key = m[1];
 				currentThreadUrl = normalizeThreadUrl(contactUrl, key);
 				await loadCurrentThread(true);
+				// 初回ロード時点で既に満レスなら最新スレへ移動する。
+				await maybeAdvanceToNewestThread();
 			} else if (threadList.length > 0) {
 				// Use shitaraba/2ch URL builder from contact URL + key.
 				currentThreadUrl = null;
@@ -633,6 +672,35 @@
 			}
 		} catch (e) {
 			console.warn('board load failed', e);
+		}
+	}
+
+	/// 現スレが満レス (>= 板の最大レス数) なら、スレ一覧を取り直して
+	/// 作成時刻 (key) が最大の新スレへ自動移動する。新スレが現スレと同じ
+	/// (= まだ次スレが立っていない) 場合は何もしない。
+	async function maybeAdvanceToNewestThread() {
+		if (advancingThread) return;
+		if (!currentThreadUrl || !currentBoardUrl) return;
+		const max = boardMaxRes > 0 ? boardMaxRes : THREAD_FULL_FALLBACK;
+		if (posts.length < max) return;
+		advancingThread = true;
+		try {
+			const list = await listThreads(currentBoardUrl);
+			if (list.length === 0) return;
+			threadList = list;
+			// 作成時刻 (= 数値 key) が最大のスレ = 最新スレ。
+			const newest = list.reduce((a, b) => (Number(b.key) > Number(a.key) ? b : a));
+			const curKey = currentThreadUrl.match(/(\d+)\/?$/)?.[1] ?? '';
+			if (!newest.key || newest.key === curKey) return;
+			const url = await threadUrlOf(currentBoardUrl, newest.key);
+			currentThreadUrl = url;
+			fetchState = null;
+			posts = [];
+			await loadCurrentThread(true);
+		} catch (e) {
+			console.warn('advance to newest thread failed', e);
+		} finally {
+			advancingThread = false;
 		}
 	}
 
@@ -671,7 +739,11 @@
 				}
 			}
 			fetchState = newState;
-			if (appendedNew && autoscroll && wasAtBottom) {
+			if (forceReset) {
+				// 配信表示 / スレ切替の初回は、最新レス (最下部) を表示した
+				// 状態にする。多数レスでもレイアウト確定後に確実に最下部へ。
+				await scrollPostsToBottomSettled();
+			} else if (appendedNew && autoscroll && wasAtBottom) {
 				await tick();
 				scrollPostsToBottom();
 			}
@@ -709,8 +781,12 @@
 		if (endpoint && channelId) {
 			startChannelPolling(endpoint, channelId).catch(() => undefined);
 		}
-		threadTimer = setInterval(() => {
-			if (currentThreadUrl && !threadLoading) loadCurrentThread(false);
+		threadTimer = setInterval(async () => {
+			if (currentThreadUrl && !threadLoading) {
+				await loadCurrentThread(false);
+				// 視聴中にスレが満レスになったら最新スレへ自動移動。
+				await maybeAdvanceToNewestThread();
+			}
 			refreshCountdown = REFRESH_SEC;
 		}, REFRESH_SEC * 1_000);
 		countdownTimer = setInterval(() => {
@@ -1658,10 +1734,16 @@
 	.bbs {
 		/* BBS ペイン全体 (フィルタ行 + レス一覧 + 未選択メッセージ) を
 		   白系の島にする。スレッド帯 / ステータスバー / 書き込み欄
-		   まわりだけが黒。 */
+		   まわりだけが黒。
+		   フィルタ行を上端固定にしてレス一覧 (.posts) 側をスクロール
+		   コンテナにするため flex column。以前は .bbs 自身がスクロール
+		   していたが、JS の scrollPostsToBottom は .posts を対象にしており
+		   「最下部へスクロール」が常に no-op になっていた (実機 QA で発覚)。 */
 		background: var(--bg-elev);
 		border-left: 1px solid var(--border);
-		overflow-y: auto;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
 		min-height: 0;
 		font-size: 0.85rem;
 		color: var(--fg);
@@ -1710,6 +1792,11 @@
 		/* 白系の島 (周囲は黒)。テーマに追従。 */
 		background: var(--bg-elev);
 		color: var(--fg);
+		/* 実際のスクロールコンテナ。scrollPostsToBottom / isNearBottom が
+		   この要素 (postsEl) を対象にしている。 */
+		flex: 1 1 0;
+		min-height: 0;
+		overflow-y: auto;
 	}
 
 	.post {
@@ -2136,11 +2223,11 @@
 		gap: 0.3rem;
 		padding: 0.3rem 0.5rem;
 		border-bottom: 1px solid var(--border);
-		/* レス一覧の島の上に sticky で乗るので、posts と同じ背景に合わせる */
 		background: var(--bg-elev);
 		color: var(--fg);
-		position: sticky;
-		top: 0;
+		/* .bbs が flex column になり .posts がスクロールするので、
+		   フィルタ行は flex item として上端に固定される (sticky 不要)。 */
+		flex: 0 0 auto;
 		z-index: 5;
 		align-items: center;
 	}

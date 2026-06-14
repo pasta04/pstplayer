@@ -41,6 +41,28 @@ impl Ch2Client {
         format!("https://{host}/test/bbs.cgi")
     }
 
+    fn setting_url(host: &str, board: &str) -> String {
+        format!("https://{host}/{board}/SETTING.TXT")
+    }
+
+    /// 板の `SETTING.TXT` (Shift_JIS) を取得して最大レス数等を返す。
+    /// 2ch 互換は `BBS_RES_MAX` が最大レス数。
+    pub async fn fetch_setting(&self, board_url: &str) -> AppResult<super::types::BoardSetting> {
+        let u = parse_ch2(board_url)
+            .ok_or_else(|| AppError::InvalidUrl(format!("not a 2ch URL: {board_url}")))?;
+        let url = Self::setting_url(&u.host, &u.board);
+        let bytes = self
+            .http
+            .get(&url)
+            .send()
+            .await?
+            .error_for_status()?
+            .bytes()
+            .await?;
+        let body = BoardEncoding::ShiftJis.decode(&bytes)?;
+        Ok(super::parse::parse_board_setting(&body))
+    }
+
     /// Fetch and parse `subject.txt` (Shift_JIS).
     pub async fn list_threads(
         &self,

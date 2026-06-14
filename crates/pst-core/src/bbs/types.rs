@@ -37,3 +37,18 @@ pub struct PostRequest {
     pub mail: String,
     pub body: String,
 }
+
+/// 板の設定 (SETTING.TXT / setting.cgi)。スレッドの最大レス数を中心に
+/// 必要な項目だけ抜き出す。`max_res` が 0 のときは「取得できなかった /
+/// 設定なし」を表し、呼び出し側はデフォルト (通常 1000) にフォールバック
+/// する。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct BoardSetting {
+    /// 1 スレッドの最大レス数。したらば `BBS_THREAD_STOP` /
+    /// 2ch 互換 `BBS_RES_MAX`。
+    pub max_res: u32,
+    /// デフォルト名無し (`BBS_NONAME_NAME`)。空の場合あり。
+    pub default_name: String,
+    /// 板タイトル (`BBS_TITLE`)。
+    pub title: String,
+}
