@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# commit 前にフォーマット / lint を機械的に検証する。
+# 本リポジトリは過去に rustfmt 違反を 4 連続コミットで push し、CI の Rust /
+# Frontend ジョブを fmt --check で何度も落とした実績があるため。
+#
+# 有効化 (clone 後 1 回だけ):
+#   git config --local core.hooksPath .githooks
+#
+# 違反時は cargo fmt --all / npm run format を実行して再 commit すること。
+set -e
+
+# Windows の git bash には cargo が PATH に無いことがあるので補う。
+export PATH="$HOME/.cargo/bin:$PATH"
+
+echo "[pre-commit] cargo fmt --all -- --check ..."
+if command -v cargo >/dev/null 2>&1; then
+	cargo fmt --all -- --check || {
+		echo "❌ Rust の整形違反です。'cargo fmt --all' を実行してから再 commit してください。"
+		exit 1
+	}
+else
+	echo "⚠ cargo が見つからないため Rust fmt チェックをスキップします (PATH を確認)。"
+fi
+
+echo "[pre-commit] npm run lint ..."
+npm run lint || {
+	echo "❌ Frontend の整形 / lint 違反です。'npm run format' を実行してから再 commit してください。"
+	exit 1
+}
+
+echo "[pre-commit] OK"
