@@ -429,10 +429,10 @@
 		return sortDesc ? ' ▼' : ' ▲';
 	}
 
-	async function watchRow(e: YpEntry, record = false) {
+	async function watchRow(e: YpEntry, record = false, minimized = false) {
 		closeMenu();
 		try {
-			await spawnViewer(e.id, { record, tip: e.tip });
+			await spawnViewer(e.id, { record, minimized, tip: e.tip });
 			// 即座に「視聴中」リストを更新 (5 秒待たずにバッジが付く)。
 			// spawn 直後は lock が完了していないかもしれないので少し待つ。
 			setTimeout(() => {
@@ -984,6 +984,9 @@
 		{:else}
 			<button onclick={() => watchRow(t)} class="primary">▶ 視聴 (別ウィンドウで開く)</button>
 			<button onclick={() => watchRow(t, true)}>⏺ 視聴 + 録画開始</button>
+			<button onclick={() => watchRow(t, true, true)} title="ウィンドウを最小化して録画だけ行う"
+				>⏺ 録画のみ (最小化)</button
+			>
 		{/if}
 		<hr />
 		<button onclick={() => openBbs(t.contact_url)} disabled={!t.contact_url}

@@ -208,11 +208,12 @@ export type SpawnViewerOutcome = 'focused' | 'spawned';
 /// tip が分からないときは省略可。
 export async function spawnViewer(
 	channelId: string,
-	options?: { record?: boolean; tip?: string },
+	options?: { record?: boolean; minimized?: boolean; tip?: string },
 ): Promise<SpawnViewerOutcome> {
 	return call<SpawnViewerOutcome>('spawn_viewer', {
 		channelId,
 		record: options?.record ?? false,
+		minimized: options?.minimized ?? false,
 		tip: options?.tip ?? null,
 	});
 }
