@@ -1078,6 +1078,11 @@
 		try {
 			const { getCurrentWindow } = await import('@tauri-apps/api/window');
 			const w = getCurrentWindow();
+			// 既に前面 (フォーカス済み) なら何もしない。毎クリックで
+			// show()/setFocus() を呼ぶと、ダブルクリック (全画面トグル) の
+			// 1 回目で再アクティブ化が起き 2 回目が別クリック扱いになって
+			// ダブルクリック検出を阻害するため、未フォーカス時のみ前面化する。
+			if (await w.isFocused()) return;
 			await w.show();
 			await w.setFocus();
 		} catch {

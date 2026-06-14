@@ -8,6 +8,7 @@
 		"core:window:default",
 		"core:window:allow-set-title",
 		"core:window:allow-set-focus",
+		"core:window:allow-set-fullscreen",
 		"core:window:allow-show",
 		"core:webview:default",
 		"core:webview:allow-create-webview-window",
