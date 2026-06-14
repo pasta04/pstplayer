@@ -605,16 +605,24 @@ mod tests {
 
     #[test]
     fn total_timeout_skips() {
-        let started = Instant::now() - TOTAL_TIMEOUT - Duration::from_secs(1);
+        // 基準時刻 `started` を `Instant::now()` にし、過去を生成せず
+        // 「now」側を `started + duration` で未来へずらす。
+        // Windows ランナーは OS 起動から間もない時刻の Instant の単調時計
+        // 値が小さく、`Instant::now() - Duration::from_secs(300)` がアンダー
+        // フロー panic することがあるので、過去側を作らない形に揃える。
+        let started = Instant::now();
+        let now = started + TOTAL_TIMEOUT + Duration::from_secs(1);
+        // last_load_at を「started + 60s」にして、now - last_load_at = 241s
+        // にする。3 秒以下の「即切断」判定にならない位置にしておく。
+        let last_load_at = started + Duration::from_secs(60);
         let s = EngineState {
             attempts: 3,
             series_started_at: Some(started),
-            // last_load_at を昔にして即切断判定を回避。
-            last_load_at: Some(Instant::now() - Duration::from_secs(60)),
+            last_load_at: Some(last_load_at),
             ..base_state()
         };
         assert_eq!(
-            decide_reconnect(&s, REASON_EOF, Instant::now()),
+            decide_reconnect(&s, REASON_EOF, now),
             ReconnectDecision::Skip { reason: SkipReason::TotalTimeout }
         );
     }
@@ -636,14 +644,17 @@ mod tests {
     #[test]
     fn long_playback_then_disconnect_is_not_immediate() {
         // 5 分以上再生してから切断 → 即切断判定にならず Retry に進む。
-        let long_ago = Instant::now() - Duration::from_secs(300);
+        // total_timeout_skips と同じく Windows ランナーの Instant
+        // アンダーフロー panic を避けるため、過去は作らず now を未来へずらす。
+        let long_ago = Instant::now();
+        let now = long_ago + Duration::from_secs(300);
         let s = EngineState {
             immediate_disconnects: 2, // 直前のシーケンスでの累積
             last_load_at: Some(long_ago),
             ..base_state()
         };
         assert!(matches!(
-            decide_reconnect(&s, REASON_EOF, Instant::now()),
+            decide_reconnect(&s, REASON_EOF, now),
             ReconnectDecision::Retry { attempt: 1, .. }
         ));
     }
