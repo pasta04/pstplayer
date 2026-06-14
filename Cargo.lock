@@ -3090,6 +3090,7 @@ dependencies = [
  "tauri-plugin-notification",
  "tauri-plugin-opener",
  "tokio",
+ "windows",
 ]
 
 [[package]]

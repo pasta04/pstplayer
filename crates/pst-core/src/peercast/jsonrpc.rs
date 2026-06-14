@@ -9,7 +9,18 @@ use crate::util::{
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use super::types::{ChannelInfo, ChannelRecord, ChannelStatus, PeerCastEndpoint, VersionInfo};
+use super::types::{ChannelInfo, ChannelRecord, ChannelStatus, PeerCastEndpoint, Track, VersionInfo};
+
+/// `getChannelInfo` のレスポンス形状。PeerCastStation は
+/// `{ info: {...}, track: {...}, yellowPages: [...] }` のネスト構造を
+/// 返すため、フラットな [`ChannelInfo`] に直接デシリアライズすると
+/// 全フィールドが空になる (= name が "(unnamed)"、url 空でスレッド非表示)。
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct ChannelInfoResult {
+    info: ChannelInfo,
+    track: Track,
+}
 
 #[derive(Debug, Serialize)]
 struct JsonRpcRequest<'a> {
@@ -96,7 +107,16 @@ pub async fn get_channel_info(
     endpoint: &PeerCastEndpoint,
     channel_id: &str,
 ) -> AppResult<ChannelInfo> {
-    call_typed(endpoint, "getChannelInfo", json!([channel_id])).await
+    let result: ChannelInfoResult =
+        call_typed(endpoint, "getChannelInfo", json!([channel_id])).await?;
+    let mut info = result.info;
+    // PeerCast の慣習では配信のコンタクト URL は info.url に入るが、
+    // 実装によっては track.url 側にしか入らないことがあるので、info.url
+    // が空なら track.url で補完する (BBS スレッド解決に使う)。
+    if info.url.trim().is_empty() && !result.track.url.trim().is_empty() {
+        info.url = result.track.url;
+    }
+    Ok(info)
 }
 
 pub async fn get_channel_status(
@@ -146,6 +166,39 @@ mod tests {
         assert_eq!(st.status, "Receiving");
         assert_eq!(st.uptime, 0);
         assert!(!st.is_broadcasting);
+    }
+
+    #[test]
+    fn channel_info_result_extracts_nested_info() {
+        // PeerCastStation の getChannelInfo が返す実際のネスト形状。
+        let json = serde_json::json!({
+            "info": {
+                "name": "テスト配信",
+                "url": "http://jbbs.example/bbs/read.cgi/game/12345/",
+                "genre": "Game",
+                "bitrate": 2000,
+                "contentType": "FLV"
+            },
+            "track": { "name": "song", "url": "http://track.example/" },
+            "yellowPages": []
+        });
+        let result: ChannelInfoResult = serde_json::from_value(json).unwrap();
+        assert_eq!(result.info.name, "テスト配信");
+        assert_eq!(result.info.url, "http://jbbs.example/bbs/read.cgi/game/12345/");
+        assert_eq!(result.info.bitrate, 2000);
+    }
+
+    #[test]
+    fn channel_info_result_falls_back_to_track_url() {
+        // info.url が空で track.url のみ埋まっているケースの補完ロジックは
+        // get_channel_info 側にあるが、構造体としては両方読めることを確認。
+        let json = serde_json::json!({
+            "info": { "name": "X", "url": "" },
+            "track": { "url": "http://contact.example/thread/" }
+        });
+        let result: ChannelInfoResult = serde_json::from_value(json).unwrap();
+        assert!(result.info.url.is_empty());
+        assert_eq!(result.track.url, "http://contact.example/thread/");
     }
 
     #[test]

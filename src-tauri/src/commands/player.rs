@@ -1,4 +1,4 @@
-use crate::player::{engine::PlayerEngine, window as player_window};
+use crate::player::{embed::VideoEmbed, engine::PlayerEngine, window as player_window};
 use pst_core::config;
 use pst_core::snapshot;
 use pst_core::util::errors::{AppError, IpcError};
@@ -54,19 +54,44 @@ pub struct PlayerStatus {
     pub paused: Option<bool>,
 }
 
-/// Attach the libmpv player to the given Tauri WebView window so it
-/// renders directly into that surface. Idempotent.
+/// Attach the libmpv player to a dedicated child window that only covers
+/// the player area, so the video does not paint over the BBS pane / bars.
+/// On Windows a `STATIC` child HWND is created under the main window and
+/// handed to mpv as `wid`; the frontend keeps it positioned via
+/// [`player_set_video_rect`]. On other platforms this attaches directly to
+/// the main window (the old behaviour). Idempotent.
 #[tauri::command]
 pub fn player_attach<R: Runtime>(
     window_label: String,
     app: AppHandle<R>,
     engine: State<'_, PlayerEngine>,
+    embed: State<'_, VideoEmbed>,
 ) -> Result<(), IpcError> {
     let window = app
         .get_webview_window(&window_label)
         .ok_or_else(|| AppError::InvalidUrl(format!("no such window: {window_label}")))?;
+    let parent_wid = player_window::main_window_wid(&window)?;
+    let child_wid = embed
+        .ensure_child(parent_wid as isize)
+        .map_err(|e| AppError::Network(format!("create video child window: {e}")))?;
     let handle = engine.handle();
-    player_window::attach(&handle, &window).map_err(Into::into)
+    player_window::set_wid(&handle, child_wid as i64).map_err(Into::into)
+}
+
+/// プレイヤー領域 (`.player-canvas`) の物理ピクセル矩形を受け取り、
+/// libmpv 描画用の子ウィンドウをその位置 / サイズに合わせる。フロントが
+/// マウント時とリサイズ / レイアウト変化のたびに呼ぶ。Windows 以外は no-op。
+#[tauri::command]
+pub fn player_set_video_rect(
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+    embed: State<'_, VideoEmbed>,
+) -> Result<(), IpcError> {
+    embed
+        .set_rect(x, y, width, height)
+        .map_err(|e| AppError::Network(format!("set video rect: {e}")).into())
 }
 
 /// Take a snapshot of the current video frame, saving it under the

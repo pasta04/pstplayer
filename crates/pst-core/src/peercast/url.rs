@@ -59,6 +59,36 @@ fn extract_tip(query: Option<&str>) -> Option<String> {
     None
 }
 
+/// `host:port`(IPv4 / hostname)または `[v6]:port` 形式の YP `tip` 値が
+/// URL クエリに直接埋め込んでも安全かを検証する。受け付けるのは英数字
+/// と `. - _ : [ ]` のみ。`&` / `?` / 空白 / 改行 / マルチバイト文字を
+/// 含む値は弾く (URL クエリ注入 / spawn 引数注入対策)。
+fn is_safe_tip(tip: &str) -> bool {
+    static TIP_RE: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"^[A-Za-z0-9.\-_:\[\]]{1,128}$").expect("TIP_RE compiles"));
+    TIP_RE.is_match(tip) && tip.contains(':')
+}
+
+/// `http://host:port/pls/{channel_id}[?tip=<tip>]` を組み立てる。
+///
+/// `channel_id` は呼び出し側で `ChannelId::parse` 済みの値を渡すこと
+/// (32 hex 小文字)。`tip` が `Some` で値が `is_safe_tip` を満たすときだけ
+/// クエリに付加する。安全でない / 空文字列は黙って無視 (= tip 無し URL)。
+///
+/// この関数は spawn_viewer から呼ばれて子プロセスに渡る URL を作るため、
+/// 注入耐性が要件: `tip` 経由で追加クエリや余計な引数を埋め込まれない
+/// ようにする (詳細は [`is_safe_tip`])。
+pub fn build_pls_url(host: &str, port: u16, channel_id: &str, tip: Option<&str>) -> String {
+    let safe_tip = tip
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .filter(|t| is_safe_tip(t));
+    match safe_tip {
+        Some(t) => format!("http://{host}:{port}/pls/{channel_id}?tip={t}"),
+        None => format!("http://{host}:{port}/pls/{channel_id}"),
+    }
+}
+
 pub fn parse(url: &str) -> AppResult<ParsedUrl> {
     if let Some(c) = PLS_OR_STREAM.captures(url) {
         let host = c.name("host").unwrap().as_str().to_string();
@@ -184,5 +214,60 @@ mod tests {
         let mixed = "0123456789AbCdEf0123456789aBcDeF";
         let p = parse(&format!("http://localhost:7144/pls/{mixed}")).unwrap();
         assert_eq!(p.channel_id.as_str(), ID_LOWER);
+    }
+
+    // build_pls_url: spawn_viewer から PeerCast 本体に投げる URL の組み立て。
+    // tip が抜けていると未 subscribe のチャンネルで PeerCast が 404 を返す
+    // ため、YP 経由起動では tip を必ず付ける (= 回帰防止テスト)。
+
+    #[test]
+    fn build_pls_url_without_tip() {
+        let u = build_pls_url("localhost", 7144, ID_LOWER, None);
+        assert_eq!(u, format!("http://localhost:7144/pls/{ID_LOWER}"));
+    }
+
+    #[test]
+    fn build_pls_url_with_tip() {
+        let u = build_pls_url("localhost", 7144, ID_LOWER, Some("192.0.2.99:7144"));
+        assert_eq!(
+            u,
+            format!("http://localhost:7144/pls/{ID_LOWER}?tip=192.0.2.99:7144")
+        );
+        // 組み立てた URL は parser でも tip を抽出できる (= round-trip)。
+        let p = parse(&u).unwrap();
+        assert_eq!(p.tip.as_deref(), Some("192.0.2.99:7144"));
+    }
+
+    #[test]
+    fn build_pls_url_drops_empty_or_blank_tip() {
+        let cases = ["", "   ", "\t"];
+        for tip in cases {
+            let u = build_pls_url("h", 1, ID_LOWER, Some(tip));
+            assert!(!u.contains("tip="), "expected no tip for {tip:?}: {u}");
+        }
+    }
+
+    #[test]
+    fn build_pls_url_rejects_unsafe_tip() {
+        // クエリ注入 / spawn 引数注入を試みる文字列はすべて drop されること。
+        let cases = [
+            "1.2.3.4:80&record_on_start=1",
+            "1.2.3.4:80?evil=1",
+            "1.2.3.4:80 evil",
+            "1.2.3.4:80\nevil",
+            "1.2.3.4",      // ":" 必須
+            "evil",         // ":" 必須
+            "ホスト:7144", // マルチバイト不可
+        ];
+        for tip in cases {
+            let u = build_pls_url("h", 1, ID_LOWER, Some(tip));
+            assert!(!u.contains("tip="), "expected no tip for {tip:?}: {u}");
+        }
+    }
+
+    #[test]
+    fn build_pls_url_accepts_ipv6_bracketed_tip() {
+        let u = build_pls_url("h", 1, ID_LOWER, Some("[2001:db8::1]:7144"));
+        assert!(u.contains("?tip=[2001:db8::1]:7144"), "got: {u}");
     }
 }

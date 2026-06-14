@@ -154,6 +154,7 @@ pub fn run() {
         .setup(move |app| {
             app.handle().manage(cli_args);
             app.handle().manage(ChannelPolling::new());
+            app.handle().manage(player::embed::VideoEmbed::new());
             // Initialise libmpv once at startup. If this fails (e.g.
             // libmpv.so missing) we report and continue without the
             // player rather than aborting the whole app.
@@ -216,6 +217,7 @@ pub fn run() {
             commands::bbs::post_to_thread,
             commands::bbs::classify_board,
             commands::bbs::sanitize_html,
+            commands::player::player_set_video_rect,
             commands::player::player_load,
             commands::player::player_stop,
             commands::player::player_set_pause,

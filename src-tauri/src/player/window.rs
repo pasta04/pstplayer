@@ -24,11 +24,21 @@ use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 /// the user should run their session under XWayland, or we'd have to
 /// switch to the render API (out of scope for the MVP).
 pub fn attach<R: tauri::Runtime>(mpv: &Mpv, window: &tauri::WebviewWindow<R>) -> AppResult<()> {
+    let wid = main_window_wid(window)?;
+    set_wid(mpv, wid)
+}
+
+/// メインウィンドウのネイティブハンドルを mpv の `wid` 用 i64 にして返す。
+/// Windows ではこの値を子ウィンドウ作成の親 HWND としても使う。
+pub fn main_window_wid<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) -> AppResult<i64> {
     let handle =
         window.window_handle().map_err(|e| AppError::Network(format!("window_handle: {e}")))?;
     let raw = handle.as_raw();
-    let wid = wid_from(&raw)?;
+    wid_from(&raw)
+}
 
+/// 指定した `wid` (= メイン or 子ウィンドウのハンドル) を mpv に設定する。
+pub fn set_wid(mpv: &Mpv, wid: i64) -> AppResult<()> {
     mpv.set_property("wid", wid)
         .map_err(|e| AppError::Network(format!("mpv set wid={wid}: {e}")))?;
     // Once a window handle is attached, allow mpv to render even when

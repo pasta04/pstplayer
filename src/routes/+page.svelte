@@ -14,6 +14,7 @@
 		getHistory,
 		listThreads,
 		playerAttach,
+		playerSetVideoRect,
 		playerLoad,
 		playerRecordPath,
 		playerRecordStart,
@@ -53,6 +54,11 @@
 	let pasteUrl = $state('');
 	let busy = $state(false);
 	let lastError = $state<string | null>(null);
+	// libmpv 描画用子ウィンドウを重ねる対象の DOM 要素。streamUrl がある
+	// 時だけ存在する。位置 / サイズの変化を ResizeObserver で監視して
+	// バックエンドの子ウィンドウに反映する (player_set_video_rect)。
+	let playerCanvasEl = $state<HTMLDivElement | null>(null);
+	let videoRectObserver: ResizeObserver | null = null;
 	// 自動再接続の進行 / 結果を表示するメッセージ。null なら非表示。
 	// バックエンドからの `player:reconnecting` / `player:reconnect_stopped`
 	// イベントで更新される。詳細は src-tauri/src/player/engine.rs。
@@ -150,15 +156,55 @@
 	let themeUnlisten: (() => void) | null = null;
 	let windowGeomUnlisten: (() => void) | null = null;
 
+	// libmpv 描画用子ウィンドウを `.player-canvas` の物理ピクセル矩形へ
+	// 合わせる。getBoundingClientRect() は CSS px・クライアント原点基準
+	// なので devicePixelRatio を掛けて物理 px に直す (= 親ウィンドウの
+	// クライアント座標 = SetWindowPos が期待する座標)。
+	let videoRectRaf = 0;
+	function syncVideoRect() {
+		if (videoRectRaf) cancelAnimationFrame(videoRectRaf);
+		videoRectRaf = requestAnimationFrame(() => {
+			videoRectRaf = 0;
+			const el = playerCanvasEl;
+			if (!el) return;
+			const r = el.getBoundingClientRect();
+			const dpr = window.devicePixelRatio || 1;
+			void playerSetVideoRect(
+				Math.round(r.left * dpr),
+				Math.round(r.top * dpr),
+				Math.round(r.width * dpr),
+				Math.round(r.height * dpr),
+			).catch(() => {});
+		});
+	}
+
+	// player-canvas が出現 / 消滅したら ResizeObserver を張り替える。
+	// レイアウト変化 (BBS ペイン開閉・バー表示切替・全画面) はここで拾う。
+	$effect(() => {
+		videoRectObserver?.disconnect();
+		const el = playerCanvasEl;
+		if (!el) return;
+		videoRectObserver = new ResizeObserver(() => syncVideoRect());
+		videoRectObserver.observe(el);
+		syncVideoRect();
+	});
+
 	onMount(async () => {
 		themeUnlisten = initTheme();
 
 		// Hand the main Tauri window to libmpv so it renders into our surface
 		// (`wid` property). Best-effort: on Wayland this is unsupported and
 		// the engine just stays detached, which is fine for headless / dev.
-		playerAttach('main').catch((e) => {
-			console.warn('player_attach failed (libmpv overlay disabled)', e);
-		});
+		playerAttach('main')
+			.then(() => syncVideoRect())
+			.catch((e) => {
+				console.warn('player_attach failed (libmpv overlay disabled)', e);
+			});
+
+		// ウィンドウのリサイズ / DPI 変化で子ウィンドウを追従。レイアウト
+		// 変化 (BBS ペイン開閉・バー表示切替・全画面) は player-canvas 要素の
+		// ResizeObserver ($effect 内) が拾う。
+		window.addEventListener('resize', syncVideoRect);
 
 		// Restore last main window position/size, then start watching.
 		await restoreMainWindowGeometry();
@@ -334,6 +380,9 @@
 		shortcutsUnlisten?.();
 		themeUnlisten?.();
 		windowGeomUnlisten?.();
+		videoRectObserver?.disconnect();
+		window.removeEventListener('resize', syncVideoRect);
+		if (videoRectRaf) cancelAnimationFrame(videoRectRaf);
 		stopChannelPolling().catch(() => undefined);
 	});
 
@@ -566,7 +615,13 @@
 			// Auto-pick the contact URL if it already names a thread.
 			// 末尾のサフィックス (l30, 501-1000 等) があっても許容し、
 			// canonical /{key}/ 形に正規化してから保存する。
-			const m = contactUrl.match(/\/(\d+)(?:\/[^/]*)?\/?$/);
+			//
+			// 先頭 `.*` を貪欲に消費させて **最後の数字セグメント** を key と
+			// して捕捉する。これが無いと shitaraba の read.cgi URL
+			// (`/read.cgi/{cat}/{board}/{key}/`) で board が数字 (例 22667)
+			// の場合に左端マッチで board を key と誤認し、スレッドキー欠落の
+			// board URL を作ってしまう (実機 QA で発覚)。
+			const m = contactUrl.match(/.*\/(\d+)(?:\/[^/]*)?\/?$/);
 			if (m) {
 				const key = m[1];
 				currentThreadUrl = normalizeThreadUrl(contactUrl, key);
@@ -1039,9 +1094,9 @@
 			role="presentation"
 		>
 			{#if streamUrl}
-				<!-- libmpv が wid 経由でこの領域に直接描画する。
-				     DOM 上は空のままで OK (動画は native overlay)。 -->
-				<div class="player-canvas" aria-label="再生中"></div>
+				<!-- libmpv は専用の子ウィンドウをこの矩形に重ねて描く。
+				     要素自体は空のままで OK (動画は native overlay)。 -->
+				<div class="player-canvas" aria-label="再生中" bind:this={playerCanvasEl}></div>
 			{:else}
 				<div class="player-empty">
 					<form
@@ -1539,6 +1594,8 @@
 	}
 
 	.player {
+		/* libmpv は専用の子ウィンドウ (player/embed.rs) を .player-canvas の
+		   矩形に重ねて描く。ここは未再生時 / 子ウィンドウ未配置時の地色。 */
 		background: #000;
 		display: flex;
 		align-items: center;

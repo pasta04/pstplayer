@@ -51,7 +51,7 @@
 	// (ADR-0006 Step 4)。YP ウィンドウ自身は閉じない (ハブとして残す)。
 	async function pick(entry: YpEntry) {
 		try {
-			await spawnViewer(entry.id);
+			await spawnViewer(entry.id, { tip: entry.tip });
 		} catch (e) {
 			console.warn('spawn_viewer failed', e);
 		}

@@ -201,13 +201,19 @@ export type SpawnViewerOutcome = 'focused' | 'spawned';
 /// 既に同じ channel_id の視聴ウィンドウが立ち上がっていれば
 /// `'focused'` (前面化のみ)、無ければ `'spawned'` (新規プロセス起動)
 /// を返す。
+///
+/// `options.tip` は YP entry の `tip` (= `host:port`) を渡す。自分の
+/// PeerCast がまだ subscribe していないチャンネルでも、tip 経由で
+/// 引き込みを発火させて 404 を回避するのに必要。手入力 URL のように
+/// tip が分からないときは省略可。
 export async function spawnViewer(
 	channelId: string,
-	options?: { record?: boolean },
+	options?: { record?: boolean; tip?: string },
 ): Promise<SpawnViewerOutcome> {
 	return call<SpawnViewerOutcome>('spawn_viewer', {
 		channelId,
 		record: options?.record ?? false,
+		tip: options?.tip ?? null,
 	});
 }
 
@@ -521,6 +527,18 @@ export async function playerLoad(url: string): Promise<void> {
 
 export async function playerAttach(windowLabel: string): Promise<void> {
 	return call<void>('player_attach', { windowLabel });
+}
+
+/// libmpv 描画用の子ウィンドウを、プレイヤー領域の **物理ピクセル** 矩形
+/// (親ウィンドウのクライアント座標) に合わせる。`.player-canvas` の
+/// getBoundingClientRect() × devicePixelRatio を渡す。Windows 以外は no-op。
+export async function playerSetVideoRect(
+	x: number,
+	y: number,
+	width: number,
+	height: number,
+): Promise<void> {
+	return call<void>('player_set_video_rect', { x, y, width, height });
 }
 
 export async function playerStop(): Promise<void> {

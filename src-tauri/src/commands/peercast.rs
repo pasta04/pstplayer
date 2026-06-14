@@ -3,6 +3,7 @@ use pst_core::config;
 use pst_core::peercast::{
     client, jsonrpc,
     types::{ChannelInfo, ChannelStatus, PeerCastEndpoint},
+    url as peercast_url,
     yp::{self, YpEntry},
 };
 use pst_core::single_instance;
@@ -78,14 +79,19 @@ pub async fn stop_channel(endpoint: PeerCastEndpoint, channel_id: String) -> Res
 /// channel_id に対して 5 秒間隔で fetch_status を呼び、結果を
 /// `channel:status` event でフロントに emit する。既に動いている
 /// タスクは abort してから差し替える。
+///
+/// `async fn` でないと Tauri が main thread (非 Tokio コンテキスト) で
+/// 実行するため、内部の `tokio::spawn` が「there is no reactor running」
+/// で panic → viewer ウィンドウが起動直後にアボートする (実機 QA で確認)。
 #[tauri::command]
-pub fn start_channel_polling<R: Runtime>(
+pub async fn start_channel_polling<R: Runtime>(
     endpoint: PeerCastEndpoint,
     channel_id: String,
     app: AppHandle<R>,
     polling: State<'_, ChannelPolling>,
-) {
+) -> Result<(), IpcError> {
     polling.start(app, endpoint, channel_id);
+    Ok(())
 }
 
 /// バックエンドのポーラーを停止。視聴を停止した時 / アプリ終了時に
@@ -234,14 +240,20 @@ pub fn start_viewer_recording(channel_id: String) -> bool {
 /// 2. 無ければ `current_exe()` を URL 引数付きで `Command::spawn` し
 ///    `Spawned` を返す
 ///
-/// URL は config の `peercast.host:port` から `/pls/{id}` を組み立てる
-/// (YP の `tip` 直叩きはせず必ず自分の PeerCast にリレー要求する)。
+/// URL は config の `peercast.host:port` から `/pls/{id}[?tip=<tip>]` を
+/// 組み立てる。YP から見えるチャンネルは自分のノードがまだ subscribe
+/// していない (= `/pls/{id}` 単体だと PeerCast が 404 を返す) のが普通
+/// なので、ハブの YP 行から spawn する時は YP の `tip` フィールドを必ず
+/// 一緒に送って引き込みを発火させる。`tip` 値は URL クエリ注入対策で
+/// [`pst_core::peercast::url::build_pls_url`] 側で検証する。
+///
 /// `record` = true で `--record-on-start` を追加 (= viewer 側で
 /// favorites の auto_record と独立に強制録画開始)。
 #[tauri::command]
 pub fn spawn_viewer(
     channel_id: String,
     record: Option<bool>,
+    tip: Option<String>,
 ) -> Result<SpawnViewerOutcome, IpcError> {
     // channel_id は 32 桁 hex 想定。YP の `id` フィールドをそのまま
     // 受け取るため、改行や URL フラグメント・パス区切り文字が紛れ込んだ
@@ -263,7 +275,12 @@ pub fn spawn_viewer(
         // 死んだ lock は次回 read_existing で除去される。
     }
     let cfg = config::load().map_err(IpcError::from)?;
-    let url = format!("http://{}:{}/pls/{}", cfg.peercast.host, cfg.peercast.port, channel_id);
+    let url = peercast_url::build_pls_url(
+        &cfg.peercast.host,
+        cfg.peercast.port,
+        channel_id,
+        tip.as_deref(),
+    );
     let exe = std::env::current_exe().map_err(|e| {
         IpcError::from(AppError::Network(format!("current_exe を取得できません: {e}")))
     })?;

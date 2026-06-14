@@ -367,7 +367,7 @@
 	async function watchRow(e: YpEntry, record = false) {
 		closeMenu();
 		try {
-			await spawnViewer(e.id, { record });
+			await spawnViewer(e.id, { record, tip: e.tip });
 			// 即座に「視聴中」リストを更新 (5 秒待たずにバッジが付く)。
 			// spawn 直後は lock が完了していないかもしれないので少し待つ。
 			setTimeout(() => {
@@ -446,8 +446,13 @@
 			lastError = `URL から channel_id (32 hex) を抽出できません: ${url}`;
 			return;
 		}
+		// URL に `?tip=host:port` が含まれていれば一緒に渡す。手入力でも
+		// 自分の PeerCast が未 subscribe なら引き込み発火が必要なので
+		// (YP 経由起動と同じ理由)。バックエンド側で安全性は検証される。
+		const tipMatch = url.match(/[?&]tip=([^&]+)/);
+		const tip = tipMatch?.[1] ? decodeURIComponent(tipMatch[1]) : undefined;
 		try {
-			await spawnViewer(id);
+			await spawnViewer(id, { tip });
 			setTimeout(() => {
 				void refreshWatching();
 			}, 800);

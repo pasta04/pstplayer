@@ -106,6 +106,18 @@ mod tests {
     }
 
     #[test]
+    fn shitaraba_read_cgi_drake_real_url() {
+        // 実機 QA で詰まった実 URL (ドレイクch のコンタクト URL)。
+        let u = parse_shitaraba(
+            "https://jbbs.shitaraba.net/bbs/read.cgi/internet/22667/1696385564/",
+        )
+        .unwrap();
+        assert_eq!(u.category, "internet");
+        assert_eq!(u.board_id, "22667");
+        assert_eq!(u.key.as_deref(), Some("1696385564"));
+    }
+
+    #[test]
     fn shitaraba_rawmode() {
         let u = parse_shitaraba("https://jbbs.shitaraba.net/bbs/rawmode.cgi/c/1/2/").unwrap();
         assert_eq!(u.category, "c");

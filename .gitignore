@@ -22,3 +22,9 @@ vite.config.ts.timestamp-*
 # Editor / OS
 .idea/
 *.swp
+
+# ローカル開発補助 (実機 QA でのスクショ検証 / MSVC+cargo PATH 設定)。
+# プロダクトの一部ではないので追跡しない。
+/.qa-shots/
+/dev-env.ps1
+/.claude/
