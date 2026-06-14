@@ -1071,6 +1071,12 @@
 		if (!endpoint || !channelId) return;
 		try {
 			await bumpChannel(endpoint, channelId);
+			// Bump は PeerCast にソース再取得を促すだけで、libmpv は切れた
+			// ストリームを掴んだまま再生が止まる。再接続後のストリームを掴み
+			// 直すため、明示的にプレイヤーを再ロードする (bump→reload 連動)。
+			if (streamUrl) {
+				await playerLoad(streamUrl);
+			}
 		} catch (e) {
 			lastError = errorMessage(e);
 		}
