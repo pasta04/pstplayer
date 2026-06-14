@@ -833,24 +833,27 @@
 
 	async function tryLoadBoard(contactUrl: string) {
 		try {
-			threadList = await listThreads(contactUrl);
+			// BBS 読み込み前に URL を正規化する。コンタクト/手入力 URL の末尾に
+			// ブラウザ用の読み出し範囲 (/l50, /l30, /501-1000 等) が付いていても、
+			// スレッドを指す場合は /{key}/ に畳んでから各 API に渡す。
+			const key = threadKeyFromContact(contactUrl);
+			const loadUrl = key ? normalizeThreadUrl(contactUrl, key) : contactUrl;
+			threadList = await listThreads(loadUrl);
 			// 板トップ URL を先に確定する (板 URL 時の最新スレ選択で使う)。
 			try {
-				currentBoardUrl = await boardUrlOf(contactUrl);
+				currentBoardUrl = await boardUrlOf(loadUrl);
 			} catch {
 				currentBoardUrl = null;
 			}
-			fetchBoardSetting(contactUrl)
+			fetchBoardSetting(loadUrl)
 				.then((s) => (boardMaxRes = s.maxRes))
 				.catch(() => (boardMaxRes = 0));
 
-			const key = threadKeyFromContact(contactUrl);
 			if (key) {
 				// コンタクトがスレッドを直接指している → そのスレを開く。
-				currentThreadUrl = normalizeThreadUrl(contactUrl, key);
+				// 既に満レスでも自動移動はしない (新着で上限到達時のみ移動する)。
+				currentThreadUrl = loadUrl;
 				await loadCurrentThread(true);
-				// 初回ロード時点で既に満レスなら最新スレへ移動する。
-				await maybeAdvanceToNewestThread();
 			} else {
 				// コンタクトが板 URL → その板の最新スレを開く (#17)。
 				await openNewestThread();
@@ -894,16 +897,18 @@
 		}
 	}
 
-	/// 現スレが満レス (>= 板の最大レス数) なら、スレ一覧を取り直して
-	/// 作成時刻 (key) が最大の新スレへ自動移動する。新スレが現スレと同じ
-	/// (= まだ次スレが立っていない) 場合は何もしない。
-	async function maybeAdvanceToNewestThread() {
+	/// スレ一覧を取り直して作成時刻 (key) が最大の新スレへ自動移動する。
+	/// 発火条件 (視聴中に新着レスで現スレが上限到達) は呼び出し側 (polling) が
+	/// 判定する。移動前に 5 秒待機し、新スレが現スレと同じ (= まだ次スレが
+	/// 立っていない) 場合は何もしない。
+	async function advanceToNewestThread() {
 		if (advancingThread) return;
 		if (!currentThreadUrl || !currentBoardUrl) return;
-		const max = boardMaxRes > 0 ? boardMaxRes : THREAD_FULL_FALLBACK;
-		if (posts.length < max) return;
 		advancingThread = true;
 		try {
+			// 満レス検知から実移動まで 5 秒待つ。最後のレスを読む猶予に加え、
+			// 次スレがまだ立っていない場合に立つのを待つ意味もある。
+			await new Promise((r) => setTimeout(r, 5_000));
 			const list = await listThreads(currentBoardUrl);
 			if (list.length === 0) return;
 			threadList = list;
@@ -1032,9 +1037,14 @@
 			if (currentThreadUrl && !threadLoading) {
 				// 起動時の輻輳等で 0 件のまま固着していたら、増分ではなく
 				// 全件再取得 (forceReset) で回復を試みる。通常時は増分取得。
+				const before = posts.length;
 				await loadCurrentThread(posts.length === 0 && !threadDead);
-				// 視聴中にスレが満レスになったら最新スレへ自動移動。
-				await maybeAdvanceToNewestThread();
+				// 新着レスで現スレが上限到達したときだけ最新スレへ自動移動する。
+				// (手動で満レスのスレを開いただけでは before==after で発火しない)
+				const max = boardMaxRes > 0 ? boardMaxRes : THREAD_FULL_FALLBACK;
+				if (before > 0 && posts.length > before && posts.length >= max) {
+					await advanceToNewestThread();
+				}
 			} else if (!currentThreadUrl && currentBoardUrl && !threadLoading) {
 				// 板 URL は判明しているのにスレ未選択 = 起動時に
 				// openNewestThread が失敗した状態。再試行する。
@@ -1324,7 +1334,6 @@
 		posts = [];
 		showThreadList = false;
 		await loadCurrentThread(true);
-		await maybeAdvanceToNewestThread();
 	}
 
 	function onWriteKey(e: KeyboardEvent) {
