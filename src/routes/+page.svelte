@@ -162,6 +162,10 @@
 	// Anchor / ID popup
 	type Popup = { posts: Post[]; label: string; x: number; y: number } | null;
 	let popup = $state<Popup>(null);
+	// アンカー (>>N) にマウスオーバーした時に参照先レスを表示するホバー
+	// プレビュー (クリックで開く popup とは別・backdrop なし)。読み取り表示
+	// 専用で、書き込み欄 (textarea) には描画アンカーが無いので対象外。
+	let anchorPreview = $state<{ posts: Post[]; x: number; y: number } | null>(null);
 
 	// In-thread filter (Ctrl+F to focus, empty string = show all)
 	let filter = $state('');
@@ -1404,10 +1408,21 @@
 		if (!(t instanceof HTMLElement)) return;
 		const id = t.dataset.idLink;
 		hoveredId = id ?? null;
+		// アンカー (>>N / >>N-M) にマウスオーバーしたら参照先レスをプレビュー。
+		const a = t.closest('a.anchor');
+		if (a instanceof HTMLElement && a.dataset.anchorFrom) {
+			const fromN = Number(a.dataset.anchorFrom);
+			const toN = a.dataset.anchorTo ? Number(a.dataset.anchorTo) : fromN;
+			const matched = posts.filter((p) => p.number >= fromN && p.number <= toN);
+			anchorPreview = matched.length > 0 ? { posts: matched, x: e.clientX, y: e.clientY } : null;
+		} else {
+			anchorPreview = null;
+		}
 	}
 
 	function onPostsLeave() {
 		hoveredId = null;
+		anchorPreview = null;
 	}
 
 	function onPostsFocusIn(e: FocusEvent) {
@@ -2086,6 +2101,40 @@
 		</div>
 	{/if}
 
+	<!-- アンカー (>>N) ホバープレビュー (読み取り表示専用・クリック不要)。
+	     pointer-events:none のツールチップとして振る舞い操作を妨げない。
+	     クリックで開く popup や書き込み欄には適用しない。 -->
+	{#if anchorPreview}
+		<div
+			class="anchor-preview"
+			style="left: {Math.min(anchorPreview.x + 14, window.innerWidth - 400)}px; top: {Math.min(
+				anchorPreview.y + 14,
+				window.innerHeight - 240,
+			)}px"
+		>
+			<div class="posts in-preview" role="list">
+				{#each anchorPreview.posts as p (p.number)}
+					<div class="post" role="listitem">
+						<div class="head">
+							<span class="num">{p.number}</span>
+							<span class="name">{p.name}</span>
+							{#if p.mail}<span class="mail">[{p.mail}]</span>{/if}
+							<span class="date">{p.date}</span>
+							{#if p.id}<span class="id">{@html renderIdHtml(p.id)}</span>{/if}
+						</div>
+						<div class="body">
+							{#if displayMode === 'html' && sanitizedCache.has(p.number)}
+								{@html sanitizedCache.get(p.number) ?? ''}
+							{:else}
+								{@html renderBodyHtml(p.body)}
+							{/if}
+						</div>
+					</div>
+				{/each}
+			</div>
+		</div>
+	{/if}
+
 	<!-- Status bar (緑) -->
 	<div class="status-bar">
 		{#if statusLine}
@@ -2702,6 +2751,24 @@
 		padding: 0 0.3rem;
 	}
 	.popup :global(.posts.in-popup) {
+		font-size: 0.8rem;
+	}
+
+	/* アンカー (>>N) ホバープレビュー。クリック不要のツールチップなので
+	   pointer-events:none で操作を妨げない。読み取り表示専用。 */
+	.anchor-preview {
+		position: fixed;
+		z-index: 120;
+		width: 380px;
+		max-height: 45vh;
+		overflow: hidden;
+		background: var(--bg-elev);
+		border: 1px solid var(--border-strong);
+		border-radius: 6px;
+		box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+		pointer-events: none;
+	}
+	.anchor-preview :global(.posts.in-preview) {
 		font-size: 0.8rem;
 	}
 
