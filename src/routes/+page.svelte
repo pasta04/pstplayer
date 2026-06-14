@@ -120,6 +120,11 @@
 	let channelId = $state<string | null>(null);
 	let channelInfo = $state<ChannelInfo | null>(null);
 	let channelStatus = $state<ChannelStatus | null>(null);
+	// channelStatus は backend が ~5 秒間隔で更新する。稼働時間 (uptime) を
+	// 1 秒刻みで進めるため、最後に status を受け取った時刻と現在時刻を保持し、
+	// 経過分を加算して表示する (statusAtMs / nowMs)。
+	let statusAtMs = $state(0);
+	let nowMs = $state(Date.now());
 
 	let threadList = $state<SubjectEntry[]>([]);
 	let currentThreadUrl = $state<string | null>(null);
@@ -325,6 +330,7 @@
 		// まとめる目的。複数ウィンドウからも同じ event を listen 可。
 		channelStatusUnlisten = await listen<ChannelStatus>('channel:status', (e) => {
 			channelStatus = e.payload;
+			statusAtMs = Date.now();
 		});
 
 		// 自動再接続イベント (詳細は src-tauri/src/player/engine.rs)。
@@ -686,14 +692,20 @@
 		if (!channelInfo) return null;
 		const name = channelInfo.name || '(unnamed)';
 		const br = channelInfo.bitrate ? `${channelInfo.bitrate} kbps` : '-';
-		const up = channelStatus ? formatUptime(channelStatus.uptime) : '-';
 		const ldir = channelStatus ? `L:${channelStatus.localDirects}` : '';
 		const lrel = channelStatus ? `R:${channelStatus.localRelays}` : '';
 		const fps = playerStat?.fps && playerStat.fps > 0 ? `${playerStat.fps.toFixed(1)}fps` : '';
 		const size =
 			playerStat?.width && playerStat?.height ? `${playerStat.width}×${playerStat.height}` : '';
-		return { name, br, up, ldir, lrel, fps, size };
+		return { name, br, ldir, lrel, fps, size };
 	});
+
+	// 稼働時間 (uptime) を 1 秒刻みで表示するためのライブ値。status 受信時刻
+	// (statusAtMs) からの経過秒を backend の uptime に加算する。nowMs は 1 秒
+	// タイマー (countdownTimer) で更新される。
+	const liveUptimeSec = $derived(
+		channelStatus ? channelStatus.uptime + Math.max(0, Math.floor((nowMs - statusAtMs) / 1000)) : 0,
+	);
 
 	// ウィンドウタイトル (= タスクバー表示) にチャンネル名を出す (#18)。複数
 	// 配信を同時に開いたときにタスクバーで区別できるようにするため。
@@ -748,6 +760,7 @@
 		try {
 			channelInfo = await fetchChannelInfo(endpoint, channelId);
 			channelStatus = await fetchChannelStatus(endpoint, channelId);
+			statusAtMs = Date.now();
 		} catch (e) {
 			console.warn('channel info fetch failed', e);
 		}
@@ -1031,6 +1044,8 @@
 		}, REFRESH_SEC * 1_000);
 		countdownTimer = setInterval(() => {
 			if (refreshCountdown > 0) refreshCountdown -= 1;
+			// uptime をリアルタイム (1 秒刻み) で進めるための時刻更新。
+			nowMs = Date.now();
 		}, 1_000);
 		playerTimer = setInterval(() => {
 			playerStatus().then(
@@ -1881,7 +1896,7 @@
 						<dt>ステータス</dt>
 						<dd>{channelStatus.status || '-'}</dd>
 						<dt>稼働時間</dt>
-						<dd>{formatUptime(channelStatus.uptime)}</dd>
+						<dd>{formatUptime(liveUptimeSec)}</dd>
 						<dt>ローカル接続</dt>
 						<dd>
 							直 {channelStatus.localDirects} / リレー {channelStatus.localRelays}
@@ -1979,7 +1994,7 @@
 				{statusLine.lrel}
 			</span>
 			{#if statusLine.size}<span class="s-size">{statusLine.size}</span>{/if}
-			<span class="s-up">{statusLine.up}</span>
+			<span class="s-up">{formatUptime(liveUptimeSec)}</span>
 			<span class="s-vol" title="マウスホイールで音量調整">♪ {volume}</span>
 			<span class="s-actions">
 				<button onclick={onBump} title="再接続 (Bump)">↻</button>
