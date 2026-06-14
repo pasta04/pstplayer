@@ -1028,6 +1028,10 @@
 		border-right: 1px solid #d8d8d8;
 		position: sticky;
 		top: 0;
+		/* z-index を付けないと、スクロール中に tbody のセル (チャンネル名等)
+		   が sticky ヘッダーの上に描画されて透けて見える。ヘッダーを常に
+		   前面に固定する。 */
+		z-index: 3;
 		cursor: pointer;
 		user-select: none;
 		white-space: nowrap;
