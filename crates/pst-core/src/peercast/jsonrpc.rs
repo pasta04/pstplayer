@@ -9,7 +9,9 @@ use crate::util::{
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use super::types::{ChannelInfo, ChannelRecord, ChannelStatus, PeerCastEndpoint, Track, VersionInfo};
+use super::types::{
+    ChannelInfo, ChannelRecord, ChannelStatus, PeerCastEndpoint, Track, VersionInfo,
+};
 
 /// `getChannelInfo` のレスポンス形状。PeerCastStation は
 /// `{ info: {...}, track: {...}, yellowPages: [...] }` のネスト構造を
@@ -184,7 +186,10 @@ mod tests {
         });
         let result: ChannelInfoResult = serde_json::from_value(json).unwrap();
         assert_eq!(result.info.name, "テスト配信");
-        assert_eq!(result.info.url, "http://jbbs.example/bbs/read.cgi/game/12345/");
+        assert_eq!(
+            result.info.url,
+            "http://jbbs.example/bbs/read.cgi/game/12345/"
+        );
         assert_eq!(result.info.bitrate, 2000);
     }
 

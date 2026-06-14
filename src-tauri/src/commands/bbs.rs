@@ -77,10 +77,7 @@ pub fn board_url_of(url: String) -> Result<String, IpcError> {
         BoardKind::Shitaraba => {
             let u = parse_shitaraba(&url)
                 .ok_or_else(|| AppError::InvalidUrl(format!("not a shitaraba URL: {url}")))?;
-            Ok(format!(
-                "https://jbbs.shitaraba.net/{}/{}/",
-                u.category, u.board_id
-            ))
+            Ok(format!("https://jbbs.shitaraba.net/{}/{}/", u.category, u.board_id))
         }
         BoardKind::Ch2Compat => {
             let u = parse_ch2(&url)
@@ -114,10 +111,7 @@ pub fn thread_url_of(board_url: String, key: String) -> Result<String, IpcError>
         BoardKind::Ch2Compat => {
             let u = parse_ch2(&board_url)
                 .ok_or_else(|| AppError::InvalidUrl(format!("not a 2ch URL: {board_url}")))?;
-            Ok(format!(
-                "https://{}/test/read.cgi/{}/{}/",
-                u.host, u.board, key
-            ))
+            Ok(format!("https://{}/test/read.cgi/{}/{}/", u.host, u.board, key))
         }
     }
 }
