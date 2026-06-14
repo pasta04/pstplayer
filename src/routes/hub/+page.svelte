@@ -63,6 +63,69 @@
 		}
 	});
 
+	// ── カラム幅 (手動リサイズ) ──────────────────────────────────
+	// desc (ジャンル列) は可変幅で残りを吸収する。その他の列は固定幅で、
+	// ヘッダー右端のハンドルをドラッグして変更できる。table-layout:fixed +
+	// width:100% なのでウィンドウ幅に合わせた自動フィットも維持される。
+	type ColId = 'name' | 'listeners' | 'bitrate' | 'uptime' | 'type' | 'filter' | 'yp' | 'contact';
+	const COL_DEFAULTS: Record<ColId, number> = {
+		name: 160,
+		listeners: 72,
+		bitrate: 56,
+		uptime: 64,
+		type: 48,
+		filter: 96,
+		yp: 44,
+		contact: 240,
+	};
+	const COL_MIN = 32;
+	let colW = $state<Record<ColId, number>>(loadColW());
+
+	function loadColW(): Record<ColId, number> {
+		try {
+			const raw = localStorage.getItem('hub.colW');
+			if (raw) {
+				const parsed = JSON.parse(raw) as Partial<Record<ColId, number>>;
+				const out = { ...COL_DEFAULTS };
+				for (const k of Object.keys(COL_DEFAULTS) as ColId[]) {
+					const v = parsed[k];
+					if (typeof v === 'number' && v >= COL_MIN && v < 2000) out[k] = v;
+				}
+				return out;
+			}
+		} catch {
+			/* ignore */
+		}
+		return { ...COL_DEFAULTS };
+	}
+
+	let resizing: { id: ColId; startX: number; startW: number } | null = null;
+
+	function startColResize(e: MouseEvent, id: ColId) {
+		e.preventDefault();
+		e.stopPropagation();
+		resizing = { id, startX: e.clientX, startW: colW[id] };
+		window.addEventListener('mousemove', onColResizeMove);
+		window.addEventListener('mouseup', onColResizeUp);
+	}
+
+	function onColResizeMove(e: MouseEvent) {
+		if (!resizing) return;
+		const w = Math.max(COL_MIN, resizing.startW + (e.clientX - resizing.startX));
+		colW = { ...colW, [resizing.id]: w };
+	}
+
+	function onColResizeUp() {
+		resizing = null;
+		window.removeEventListener('mousemove', onColResizeMove);
+		window.removeEventListener('mouseup', onColResizeUp);
+		try {
+			localStorage.setItem('hub.colW', JSON.stringify(colW));
+		} catch {
+			/* ignore */
+		}
+	}
+
 	function loadStr(key: string, defaultVal: string): string {
 		try {
 			return localStorage.getItem(key) ?? defaultVal;
@@ -720,19 +783,92 @@
 
 	<div class="table-wrap">
 		<table>
+			<colgroup>
+				<col style:width={colW.name + 'px'} />
+				<!-- desc は可変幅 (残りを吸収) -->
+				<col />
+				<col style:width={colW.listeners + 'px'} />
+				<col style:width={colW.bitrate + 'px'} />
+				<col style:width={colW.uptime + 'px'} />
+				<col style:width={colW.type + 'px'} />
+				<col style:width={colW.filter + 'px'} />
+				<col style:width={colW.yp + 'px'} />
+				<col style:width={colW.contact + 'px'} />
+			</colgroup>
 			<thead>
 				<tr>
-					<th class="col-name" onclick={() => toggleSort('name')}>チャンネル名{arrow('name')}</th>
+					<th class="col-name" onclick={() => toggleSort('name')}
+						>チャンネル名{arrow('name')}<span
+							class="col-resizer"
+							role="separator"
+							aria-label="チャンネル名の幅を変更"
+							onmousedown={(e) => startColResize(e, 'name')}
+							onclick={(e) => e.stopPropagation()}
+						></span></th
+					>
 					<th class="col-desc" onclick={() => toggleSort('genre')}
 						>ジャンル - 詳細 「コメント」{arrow('genre')}</th
 					>
-					<th class="col-num" onclick={() => toggleSort('listeners')}>👤{arrow('listeners')}</th>
-					<th class="col-num" onclick={() => toggleSort('bitrate')}>kbps{arrow('bitrate')}</th>
-					<th class="col-uptime" onclick={() => toggleSort('uptime')}>配信{arrow('uptime')}</th>
-					<th class="col-type">形式</th>
-					<th class="col-filter">フィルタ</th>
-					<th class="col-yp" onclick={() => toggleSort('yp_source')}>YP{arrow('yp_source')}</th>
-					<th class="col-contact">コンタクト</th>
+					<th class="col-num" onclick={() => toggleSort('listeners')}
+						>👤{arrow('listeners')}<span
+							class="col-resizer"
+							role="separator"
+							aria-label="リスナー数の幅を変更"
+							onmousedown={(e) => startColResize(e, 'listeners')}
+							onclick={(e) => e.stopPropagation()}
+						></span></th
+					>
+					<th class="col-num" onclick={() => toggleSort('bitrate')}
+						>kbps{arrow('bitrate')}<span
+							class="col-resizer"
+							role="separator"
+							aria-label="kbps の幅を変更"
+							onmousedown={(e) => startColResize(e, 'bitrate')}
+							onclick={(e) => e.stopPropagation()}
+						></span></th
+					>
+					<th class="col-uptime" onclick={() => toggleSort('uptime')}
+						>配信{arrow('uptime')}<span
+							class="col-resizer"
+							role="separator"
+							aria-label="配信時間の幅を変更"
+							onmousedown={(e) => startColResize(e, 'uptime')}
+							onclick={(e) => e.stopPropagation()}
+						></span></th
+					>
+					<th class="col-type"
+						>形式<span
+							class="col-resizer"
+							role="separator"
+							aria-label="形式の幅を変更"
+							onmousedown={(e) => startColResize(e, 'type')}
+						></span></th
+					>
+					<th class="col-filter"
+						>フィルタ<span
+							class="col-resizer"
+							role="separator"
+							aria-label="フィルタの幅を変更"
+							onmousedown={(e) => startColResize(e, 'filter')}
+						></span></th
+					>
+					<th class="col-yp" onclick={() => toggleSort('yp_source')}
+						>YP{arrow('yp_source')}<span
+							class="col-resizer"
+							role="separator"
+							aria-label="YP の幅を変更"
+							onmousedown={(e) => startColResize(e, 'yp')}
+							onclick={(e) => e.stopPropagation()}
+						></span></th
+					>
+					<th class="col-contact"
+						>コンタクト<span
+							class="col-resizer"
+							role="separator"
+							aria-label="コンタクトの幅を変更"
+							onmousedown={(e) => startColResize(e, 'contact')}
+						></span></th
+					>
 				</tr>
 			</thead>
 			<tbody>
@@ -1017,6 +1153,10 @@
 	table {
 		width: 100%;
 		border-collapse: collapse;
+		/* colgroup の col 幅を権威にして手動リサイズを効かせる。desc 列は
+		   幅指定なし (auto) なので残り幅を吸収し、ウィンドウ幅への自動
+		   フィットも維持される。 */
+		table-layout: fixed;
 	}
 
 	thead th {
@@ -1074,14 +1214,8 @@
 		opacity: 0.8;
 	}
 
-	.col-name {
-		max-width: 200px;
-	}
-
-	.col-desc {
-		max-width: 520px;
-	}
-
+	/* 列幅は colgroup (table-layout:fixed) で制御するので max-width は不要。
+	   ここでは表示属性 (寄せ / 色) だけ指定する。 */
 	.col-num {
 		text-align: right;
 		font-variant-numeric: tabular-nums;
@@ -1093,17 +1227,29 @@
 
 	.col-yp {
 		text-align: center;
-		min-width: 40px;
 	}
 
 	.col-contact {
-		max-width: 280px;
 		color: #0a4cad;
 	}
 
 	.col-filter {
-		min-width: 100px;
 		color: #555;
+	}
+
+	/* カラム幅変更用ハンドル。ヘッダー右端に重ねる。 */
+	.col-resizer {
+		position: absolute;
+		top: 0;
+		right: 0;
+		width: 6px;
+		height: 100%;
+		cursor: col-resize;
+		user-select: none;
+		z-index: 4;
+	}
+	.col-resizer:hover {
+		background: #9fb8e0;
 	}
 
 	.star {
