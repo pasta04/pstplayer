@@ -151,6 +151,9 @@ jobs:
       - name: Lint (prettier + eslint)
         run: npm run lint
 
+      - name: Unit tests (vitest)
+        run: npm run test
+
       - name: Build
         run: npm run build
 
