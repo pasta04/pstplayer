@@ -13,6 +13,7 @@
 		"core:webview:default",
 		"core:webview:allow-create-webview-window",
 		"core:event:default",
+		"core:menu:default",
 		"opener:default",
 		"notification:default"
 	]

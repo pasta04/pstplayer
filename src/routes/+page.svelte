@@ -348,9 +348,9 @@
 			await listen('player:dblclick', () => {
 				void ctxToggleFullscreen();
 			}),
-			await listen<{ x: number; y: number }>('player:contextmenu', (e) =>
-				onNativePlayerContextMenu(e.payload.x, e.payload.y),
-			),
+			await listen('player:contextmenu', () => {
+				void showVideoContextMenu();
+			}),
 			await listen('player:click', () => {
 				void onPlayerClick();
 			}),
@@ -1158,7 +1158,8 @@
 	}
 
 	// 動画領域をクリックしたらウィンドウを前面化 + フォーカスする (#15)。
-	// (子ウィンドウは WS_EX_TRANSPARENT でマウス透過なのでここに届く)
+	// 動画上のクリックは embed.rs が player:click として転送 (Windows)、
+	// または DOM の onclick から届く (その他)。
 	async function onPlayerClick() {
 		try {
 			const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -1177,14 +1178,93 @@
 
 	function onPlayerContextMenu(e: MouseEvent) {
 		e.preventDefault();
-		ctxMenu = { x: e.clientX, y: e.clientY };
-		// メニュー展開のついでに最新履歴 / 録画状態を取得 (best-effort)。
-		getHistory()
-			.then((h) => (history = h))
-			.catch(() => undefined);
-		playerRecordPath()
-			.then((p) => (recordPath = p))
-			.catch(() => undefined);
+		void showVideoContextMenu();
+	}
+
+	// 動画の右クリックメニュー。HTML だと mpv 子窓の裏に隠れ、ウィンドウ外にも
+	// はみ出せない (実機 QA) ため OS ネイティブメニューで出す (カーソル位置に
+	// popup、ウィンドウ枠の外へもはみ出せる)。レス一覧側 (postsMenu) は BBS
+	// ペイン上 = mpv の外なので HTML のまま。
+	async function showVideoContextMenu() {
+		const { Menu, MenuItem, CheckMenuItem, PredefinedMenuItem, Submenu } =
+			await import('@tauri-apps/api/menu');
+		// 履歴 / 録画状態を最新化してからメニューを組む (チェック / ラベルに反映)。
+		try {
+			history = await getHistory();
+		} catch {
+			/* 直前の値を使う */
+		}
+		try {
+			recordPath = await playerRecordPath();
+		} catch {
+			/* 直前の値を使う */
+		}
+		const sizeItems = await Promise.all(
+			SIZE_PERCENTS.map((pct, i) =>
+				MenuItem.new({ text: `${pct}%`, action: () => applySizePreset(i + 1) }),
+			),
+		);
+		const aspectItems = await Promise.all(
+			ASPECT_PRESETS.map((ap, i) =>
+				MenuItem.new({ text: ap.label, action: () => applyAspectPreset(i + 1) }),
+			),
+		);
+		const historyItems = await Promise.all(
+			history
+				.slice(0, 12)
+				.map((h) =>
+					MenuItem.new({ text: h.channelName || h.url, action: () => openFromHistory(h) }),
+				),
+		);
+		const items = await Promise.all([
+			MenuItem.new({ text: '↻ 再接続 (Bump)', enabled: !!channelId, action: () => onBump() }),
+			MenuItem.new({ text: '■ 切断 (Stop)', enabled: !!channelId, action: () => onStop() }),
+			PredefinedMenuItem.new({ item: 'Separator' }),
+			MenuItem.new({ text: '⛶ 全画面切替', action: () => ctxToggleFullscreen() }),
+			CheckMenuItem.new({
+				text: '常に最前面',
+				checked: alwaysOnTop,
+				action: () => ctxToggleAlwaysOnTop(),
+			}),
+			CheckMenuItem.new({
+				text: '新着レス自動スクロール',
+				checked: autoscroll,
+				action: () => toggleAutoscroll(),
+			}),
+			MenuItem.new({
+				text: '🔗 コンタクト URL を開く',
+				enabled: !!channelInfo?.url,
+				action: () => ctxOpenContactUrl(),
+			}),
+			MenuItem.new({ text: '📋 チャンネル URL をコピー', action: () => ctxCopyChannelUrl() }),
+			MenuItem.new({
+				text: '📊 チャンネル詳細...',
+				enabled: !!channelInfo,
+				action: () => {
+					showChannelDetails = true;
+				},
+			}),
+			PredefinedMenuItem.new({ item: 'Separator' }),
+			Submenu.new({ text: '📐 サイズ', items: sizeItems }),
+			Submenu.new({ text: '📺 アスペクト比', items: aspectItems }),
+			Submenu.new({ text: '🕒 視聴履歴', enabled: history.length > 0, items: historyItems }),
+			PredefinedMenuItem.new({ item: 'Separator' }),
+			MenuItem.new({ text: '📷 スナップショット (F2)', action: () => doSnapshot() }),
+			MenuItem.new({
+				text: recordPath ? '⏹ 録画停止' : '⏺ 録画開始',
+				enabled: !!streamUrl,
+				action: () => ctxToggleRecord(),
+			}),
+			MenuItem.new({ text: '⚙ 設定...', action: () => onOpenSettings() }),
+			MenuItem.new({
+				text: '≡ スレ一覧を開く',
+				enabled: !!channelInfo?.url,
+				action: () => onOpenThreadList(),
+			}),
+			MenuItem.new({ text: '📡 YP チャンネル一覧', action: () => openYpList() }),
+		]);
+		const menu = await Menu.new({ items });
+		await menu.popup();
 	}
 
 	async function ctxToggleRecord() {
@@ -1231,19 +1311,8 @@
 		volume = next;
 		playerSetVolume(volume).catch(() => undefined);
 	}
-	function onNativePlayerContextMenu(x: number, y: number) {
-		// x/y は wid (= player-canvas) クライアント座標・物理px。webview の
-		// CSS px に変換してメニュー位置にする。
-		const rect = playerCanvasEl?.getBoundingClientRect();
-		const dpr = window.devicePixelRatio || 1;
-		ctxMenu = { x: (rect?.left ?? 0) + x / dpr, y: (rect?.top ?? 0) + y / dpr };
-		getHistory()
-			.then((h) => (history = h))
-			.catch(() => undefined);
-		playerRecordPath()
-			.then((p) => (recordPath = p))
-			.catch(() => undefined);
-	}
+	// 動画の右クリック (player:contextmenu / DOM の oncontextmenu) は
+	// showVideoContextMenu() で OS ネイティブメニューを出す (カーソル位置)。
 
 	function closeCtxMenu() {
 		ctxMenu = null;
