@@ -57,7 +57,10 @@ pub fn parse_line(line: &str) -> Option<YpEntry> {
     }
     Some(YpEntry {
         name: unescape(fields[0]),
-        id: fields[1].to_string(),
+        // channel_id は小文字へ正規化する。視聴ウィンドウの single_instance
+        // ロックは ChannelId::parse 経由で小文字化されるため、ハブの「視聴中 /
+        // 録画中」判定 (watchingIds.has(e.id)) が大文字のままだと一致しない。
+        id: fields[1].to_ascii_lowercase(),
         tip: fields[2].to_string(),
         contact_url: fields[3].to_string(),
         genre: unescape(fields[4]),
@@ -213,6 +216,8 @@ mod tests {
         .join("<>");
         let e = parse_line(&line).unwrap();
         assert_eq!(e.name, "TestCh");
+        // channel_id は小文字化される (視聴中/録画中カウントの ID 照合のため)。
+        assert_eq!(e.id, "0123456789abcdef0123456789abcdef");
         assert_eq!(e.listeners, 10);
         assert_eq!(e.relays, 3);
         assert_eq!(e.bitrate, 320);
