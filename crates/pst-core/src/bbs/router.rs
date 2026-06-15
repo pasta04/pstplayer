@@ -11,10 +11,13 @@ static SHITARABA: Lazy<Regex> = Lazy::new(|| {
 });
 
 static CH2_LIKE: Lazy<Regex> = Lazy::new(|| {
-    // Matches /test/read.cgi/{board}/{key}/, /{board}/dat/{key}.dat,
-    // and the bare board top URL. We err on the side of including
-    // common 2ch-compatible hosts.
-    Regex::new(r"^https?://(?:[^/]+)/(?:test/read\.cgi/[^/]+/\d+/?|[^/]+/dat/\d+\.dat/?|[^/]+/?)$")
+    // Matches /test/read.cgi/{board}/{key}/, /{board}/dat/{key}.dat, and the
+    // bare board top URL. `board` は複数セグメントの場合がある
+    // (http://host/bbs/peca/) ので read.cgi/dat の board は `.+`/`.+?` で許可。
+    // bare board は「単一セグメント (任意で末尾 /)」か「末尾 / 付きの任意パス」
+    // のみ board とみなす。末尾 / 無しの深いパス (例: /a/b/c/d) は対象外にし、
+    // 非掲示板 URL を取り込みすぎないようにする (unknown_host_is_none 参照)。
+    Regex::new(r"^https?://(?:[^/]+)/(?:test/read\.cgi/.+/\d+/?|.+/dat/\d+\.dat/?|[^/]+/?|.+/)$")
         .expect("ch2-like regex compiles")
 });
 
@@ -82,5 +85,15 @@ mod tests {
     #[test]
     fn unknown_host_is_none() {
         assert!(classify("https://www.example.com/random/path/with/extras").is_none());
+    }
+
+    #[test]
+    fn ch2_http_multi_segment_board_classifies() {
+        // 実 QA で詰まった http 専用 / board が複数セグメントの互換板。
+        // 末尾 / 付きなので board とみなす。
+        assert!(matches!(
+            classify("http://hibino.ddo.jp/bbs/peca/"),
+            Some(BoardKind::Ch2Compat)
+        ));
     }
 }

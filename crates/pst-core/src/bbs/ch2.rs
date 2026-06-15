@@ -29,20 +29,20 @@ impl Ch2Client {
         }
     }
 
-    fn subject_url(host: &str, board: &str) -> String {
-        format!("https://{host}/{board}/subject.txt")
+    fn subject_url(scheme: &str, host: &str, board: &str) -> String {
+        format!("{scheme}://{host}/{board}/subject.txt")
     }
 
-    fn dat_url(host: &str, board: &str, key: &str) -> String {
-        format!("https://{host}/{board}/dat/{key}.dat")
+    fn dat_url(scheme: &str, host: &str, board: &str, key: &str) -> String {
+        format!("{scheme}://{host}/{board}/dat/{key}.dat")
     }
 
-    fn write_url(host: &str) -> String {
-        format!("https://{host}/test/bbs.cgi")
+    fn write_url(scheme: &str, host: &str) -> String {
+        format!("{scheme}://{host}/test/bbs.cgi")
     }
 
-    fn setting_url(host: &str, board: &str) -> String {
-        format!("https://{host}/{board}/SETTING.TXT")
+    fn setting_url(scheme: &str, host: &str, board: &str) -> String {
+        format!("{scheme}://{host}/{board}/SETTING.TXT")
     }
 
     /// 板の `SETTING.TXT` (Shift_JIS) を取得して最大レス数等を返す。
@@ -50,7 +50,7 @@ impl Ch2Client {
     pub async fn fetch_setting(&self, board_url: &str) -> AppResult<super::types::BoardSetting> {
         let u = parse_ch2(board_url)
             .ok_or_else(|| AppError::InvalidUrl(format!("not a 2ch URL: {board_url}")))?;
-        let url = Self::setting_url(&u.host, &u.board);
+        let url = Self::setting_url(&u.scheme, &u.host, &u.board);
         let bytes = self
             .http
             .get(&url)
@@ -70,7 +70,7 @@ impl Ch2Client {
     ) -> AppResult<Vec<super::parse::SubjectEntry>> {
         let u = parse_ch2(board_url)
             .ok_or_else(|| AppError::InvalidUrl(format!("not a 2ch URL: {board_url}")))?;
-        let url = Self::subject_url(&u.host, &u.board);
+        let url = Self::subject_url(&u.scheme, &u.host, &u.board);
         let bytes = self
             .http
             .get(&url)
@@ -96,7 +96,7 @@ impl Ch2Client {
             .as_deref()
             .ok_or_else(|| AppError::InvalidUrl(format!("missing thread key in: {thread_url}")))?;
 
-        let url = Self::dat_url(&u.host, &u.board, key);
+        let url = Self::dat_url(&u.scheme, &u.host, &u.board, key);
         let mut req = self.http.get(&url);
         if let Some(p) = prev {
             if let Some(lm) = &p.last_modified {
@@ -175,7 +175,7 @@ impl Ch2Client {
             .key
             .as_deref()
             .ok_or_else(|| AppError::InvalidUrl(format!("missing thread key in: {thread_url}")))?;
-        let url = Self::write_url(&u.host);
+        let url = Self::write_url(&u.scheme, &u.host);
         let referer = format!("https://{}/{}/", u.host, u.board);
         let time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -243,16 +243,34 @@ mod tests {
     #[test]
     fn url_builders() {
         assert_eq!(
-            Ch2Client::subject_url("example.invalid", "news4vip"),
+            Ch2Client::subject_url("https", "example.invalid", "news4vip"),
             "https://example.invalid/news4vip/subject.txt"
         );
         assert_eq!(
-            Ch2Client::dat_url("example.invalid", "news4vip", "1234567890"),
+            Ch2Client::dat_url("https", "example.invalid", "news4vip", "1234567890"),
             "https://example.invalid/news4vip/dat/1234567890.dat"
         );
         assert_eq!(
-            Ch2Client::write_url("example.invalid"),
+            Ch2Client::write_url("https", "example.invalid"),
             "https://example.invalid/test/bbs.cgi"
+        );
+    }
+
+    #[test]
+    fn url_builders_http_multi_segment_board() {
+        // 実 QA で詰まった http 専用 / board が複数セグメントの互換板
+        // (http://hibino.ddo.jp/bbs/peca/)。scheme と board をそのまま使う。
+        assert_eq!(
+            Ch2Client::subject_url("http", "hibino.ddo.jp", "bbs/peca"),
+            "http://hibino.ddo.jp/bbs/peca/subject.txt"
+        );
+        assert_eq!(
+            Ch2Client::dat_url("http", "hibino.ddo.jp", "bbs/peca", "1781433331"),
+            "http://hibino.ddo.jp/bbs/peca/dat/1781433331.dat"
+        );
+        assert_eq!(
+            Ch2Client::write_url("http", "hibino.ddo.jp"),
+            "http://hibino.ddo.jp/test/bbs.cgi"
         );
     }
 }

@@ -111,7 +111,7 @@ pub fn thread_url_of(board_url: String, key: String) -> Result<String, IpcError>
         BoardKind::Ch2Compat => {
             let u = parse_ch2(&board_url)
                 .ok_or_else(|| AppError::InvalidUrl(format!("not a 2ch URL: {board_url}")))?;
-            Ok(format!("https://{}/test/read.cgi/{}/{}/", u.host, u.board, key))
+            Ok(format!("{}://{}/test/read.cgi/{}/{}/", u.scheme, u.host, u.board, key))
         }
     }
 }

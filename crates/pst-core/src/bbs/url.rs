@@ -16,6 +16,10 @@ pub struct ShitarabaUrl {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Ch2Url {
+    /// URL scheme (`http` / `https`)。http 専用の互換板 (例:
+    /// http://hibino.ddo.jp/bbs/peca/) があるので元 URL の scheme を保持し、
+    /// subject.txt / dat / read.cgi の組み立てに使う (https 決め打ちは不可)。
+    pub scheme: String,
     pub host: String,
     pub board: String,
     pub key: Option<String>,
@@ -33,21 +37,23 @@ static SHITARABA_RE: Lazy<Regex> = Lazy::new(|| {
     .expect("shitaraba URL regex compiles")
 });
 
-// 2ch shapes:
-//   https://{host}/{board}/
-//   https://{host}/test/read.cgi/{board}/{key}/
-//   https://{host}/{board}/dat/{key}.dat
-//   https://{host}/test/bbs.cgi   (POST endpoint — no board in path)
+// 2ch shapes (`board` は単一セグメントとは限らない: 一部の互換板は
+//   http://host/bbs/peca/ のように board が複数セグメント、かつ http 専用。
+//   そのため board は `.+`/`.+?` で多段許可し、scheme もキャプチャする):
+//   {scheme}://{host}/{board}/
+//   {scheme}://{host}/test/read.cgi/{board}/{key}/
+//   {scheme}://{host}/{board}/dat/{key}.dat
+//   {scheme}://{host}/test/bbs.cgi   (POST endpoint — no board in path)
 static CH2_READ_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^https?://(?P<host>[^/]+)/test/read\.cgi/(?P<board>[^/]+)/(?P<key>\d+)/?")
+    Regex::new(r"^(?P<scheme>https?)://(?P<host>[^/]+)/test/read\.cgi/(?P<board>.+)/(?P<key>\d+)/?")
         .expect("ch2 read.cgi regex compiles")
 });
 static CH2_DAT_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^https?://(?P<host>[^/]+)/(?P<board>[^/]+)/dat/(?P<key>\d+)\.dat")
+    Regex::new(r"^(?P<scheme>https?)://(?P<host>[^/]+)/(?P<board>.+?)/dat/(?P<key>\d+)\.dat")
         .expect("ch2 dat regex compiles")
 });
 static CH2_BOARD_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^https?://(?P<host>[^/]+)/(?P<board>[^/]+)/?$").expect("ch2 board regex")
+    Regex::new(r"^(?P<scheme>https?)://(?P<host>[^/]+)/(?P<board>.+?)/?$").expect("ch2 board regex")
 });
 
 pub fn parse_shitaraba(url: &str) -> Option<ShitarabaUrl> {
@@ -62,6 +68,7 @@ pub fn parse_shitaraba(url: &str) -> Option<ShitarabaUrl> {
 pub fn parse_ch2(url: &str) -> Option<Ch2Url> {
     if let Some(c) = CH2_READ_RE.captures(url) {
         return Some(Ch2Url {
+            scheme: c.name("scheme")?.as_str().to_string(),
             host: c.name("host")?.as_str().to_string(),
             board: c.name("board")?.as_str().to_string(),
             key: Some(c.name("key")?.as_str().to_string()),
@@ -69,6 +76,7 @@ pub fn parse_ch2(url: &str) -> Option<Ch2Url> {
     }
     if let Some(c) = CH2_DAT_RE.captures(url) {
         return Some(Ch2Url {
+            scheme: c.name("scheme")?.as_str().to_string(),
             host: c.name("host")?.as_str().to_string(),
             board: c.name("board")?.as_str().to_string(),
             key: Some(c.name("key")?.as_str().to_string()),
@@ -76,6 +84,7 @@ pub fn parse_ch2(url: &str) -> Option<Ch2Url> {
     }
     if let Some(c) = CH2_BOARD_RE.captures(url) {
         return Some(Ch2Url {
+            scheme: c.name("scheme")?.as_str().to_string(),
             host: c.name("host")?.as_str().to_string(),
             board: c.name("board")?.as_str().to_string(),
             key: None,
@@ -166,5 +175,40 @@ mod tests {
         assert_eq!(u.host, "example-bbs.invalid");
         assert_eq!(u.board, "myboard");
         assert_eq!(u.key.as_deref(), Some("1558097910"));
+    }
+
+    #[test]
+    fn ch2_http_multi_segment_board() {
+        // 実 QA で詰まった http 専用 / board が複数セグメントの互換板
+        // (http://hibino.ddo.jp/bbs/peca/)。scheme=http, board=bbs/peca。
+        let u = parse_ch2("http://hibino.ddo.jp/bbs/peca/").unwrap();
+        assert_eq!(u.scheme, "http");
+        assert_eq!(u.host, "hibino.ddo.jp");
+        assert_eq!(u.board, "bbs/peca");
+        assert!(u.key.is_none());
+    }
+
+    #[test]
+    fn ch2_http_multi_segment_dat() {
+        let u = parse_ch2("http://hibino.ddo.jp/bbs/peca/dat/1781433331.dat").unwrap();
+        assert_eq!(u.scheme, "http");
+        assert_eq!(u.board, "bbs/peca");
+        assert_eq!(u.key.as_deref(), Some("1781433331"));
+    }
+
+    #[test]
+    fn ch2_read_cgi_multi_segment_board() {
+        let u = parse_ch2("http://hibino.ddo.jp/test/read.cgi/bbs/peca/1781433331/").unwrap();
+        assert_eq!(u.scheme, "http");
+        assert_eq!(u.board, "bbs/peca");
+        assert_eq!(u.key.as_deref(), Some("1781433331"));
+    }
+
+    #[test]
+    fn ch2_scheme_and_single_segment_preserved() {
+        // 単一セグメント板 + https がこれまで通り (回帰防止)。
+        let u = parse_ch2("https://example.invalid/news4vip/").unwrap();
+        assert_eq!(u.scheme, "https");
+        assert_eq!(u.board, "news4vip");
     }
 }
