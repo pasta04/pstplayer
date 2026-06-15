@@ -464,4 +464,4 @@ Environments:
 - [`release.md`](release.md) — リリース手順 / 配布物命名
 - [`features.md`](features.md) — 機能仕様
 - [`usecases.md`](usecases.md) — ユースケース表
-- [`usage/`](usage/) — ユーザマニュアル
+- [`usage/`](usage/) — ユーザマニュアル各章 (入口は [README](../README.md))

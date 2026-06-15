@@ -1,154 +1,93 @@
 # PSTPlayer
 
-クロスプラットフォームな PeerCast 視聴ソフトウェア。
+PeerCast 配信を視聴しながら、コンタクト URL に紐付く掲示板 (したらば JBBS /
+2ch 互換) を読み書きできるクロスプラットフォームのプレイヤーです。Windows
+専用で開発停止した [PCRPlayer](http://pecatv.s25.xrea.com/) のオンライン視聴
+機能を、Windows / macOS / Linux で使えるよう再実装しています。
 
-[PCRPlayer](http://pecatv.s25.xrea.com/) (Windows 専用、開発停止中) を参考に、PeerCast の視聴・コンタクト URL に紐付く掲示板の閲覧と書き込みを 1 つのアプリで完結させることを目指す再実装プロジェクト。
+> 本アプリ自身は PeerCast を内蔵しません。別途 PeerCast 本体
+> (推奨: [PeerCastStation](https://github.com/kumaryu/peercaststation)) を
+> 起動しておく必要があります (同一マシンでも LAN 内の別マシンでも可)。
 
-## ステータス
+## インストール
 
-設計完了、フェーズ 1 (MVP) + フェーズ 2 (ハブ画面) 実装済。
+[GitHub Releases](https://github.com/pasta04/pstplayer/releases) からお使いの
+OS 向けのファイルをダウンロードしてください。
 
-| フェーズ                  | 状況                                                                            |
-| ------------------------- | ------------------------------------------------------------------------------- |
-| 1.1 スケルトン            | ✅ Tauri 2 + Svelte 5 + Vite + CI + lint 一式                                   |
-| 1.2 PeerCast 連携         | ✅ URL/playlist パーサ、JSON-RPC、legacy admin、戦略選択、接続先解決            |
-| 1.3 動画再生              | ⚠ libmpv 統合まで完了。ウィンドウ埋め込み (`wid` プロパティ) のみ残             |
-| 1.4 BBS 連携              | ✅ したらば / 2ch 互換、subject/dat、差分取得、投稿、HTML サニタイズ            |
-| 1.5 UI                    | ✅ 2 ペインレイアウト、URL ペーストから視聴/書き込みまで疎通                    |
-| 1.6 設定                  | ✅ TOML 永続化 + コマンド + 設定ダイアログ (一般 / PeerCast / YP / BBS / …)     |
-| 2.1 ハブ画面              | ✅ PeCaRecorder 風テーブル UI、複数 YP、ソート、フィルタ、右クリックメニュー    |
-| 2.2 別プロセス視聴        | ✅ ハブから行クリックで `pstplayer.exe <url>` を spawn、channel_id 単位 lock    |
-| 2.3 自動配信録画          | ✅ pst-server に AutoRecorder task (お気に入りルール `auto_record=true` で発火) |
-| 2.4 Web グリッド (Server) | ✅ pst-server Web に `<video>` × N のグリッド表示                               |
+- **Windows** — portable ZIP (解凍して `pstplayer.exe` を実行。`libmpv-2.dll` 同梱)
+- **macOS** — `.app` (libmpv 同梱、Homebrew 不要)
+- **Linux** — `.deb` / `.rpm` / `.AppImage` (システムの `libmpv` が必要)
 
-Rust テスト 120 件 (pst-core 115 / pstplayer-lib 1 / pst-server 4)、全 pass。
+OS 別の詳細手順 (初回起動時の警告回避など) は
+[インストールガイド](docs/usage/install.md) を参照してください。
 
-## 開発
+> v0.1.0 リリース前は、GitHub Actions の Artifacts (各ビルドごとに 14 日間
+> 保持) からも取得できます。取得手順は [開発者向けガイド](docs/development.md)
+> を参照。
 
-### リポジトリ構造
+## 使い方 (ユーザマニュアル)
 
-```
-pstplayer/
-├── Cargo.toml                  ← workspace root
-├── crates/
-│   ├── pst-core/               ← UI 非依存ロジック (PeerCast / BBS / config)
-│   └── pst-server/             ← (フェーズ 4 MVP) axum HTTP API。モバイル向け
-├── src-tauri/                  ← Tauri デスクトップアプリ
-│   └── src/{commands, player}  ← Tauri command + libmpv 統合
-├── src/                        ← フロントエンド (Svelte 5)
-│   ├── routes/+page.svelte
-│   └── lib/{api.ts, format.ts}
-└── docs/                       ← 設計ドキュメント (ADR / プロトコル / UI)
-```
+1. [インストール](docs/usage/install.md) — ダウンロードと初回起動
+2. [初回セットアップ](docs/usage/first-setup.md) — PeerCast 接続先 / YP URL / 名前 等の設定
+3. [基本操作](docs/usage/basic.md) — URL 貼り付け / YP 経由視聴 / BBS 読み書き
+4. [ハブ画面](docs/usage/hub.md) — 複数 YP テーブル + お気に入り + 視聴管理 (PeCaRecorder 風)
+5. [ショートカット一覧](docs/usage/shortcuts.md) — キーボード操作
+6. [トラブルシューティング](docs/usage/troubleshooting.md) — よくある問題と対処
+7. [pst-server](docs/usage/server.md) — 常駐サーバを LAN に置き、モバイル端末の
+   ブラウザから視聴 + BBS 書き込みする
 
-### 必要なツール
+## 動作要件
 
-- **Rust stable** (1.78+) — `rustup install stable`
-- **Node.js 24 LTS** (Active LTS、Node 22 は Maintenance フェーズなのでこちらを推奨)
-- **OS 別の Tauri + libmpv 依存**:
-  - **Linux (Debian/Ubuntu 24.04)**:
-    ```sh
-    sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev \
-      libsoup-3.0-dev libayatana-appindicator3-dev libxdo-dev \
-      libmpv-dev pkg-config
-    ```
-  - **macOS**: Xcode CLT (`xcode-select --install`) + `brew install mpv`
-  - **Windows**: WebView2 Runtime (Windows 11 は同梱)、Visual Studio Build Tools、`mpv-dev` (vcpkg / choco)
+- **PeerCast 本体** (内蔵しません):
+  - 推奨: [PeerCastStation](https://github.com/kumaryu/peercaststation)
+  - 同一マシンでも LAN 内の別マシンでも可
+- **OS**:
+  - Windows 10 以降 (x64)
+  - macOS 11 (Big Sur) 以降
+  - Linux (Ubuntu 22.04 / Fedora 39 等の最近のディストリ。`libmpv` パッケージが必要)
 
-### セットアップ
+## 機能の範囲
 
-```sh
-npm install
-```
+含むもの:
 
-### よく使うコマンド
+- PeerCast 配信視聴 (libmpv 経由)
+- したらば JBBS / 2ch 互換 BBS (5ch / jpnkn 等) の読み書き
+- 設定の永続化、視聴履歴、スナップショット保存
+- ホットキー (カスタマイズ可)
+- YP チャンネル一覧 + 複数 YP 対応
+- お気に入りルール (背景色 / 文字色 / 上位固定 / 自動録画)
+- 録画 (libmpv `stream-record` 経由、再エンコード無し)
+- ハブ画面 (引数なし起動時の PeCaRecorder 風チャンネルテーブル + 複数視聴ウィンドウ管理)
+- 常駐サーバ `pst-server` (Pi / NAS に置いて自動配信録画 + モバイルブラウザから視聴)
 
-| コマンド                                                | 内容                                         |
-| ------------------------------------------------------- | -------------------------------------------- |
-| `npm run dev`                                           | フロントだけ起動 (ブラウザ閲覧用)            |
-| `npm run check`                                         | TypeScript / Svelte の型チェック             |
-| `npm run lint`                                          | Prettier + ESLint                            |
-| `npm run format`                                        | Prettier で自動整形                          |
-| `npm run build`                                         | フロントエンドの静的出力                     |
-| `npm run tauri dev`                                     | Tauri デスクトップアプリで起動 (libmpv 必須) |
-| `npm run tauri build`                                   | 配布バイナリ生成                             |
-| `cargo test --workspace`                                | Rust ユニットテスト (workspace 全体)         |
-| `cargo clippy --workspace --all-targets -- -D warnings` | Rust リント                                  |
-| `cargo fmt --all`                                       | Rust 整形                                    |
+含まないもの (将来検討):
 
-### CI
+- ローカル動画ファイルの再生 / シークバー
+- DirectShow フィルタグラフ等の Windows 固有機能
 
-ワークフローは 2 つに分かれています:
-
-- **`.github/workflows/ci.yml`** — テストとリント (軽量、PR ごとに毎回)
-  - 3 OS (Ubuntu / macOS / Windows) で `cargo fmt / clippy / test`
-  - フロントの `svelte-check / lint / build`
-
-- **`.github/workflows/build.yml`** — Tauri 配布バイナリのビルド (重め、**main push と手動起動のみ**)
-  - 3 OS マトリクスで `npm run tauri build`
-  - 生成された **配布バイナリを Actions の Artifacts にアップロード** (14 日間保持)
-  - Windows は libmpv-dev のリンクが不安定なため `continue-on-error: true`
-
-無料枠節約のため両 workflow に `concurrency: cancel-in-progress` を入れていて、同じブランチへ連続 push すると古い実行は自動的にキャンセルされます。
-
-#### 配布バイナリの取得
-
-main への push 時、または手動起動時に GitHub Actions が走り、各 OS のインストーラが artifact として保存されます。
-
-1. リポジトリの **Actions タブ** → 該当の `Build artifacts` ワークフロー実行を開く
-2. 画面下の **Artifacts** から OS 別にダウンロード:
-   - `pstplayer-linux` — `.deb` / `.AppImage` / `.rpm`
-   - `pstplayer-macos` — `.dmg` / `.app`
-   - `pstplayer-windows-portable` — `pstplayer.exe` + `libmpv-2.dll` + `README.txt` の ZIP (即実行可能、インストール不要)
-3. 手元で実行
-   - **Linux**: AppImage は `chmod +x ./PSTPlayer*.AppImage && ./PSTPlayer*.AppImage` または .deb を `sudo dpkg -i`
-   - **macOS**: .dmg をマウントして .app を Applications に
-   - **Windows**: ZIP を解凍してフォルダ内の `pstplayer.exe` をダブルクリック (libmpv-2.dll が同じディレクトリにある必要あり)
-
-**PR ブランチで artifact が欲しい場合**: Actions タブ → `Build artifacts` → **Run workflow** → 対象ブランチを選択 → 実行 (手動起動)
-
-## スコープ
-
-**PCRPlayer のオンライン視聴機能 (PeerCast 配信 + 連動掲示板) を、ライセンス問題を回避しながら同等に提供する** ことが目的。ローカル動画再生・シークバー・DirectShow フィルタグラフ等のオフライン/Windows 固有機能はオミット。詳細は [`docs/decisions/0004-scope.md`](docs/decisions/0004-scope.md)。
-
-## 技術スタック
-
-- **アプリ基盤**: [Tauri 2](https://tauri.app/) (Rust + Web フロントエンド)
-- **バックエンド (Rust)**: PeerCast 通信、BBS スクレイピング、設定管理
-- **フロントエンド**: Svelte 5 + SvelteKit + TypeScript + Vite
-- **動画再生**: [libmpv](https://mpv.io/) (`libmpv2` クレート、組み込み)
-- **対応プラットフォーム** (優先順): Windows → macOS → Linux
-
-詳細は [`docs/architecture.md`](docs/architecture.md) を参照。
+詳細は [`docs/decisions/0004-scope.md`](docs/decisions/0004-scope.md) を参照。
 
 ## ライセンス
 
-MIT License。PCRPlayer (GPL v3) のコードは参照せず、公開プロトコル仕様 (PeerCast HTTP/PCP、2ch/したらば BBS API) からのクリーンルーム実装とする。詳細は [`docs/decisions/0002-license-clean-room.md`](docs/decisions/0002-license-clean-room.md)。
+MIT License。PCRPlayer (GPL v3) のコードは参照せず、公開プロトコル仕様
+(PeerCast HTTP/PCP、2ch/したらば BBS API) からのクリーンルーム実装です。
+詳細は [`docs/decisions/0002-license-clean-room.md`](docs/decisions/0002-license-clean-room.md)。
 
-## ドキュメント
+## 開発者向け
 
-- [`docs/architecture.md`](docs/architecture.md) — システムアーキテクチャ
-- [`docs/features.md`](docs/features.md) — 機能仕様
-- [`docs/ui-design.md`](docs/ui-design.md) — UI レイアウト・インタラクション
-- [`docs/shortcuts.md`](docs/shortcuts.md) — キーボードショートカット一覧
-- [`docs/usecases.md`](docs/usecases.md) — ユースケース一覧 (Desktop / pst-server を組み合わせた利用シナリオ)
-- [`docs/roadmap.md`](docs/roadmap.md) — 開発ロードマップ (フェーズ計画)
-- [`docs/release.md`](docs/release.md) — リリース / 配布方針 (バージョニング・タグ運用・アイコン仕様)
-- [`docs/qa-checklist.md`](docs/qa-checklist.md) — リリース前の実機 QA チェックリスト (3 OS で踏む項目を網羅)
-- [`docs/usage/`](docs/usage/) — **ユーザマニュアル** (インストール / 初回設定 / 基本操作 / ハブ画面 / pst-server / ショートカット / トラブルシューティング)
-- [`docs/design/`](docs/design/) — デザインスケッチ (ハブ画面 / Web グリッドのモックアップ + インタラクション)
-- [`docs/protocols/peercast.md`](docs/protocols/peercast.md) — PeerCast プロトコル参考メモ
-- [`docs/protocols/bbs.md`](docs/protocols/bbs.md) — BBS プロトコル参考メモ
-- [`docs/decisions/`](docs/decisions/) — アーキテクチャ決定記録 (ADR)
-  - [`0001-tech-stack.md`](docs/decisions/0001-tech-stack.md) — 技術スタック
-  - [`0002-license-clean-room.md`](docs/decisions/0002-license-clean-room.md) — ライセンス + クリーンルーム
-  - [`0003-ui-framework.md`](docs/decisions/0003-ui-framework.md) — UI フレームワーク (Svelte 5)
-  - [`0004-scope.md`](docs/decisions/0004-scope.md) — 機能スコープ (PCRPlayer 互換 + オフライン系オミット)
-  - [`0005-workspace-and-server.md`](docs/decisions/0005-workspace-and-server.md) — Cargo ワークスペース化 + 将来のリレーサーバ (モバイル対応)
-  - [`0006-auto-record-and-multiview.md`](docs/decisions/0006-auto-record-and-multiview.md) — 自動配信録画 + 複数チャンネル視聴アーキテクチャ (実装完了)
+ソースからのビルド・開発手順 (必要ツール / `npm`・`cargo` コマンド / CI /
+配布バイナリのビルド) は **[開発者向けガイド `docs/development.md`](docs/development.md)**
+にまとめています。アーキテクチャ / ADR / プロトコル等の設計ドキュメントへの
+リンクも同ファイルにあります。
 
 ## 参考プロジェクト
 
 - [PCRPlayer](http://pecatv.s25.xrea.com/) — オリジナルの Windows 版 (GPL v3)
 - [PeerCastStation](https://github.com/kumaryu/peercaststation) — 現行 PeerCast 本体 (GPL v3)、API 仕様の参考元
 - [pcoplayer](https://github.com/progre/pcoplayer) — 同様のクロスプラットフォーム移植 (Tauri、MIT、開発停止)
+
+## 関連
+
+- [GitHub Issues](https://github.com/pasta04/pstplayer/issues) — バグ報告 / 要望
+- [`docs/roadmap.md`](docs/roadmap.md) — 開発計画
+- [`docs/release.md`](docs/release.md) — リリース方針 (配布形式 / バージョニング)
