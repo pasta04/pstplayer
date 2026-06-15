@@ -1020,12 +1020,13 @@
 	}
 
 	main {
-		display: grid;
-		grid-template-rows: auto auto auto 1fr auto;
-		/* ビューポート固定高さ + overflow:hidden で、ツールバー / タブ
-		   (上) とステータスバー (下) を固定し、一覧 (.table-wrap) だけを
-		   内部スクロールさせる。min-height:100vh だとテーブルが長い時に
-		   ページ全体が伸びてヘッダ / フッタごとスクロールしてしまう。 */
+		/* flex column + .table-wrap flex:1 でフッターを常にウィンドウ下部に
+		   固定する。以前は grid 5 トラック固定だったが、エラー行 (.error) と
+		   失敗詳細 (.warn) が条件付きで増減して行数がずれ、フッターが 1fr
+		   トラックに乗り、項目が少ないとき下部固定されず上に詰まっていた。
+		   ビューポート固定高さ + overflow:hidden で一覧だけ内部スクロール。 */
+		display: flex;
+		flex-direction: column;
 		height: 100vh;
 		overflow: hidden;
 		background: #fff;
@@ -1148,6 +1149,7 @@
 	}
 
 	.table-wrap {
+		flex: 1;
 		overflow: auto;
 		/* grid の 1fr セルを縮められるようにして内部スクロールを有効化。
 		   thead th は position:sticky;top:0 でカラムヘッダーも追従固定。 */

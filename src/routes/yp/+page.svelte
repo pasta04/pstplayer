@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
+	import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 	import {
 		CommandError,
 		fetchYpIndex,
@@ -19,7 +20,12 @@
 	let sortDesc = $state(true);
 	let favorites = $state<FavoriteRule[]>([]);
 
-	onMount(async () => {
+	let configSavedUnlisten: UnlistenFn | null = null;
+	let focusUnlisten: (() => void) | null = null;
+
+	// 設定 (お気に入り / YP URL) を読み直す。背景色・ピン留め等の変更を
+	// アプリ再起動なしで即反映するため。
+	async function reloadPrefs() {
 		try {
 			const cfg = await getConfig();
 			ypUrl = cfg?.peercast?.ypUrl ?? '';
@@ -27,7 +33,30 @@
 		} catch {
 			/* default to empty; refresh will surface the error */
 		}
+	}
+
+	onMount(async () => {
+		await reloadPrefs();
 		await refresh();
+		// 設定保存でお気に入り (色等) が変わったら即反映。同一プロセス窓へは
+		// config:saved、別プロセスの設定窓からはフォーカス復帰時に取り込む
+		// (視聴ウィンドウと同じ二段構え)。
+		configSavedUnlisten = await listen('config:saved', () => {
+			void reloadPrefs();
+		});
+		try {
+			const { getCurrentWindow } = await import('@tauri-apps/api/window');
+			focusUnlisten = await getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+				if (focused) void reloadPrefs();
+			});
+		} catch {
+			/* best-effort */
+		}
+	});
+
+	onDestroy(() => {
+		configSavedUnlisten?.();
+		focusUnlisten?.();
 	});
 
 	function matchFor(e: YpEntry): FavoriteRule | null {
