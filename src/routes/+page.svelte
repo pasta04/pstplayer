@@ -11,7 +11,6 @@
 		fetchChannelInfo,
 		fetchChannelStatus,
 		fetchThread,
-		firstFavoriteMatch,
 		getCliArgs,
 		getConfig,
 		getHistory,
@@ -19,9 +18,6 @@
 		playerAttach,
 		playerSetVideoRect,
 		playerLoad,
-		playerRecordPath,
-		playerRecordStart,
-		playerRecordStop,
 		playerSetAspect,
 		playerSetAutoReconnect,
 		playerSetVolume,
@@ -39,7 +35,6 @@
 		type PlayerStatus,
 		type ChannelInfo,
 		type ChannelStatus,
-		type FavoriteRule,
 		type FetchState,
 		type HistoryEntry,
 		type PeerCastEndpoint,
@@ -206,8 +201,6 @@
 	let history = $state<HistoryEntry[]>([]);
 	// チャンネル詳細モーダル (リレー / 接続情報の全フィールドを見るため)。
 	let showChannelDetails = $state(false);
-	// 録画中の保存先パス。null = 録画していない。
-	let recordPath = $state<string | null>(null);
 
 	// Volume (0-100). Wheel over the player area changes it.
 	let volume = $state(80);
@@ -803,43 +796,6 @@
 		if (channelInfo?.url) {
 			await tryLoadBoard(channelInfo.url);
 		}
-		await maybeAutoRecord();
-	}
-
-	async function maybeAutoRecord() {
-		// 既に録画中なら何もしない (二重起動防止)。channelInfo が無い時
-		// もスキップ。お気に入りルールにマッチかつ auto_record=true なら
-		// 録画開始する。CLI 引数 --record-on-start でも強制起動 (favorites
-		// と独立、hub の「視聴 + 録画」が使う)。
-		if (!channelInfo) return;
-		if (recordPath) return;
-		try {
-			const cli = await getCliArgs();
-			// 1. --record-on-start で強制録画 (hub の「視聴+録画」spawn)
-			if (cli.record_on_start) {
-				const path = await playerRecordStart(channelInfo.name);
-				recordPath = path;
-				notify('録画開始 (CLI --record-on-start)', path);
-				return;
-			}
-			// 2. 通常の auto_record ルール判定
-			const cfg = await getConfig();
-			const rules = cfg?.favorites?.rules as FavoriteRule[] | undefined;
-			const fav = firstFavoriteMatch(rules, {
-				name: channelInfo.name,
-				genre: channelInfo.genre,
-				desc: channelInfo.desc,
-				comment: channelInfo.comment,
-			});
-			// action !== 'show' (= ignore / block) は自動録画しない
-			if (fav?.auto_record && (!fav.action || fav.action === 'show')) {
-				const path = await playerRecordStart(channelInfo.name);
-				recordPath = path;
-				notify(`自動録画開始 (${fav.name || 'お気に入り'})`, path);
-			}
-		} catch (e) {
-			console.warn('auto-record failed', e);
-		}
 	}
 
 	// Drop any trailing browser-only suffix (e.g. `/l30`, `/501-1000`) and
@@ -1194,11 +1150,6 @@
 		} catch {
 			/* 直前の値を使う */
 		}
-		try {
-			recordPath = await playerRecordPath();
-		} catch {
-			/* 直前の値を使う */
-		}
 		const sizeItems = await Promise.all(
 			SIZE_PERCENTS.map((pct, i) =>
 				MenuItem.new({ text: `${pct}%`, action: () => applySizePreset(i + 1) }),
@@ -1250,11 +1201,6 @@
 			Submenu.new({ text: '🕒 視聴履歴', enabled: history.length > 0, items: historyItems }),
 			PredefinedMenuItem.new({ item: 'Separator' }),
 			MenuItem.new({ text: '📷 スナップショット (F2)', action: () => doSnapshot() }),
-			MenuItem.new({
-				text: recordPath ? '⏹ 録画停止' : '⏺ 録画開始',
-				enabled: !!streamUrl,
-				action: () => ctxToggleRecord(),
-			}),
 			MenuItem.new({ text: '⚙ 設定...', action: () => onOpenSettings() }),
 			MenuItem.new({
 				text: '≡ スレ一覧を開く',
@@ -1265,23 +1211,6 @@
 		]);
 		const menu = await Menu.new({ items });
 		await menu.popup();
-	}
-
-	async function ctxToggleRecord() {
-		closeCtxMenu();
-		try {
-			if (recordPath) {
-				await playerRecordStop();
-				notify('録画停止', recordPath);
-				recordPath = null;
-			} else {
-				const path = await playerRecordStart(channelInfo?.name);
-				recordPath = path;
-				notify('録画開始', path);
-			}
-		} catch (e) {
-			lastError = errorMessage(e);
-		}
 	}
 
 	async function openFromHistory(entry: HistoryEntry) {
@@ -2015,14 +1944,6 @@
 					}}
 				>
 					📷 スナップショット (F2)
-				</button>
-				<button
-					class="ctx-item"
-					onclick={ctxToggleRecord}
-					disabled={!streamUrl}
-					title={recordPath ?? '視聴中の配信を再エンコードせず保存します'}
-				>
-					{recordPath ? '⏹ 録画停止' : '⏺ 録画開始'}
 				</button>
 				<button class="ctx-item" onclick={onOpenSettings}>⚙ 設定...</button>
 				<button class="ctx-item" onclick={onOpenThreadList} disabled={!channelInfo?.url}>

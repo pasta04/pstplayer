@@ -12,13 +12,10 @@
 		CommandError,
 		closeAllViewers,
 		closeViewer,
-		startViewerRecording,
-		stopViewerRecording,
 		effectiveBackground,
 		fetchYpSources,
 		getConfig,
 		listActiveViewers,
-		listRecordingViewers,
 		matchYpEntry,
 		peercastPing,
 		serverRecordList,
@@ -171,9 +168,6 @@
 	let newIds = $state<Set<string>>(new Set());
 	let watchingIds = $state<Set<string>>(new Set());
 	let recordingIds = $state<Set<string>>(new Set());
-	// pst-server に委譲した「録画のみ」の channel_id (視聴ウィンドウ無しで録画中)。
-	// 停止時に viewer IPC ではなく pst-server へ振り分けるのに使う。
-	let serverRecordingIds = $state<Set<string>>(new Set());
 	// 既に通知済みの新着 ID。重複通知防止 (同じセッションで何度も
 	// 「新着 X」を出さない)。長時間運用で肥大化しないよう、追加時に
 	// 1000 件で切る (FIFO に近い)。
@@ -238,20 +232,19 @@
 		try {
 			const ids = await listActiveViewers();
 			watchingIds = new Set(ids);
-			// 視聴ウィンドウ側の録画 (各 viewer に IPC)。視聴中 0 件なら省略。
-			const rec = new Set(ids.length > 0 ? await listRecordingViewers() : []);
-			// pst-server に委譲した「録画のみ」も録画中として併合表示する。
-			// pstServerUrl 未設定や pst-server 未起動は黙って無視 (次回再試行)。
+			// 録画は常に pst-server が担当する。録画中バッジ / 「録画中」タブは
+			// pst-server の録画一覧だけを正とする。pstServerUrl 未設定や
+			// pst-server 未起動なら空 (黙って次回再試行)。
 			if (pstServerUrl) {
 				try {
 					const server = await serverRecordList(pstServerUrl);
-					serverRecordingIds = new Set(server.map((r) => r.channel_id));
-					for (const id of serverRecordingIds) rec.add(id);
+					recordingIds = new Set(server.map((r) => r.channel_id));
 				} catch {
-					serverRecordingIds = new Set();
+					recordingIds = new Set();
 				}
+			} else {
+				recordingIds = new Set();
 			}
-			recordingIds = rec;
 		} catch {
 			/* ignore: lock 読み取りエラーは無視して次回再試行 */
 		}
@@ -441,10 +434,22 @@
 		return sortDesc ? ' ▼' : ' ▲';
 	}
 
-	async function watchRow(e: YpEntry, record = false, hidden = false) {
+	async function watchRow(e: YpEntry, record = false) {
 		closeMenu();
+		// 録画は常に pst-server が担当する。「視聴 + 録画」は viewer(libmpv) で
+		// 視聴しつつ pst-server にも録画を依頼する。ローカル PeerCast 本体へは
+		// viewer + pst-server の 2 接続になるが、本体 → インターネットのリレーは
+		// 1 本なので外向き帯域は増えない。録画には pst-server が必須。
+		if (record && !pstServerUrl) {
+			lastError =
+				'「視聴 + 録画」の録画は pst-server が担当します (設定 → ハブ → pst-server URL を設定し、pst-server を起動してください)。録画なしの「視聴」はそのまま使えます。';
+			return;
+		}
 		try {
-			await spawnViewer(e.id, { record, hidden, tip: e.tip });
+			await spawnViewer(e.id, { tip: e.tip });
+			if (record) {
+				await serverRecordStart(pstServerUrl, e.id, e.name ?? '');
+			}
 			// 即座に「視聴中」リストを更新 (5 秒待たずにバッジが付く)。
 			// spawn 直後は lock が完了していないかもしれないので少し待つ。
 			setTimeout(() => {
@@ -469,14 +474,14 @@
 
 	async function stopRecordingRow(e: YpEntry) {
 		closeMenu();
+		// 録画は常に pst-server が担当するので停止も pst-server へ。
+		if (!pstServerUrl) {
+			lastError =
+				'録画は pst-server が担当します (設定 → ハブ → pst-server URL を確認してください)。';
+			return;
+		}
 		try {
-			// pst-server 録画 (= 録画のみ) は pst-server へ、視聴ウィンドウ録画は
-			// 従来どおり viewer IPC へ振り分ける。
-			if (serverRecordingIds.has(e.id) && pstServerUrl) {
-				await serverRecordStop(pstServerUrl, e.id);
-			} else {
-				await stopViewerRecording(e.id);
-			}
+			await serverRecordStop(pstServerUrl, e.id);
 			setTimeout(() => {
 				void refreshWatching();
 			}, 400);
@@ -506,8 +511,14 @@
 
 	async function startRecordingRow(e: YpEntry) {
 		closeMenu();
+		// 視聴中のまま録画開始。録画は pst-server が担当し、viewer はそのまま再生。
+		if (!pstServerUrl) {
+			lastError =
+				'録画は pst-server が担当します (設定 → ハブ → pst-server URL を設定し、pst-server を起動してください)。';
+			return;
+		}
 		try {
-			await startViewerRecording(e.id);
+			await serverRecordStart(pstServerUrl, e.id, e.name ?? '');
 			setTimeout(() => {
 				void refreshWatching();
 			}, 400);

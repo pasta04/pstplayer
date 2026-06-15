@@ -225,13 +225,6 @@ export async function listActiveViewers(): Promise<string[]> {
 	return call<string[]>('list_active_viewers');
 }
 
-/// 現在「録画中」の channel_id 配列。視聴中の中でさらに状態問い合わせを
-/// 投げ、`state` IPC で true 応答が返ったものだけを含む。ハブ画面の
-/// 「録画中」タブ表示用。
-export async function listRecordingViewers(): Promise<string[]> {
-	return call<string[]>('list_recording_viewers');
-}
-
 /// 指定 channel_id の視聴ウィンドウを閉じる。
 export async function closeViewer(channelId: string): Promise<boolean> {
 	return call<boolean>('close_viewer', { channelId });
@@ -240,16 +233,6 @@ export async function closeViewer(channelId: string): Promise<boolean> {
 /// 全視聴ウィンドウを一括クローズ。閉じた数を返す。
 export async function closeAllViewers(): Promise<number> {
 	return call<number>('close_all_viewers');
-}
-
-/// 指定 channel_id の視聴ウィンドウに録画停止を要求。
-export async function stopViewerRecording(channelId: string): Promise<boolean> {
-	return call<boolean>('stop_viewer_recording', { channelId });
-}
-
-/// 指定 channel_id の視聴ウィンドウに録画開始を要求。
-export async function startViewerRecording(channelId: string): Promise<boolean> {
-	return call<boolean>('start_viewer_recording', { channelId });
 }
 
 /// pst-server (ハブ常駐サーバ) で録画中の 1 件。
@@ -624,18 +607,6 @@ export async function playerSnapshot(channelName?: string): Promise<string> {
 
 export async function snapshotTargetDir(): Promise<string> {
 	return call<string>('snapshot_target_dir');
-}
-
-export async function playerRecordStart(channelName?: string): Promise<string> {
-	return call<string>('player_record_start', { channelName: channelName ?? '' });
-}
-
-export async function playerRecordStop(): Promise<void> {
-	return call<void>('player_record_stop');
-}
-
-export async function playerRecordPath(): Promise<string | null> {
-	return call<string | null>('player_record_path');
 }
 
 export async function recordingTargetDir(): Promise<string> {
