@@ -15,6 +15,7 @@
 		effectiveBackground,
 		fetchYpSources,
 		getConfig,
+		isTauri,
 		listActiveViewers,
 		matchYpEntry,
 		peercastPing,
@@ -446,7 +447,13 @@
 			return;
 		}
 		try {
-			await spawnViewer(e.id, { tip: e.tip });
+			if (isTauri()) {
+				// ネイティブ: 別プロセスの libmpv 視聴ウィンドウを起動。
+				await spawnViewer(e.id, { tip: e.tip });
+			} else {
+				// ブラウザ: HLS 視聴ページを別タブで開く (/watch?id=...)。
+				window.open(`/watch?id=${encodeURIComponent(e.id)}`, '_blank', 'noopener');
+			}
 			if (record) {
 				await serverRecordStart(pstServerUrl, e.id, e.name ?? '');
 			}
