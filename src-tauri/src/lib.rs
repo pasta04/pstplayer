@@ -11,7 +11,16 @@ use channel_polling::ChannelPolling;
 use player::engine::PlayerEngine;
 use pst_core::cli::{self, CliArgs};
 use pst_core::single_instance::{self, AcquireResult, LockHandle};
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
+
+/// 動画ウィンドウのマウス操作 (mpv 描画窓が食う分) をフロントへ転送する
+/// ときのイベントペイロード。x/y は wid クライアント座標、delta はホイール量。
+#[derive(Clone, serde::Serialize)]
+struct PlayerInputPayload {
+    x: i32,
+    y: i32,
+    delta: i32,
+}
 
 /// URL 引数付き起動なら、その `channel_id` の single_instance ロックを
 /// 取りに行く。既に他プロセスが視聴している場合は focus 要求を送って
@@ -185,6 +194,16 @@ pub fn run() {
             app.handle().manage(cli_args);
             app.handle().manage(ChannelPolling::new());
             app.handle().manage(player::embed::VideoEmbed::new());
+            // 動画ウィンドウのマウス操作 (mpv 描画窓が食う右クリック/ホイール/
+            // クリック/ダブルクリック) を embed の WNDPROC/サブクラスから受けて
+            // `player:*` イベントとしてフロントへ転送する。
+            {
+                let app_emit = app.handle().clone();
+                player::embed::set_input_emitter(Box::new(move |event, x, y, delta| {
+                    let _ = app_emit
+                        .emit(&format!("player:{event}"), PlayerInputPayload { x, y, delta });
+                }));
+            }
             // single_instance のロックを持っているなら focus / IPC 受け取り
             // listener を先に起動する。libmpv 初期化より前に serve を回す
             // ことで、起動直後でもハブの list_active_viewers の probe に即

@@ -232,6 +232,8 @@
 	let themeUnlisten: (() => void) | null = null;
 	let windowGeomUnlisten: (() => void) | null = null;
 	let focusUnlisten: UnlistenFn | null = null;
+	// 動画ウィンドウ (mpv) からのネイティブ入力イベント (Windows) の購読解除群。
+	let playerInputUnlisten: UnlistenFn[] = [];
 
 	// libmpv 描画用子ウィンドウを `.player-canvas` の物理ピクセル矩形へ
 	// 合わせる。getBoundingClientRect() は CSS px・クライアント原点基準
@@ -338,6 +340,21 @@
 			channelStatus = e.payload;
 			statusAtMs = Date.now();
 		});
+
+		// 動画ウィンドウ (mpv 描画窓) が食うマウス操作を embed.rs が `player:*`
+		// イベントで転送してくる (Windows)。既存ハンドラへ橋渡しする。
+		playerInputUnlisten.push(
+			await listen<{ delta: number }>('player:wheel', (e) => onNativePlayerWheel(e.payload.delta)),
+			await listen('player:dblclick', () => {
+				void ctxToggleFullscreen();
+			}),
+			await listen<{ x: number; y: number }>('player:contextmenu', (e) =>
+				onNativePlayerContextMenu(e.payload.x, e.payload.y),
+			),
+			await listen('player:click', () => {
+				void onPlayerClick();
+			}),
+		);
 
 		// 自動再接続イベント (詳細は src-tauri/src/player/engine.rs)。
 		// observation モード (config.player.auto_reconnect = false) でも
@@ -477,6 +494,7 @@
 		shortcutsUnlisten?.();
 		themeUnlisten?.();
 		windowGeomUnlisten?.();
+		playerInputUnlisten.forEach((u) => u());
 		videoRectObserver?.disconnect();
 		window.removeEventListener('resize', syncVideoRect);
 		if (videoRectRaf) cancelAnimationFrame(videoRectRaf);
@@ -1194,6 +1212,30 @@
 		if (next === volume) return;
 		volume = next;
 		playerSetVolume(volume).catch(() => undefined);
+	}
+
+	// ── 動画ウィンドウ (mpv) からのネイティブ入力 (Windows) ─────────────
+	// mpv 描画窓が食う操作を embed.rs が拾って `player:*` で転送してくる分の
+	// 橋渡し。DOM ハンドラ (onPlayerWheel 等) は非 Windows / 透過時用に残す。
+	function onNativePlayerWheel(delta: number) {
+		// Win32 ホイール delta は前方(上)が正。音量 ±5。
+		const next = Math.max(0, Math.min(150, volume + (delta > 0 ? 5 : -5)));
+		if (next === volume) return;
+		volume = next;
+		playerSetVolume(volume).catch(() => undefined);
+	}
+	function onNativePlayerContextMenu(x: number, y: number) {
+		// x/y は wid (= player-canvas) クライアント座標・物理px。webview の
+		// CSS px に変換してメニュー位置にする。
+		const rect = playerCanvasEl?.getBoundingClientRect();
+		const dpr = window.devicePixelRatio || 1;
+		ctxMenu = { x: (rect?.left ?? 0) + x / dpr, y: (rect?.top ?? 0) + y / dpr };
+		getHistory()
+			.then((h) => (history = h))
+			.catch(() => undefined);
+		playerRecordPath()
+			.then((p) => (recordPath = p))
+			.catch(() => undefined);
 	}
 
 	function closeCtxMenu() {
