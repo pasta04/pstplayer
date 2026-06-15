@@ -29,6 +29,8 @@ pub struct CliArgs {
     pub no_autoplay: bool,
     pub no_bbs: bool,
     pub minimized: bool,
+    /// 視聴ウィンドウを表示せず録画だけ行う (ハブの「録画のみ」)。
+    pub hidden: bool,
     pub show_help: bool,
     pub show_version: bool,
     /// 起動時に強制的に録画も開始する (favorites の auto_record と独立)。
@@ -53,6 +55,7 @@ pub fn parse(args: &[String]) -> CliArgs {
                     "no-autoplay" => out.no_autoplay = true,
                     "no-bbs" => out.no_bbs = true,
                     "minimized" => out.minimized = true,
+                    "hidden" => out.hidden = true,
                     "help" => out.show_help = true,
                     "version" => out.show_version = true,
                     "record-on-start" => out.record_on_start = true,

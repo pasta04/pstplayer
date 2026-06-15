@@ -181,7 +181,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .setup(move |app| {
-            let start_minimized = cli_args.minimized;
+            let start_hidden = cli_args.hidden;
             app.handle().manage(cli_args);
             app.handle().manage(ChannelPolling::new());
             app.handle().manage(player::embed::VideoEmbed::new());
@@ -213,12 +213,12 @@ pub fn run() {
                     eprintln!("warning: failed to initialise libmpv: {e}");
                 }
             }
-            // 「録画のみ」等で `--minimized` 起動された場合はウィンドウを
-            // 最小化する (D2)。録画 (stream-record) はウィンドウ状態に
-            // 依存しないので最小化したまま録り続けられる。
-            if start_minimized {
+            // 「録画のみ」(--hidden) で起動された場合はウィンドウを非表示に
+            // する (D2)。録画 (stream-record) はウィンドウ表示に依存しないので
+            // 非表示のまま録り続けられる。停止はハブの「視聴中」操作から行う。
+            if start_hidden {
                 if let Some(win) = app.get_webview_window("main") {
-                    let _ = win.minimize();
+                    let _ = win.hide();
                 }
             }
             Ok(())

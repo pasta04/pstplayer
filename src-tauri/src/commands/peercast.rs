@@ -253,7 +253,7 @@ pub fn start_viewer_recording(channel_id: String) -> bool {
 pub fn spawn_viewer(
     channel_id: String,
     record: Option<bool>,
-    minimized: Option<bool>,
+    hidden: Option<bool>,
     tip: Option<String>,
 ) -> Result<SpawnViewerOutcome, IpcError> {
     // channel_id は 32 桁 hex 想定。YP の `id` フィールドをそのまま
@@ -296,9 +296,9 @@ pub fn spawn_viewer(
     if record.unwrap_or(false) {
         cmd.arg("--record-on-start");
     }
-    // 「録画のみ」: ウィンドウを最小化して起動 (D2)。録画は継続する。
-    if minimized.unwrap_or(false) {
-        cmd.arg("--minimized");
+    // 「録画のみ」: ウィンドウを表示せず (--hidden) 起動する (D2)。録画は継続。
+    if hidden.unwrap_or(false) {
+        cmd.arg("--hidden");
     }
     cmd.spawn().map_err(|e| {
         IpcError::from(AppError::Network(format!("別プロセスの pstplayer を起動できません: {e}")))
