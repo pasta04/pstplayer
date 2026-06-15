@@ -19,7 +19,7 @@ use std::path::PathBuf;
 
 use axum::{routing, Router};
 use tower_http::cors::{Any, CorsLayer};
-use tower_http::services::ServeDir;
+use tower_http::services::{ServeDir, ServeFile};
 
 use crate::state::AppState;
 
@@ -83,7 +83,15 @@ pub fn build_router(state: AppState, web_dir: Option<PathBuf>) -> Router {
     if let Some(dir) = web_dir.filter(|p| p.is_dir()) {
         // `/` 以下はすべて静的フロント (ServeDir)。API ルートが既に上で
         // 定義されているので、衝突せず static のみが裏でフォールバック。
-        router = router.fallback_service(ServeDir::new(dir).append_index_html_on_directories(true));
+        // SvelteKit は SPA (fallback: index.html) 構成なので、静的ファイルに
+        // 該当しないパス (/hub 等のクライアントルート) では index.html を返し、
+        // クライアント側ルーティングに委ねる。
+        let index = dir.join("index.html");
+        router = router.fallback_service(
+            ServeDir::new(dir)
+                .append_index_html_on_directories(true)
+                .fallback(ServeFile::new(index)),
+        );
     } else {
         router = router.route("/", routing::get(handlers::index));
     }

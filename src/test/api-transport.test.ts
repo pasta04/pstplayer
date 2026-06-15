@@ -13,6 +13,8 @@ import {
 	postToThread,
 	serverRecordStart,
 	serverRecordList,
+	getConfig,
+	peercastPing,
 	isTauri,
 } from '$lib/api';
 
@@ -137,4 +139,32 @@ test('エラー応答 (例 404 thread_gone) は CommandError(code) に正規化�
 		name: 'CommandError',
 		code: 'thread_gone',
 	});
+});
+
+test('getConfig はサーバ config を Config 形に適合 (favorites/yp 採用・hub 既定)', async () => {
+	stubFetch(() =>
+		ok({
+			peercast: { host: '192.0.2.9', port: 7144 },
+			favorites: { rules: [{ name: 'fav', channel_name: 'X' }] },
+			yp: { sources: [{ name: 'SP', url: 'http://x/index.txt' }] },
+		}),
+	);
+	const cfg = await getConfig();
+	expect(calls[0].url).toBe('/api/config');
+	// サーバ値が採用される
+	expect(cfg.peercast.host).toBe('192.0.2.9');
+	expect(cfg.favorites?.rules).toHaveLength(1);
+	expect(cfg.yp?.sources[0].name).toBe('SP');
+	// デスクトップ専用セクションは既定で埋まる (ハブが参照する)
+	expect(cfg.bbs).toBeTruthy();
+	expect(cfg.player).toBeTruthy();
+	expect(cfg.hub?.refresh_sec).toBe(60);
+	// ブラウザでは録画可否判定を通すため pst_server_url が truthy
+	expect(cfg.hub?.pst_server_url).toBeTruthy();
+});
+
+test('peercastPing はブラウザでは no-op (fetch しない)', async () => {
+	stubFetch(() => ok({}));
+	await expect(peercastPing()).resolves.toBeUndefined();
+	expect(calls).toHaveLength(0);
 });

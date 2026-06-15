@@ -153,7 +153,13 @@ export async function endpointForUrl(url: string): Promise<PeerCastEndpoint> {
 /** 起動時の疎通チェック。成功 = PeerCast 本体に応答あり。失敗時は
  * CommandError.code === 'peercast_unreachable'。 */
 export async function peercastPing(): Promise<void> {
-	return call<void>('peercast_ping');
+	return dual(
+		() => call<void>('peercast_ping'),
+		async () => {
+			// ブラウザは pst-server 経由。専用 ping endpoint は無いので no-op
+			// (到達性の問題は実データ取得時に surface する)。
+		},
+	);
 }
 
 export interface CliArgs {
@@ -641,8 +647,67 @@ export function matchYpEntry(
 	});
 }
 
+/** pst-server `/api/config` のうちブラウザのハブが使う部分。サーバ用
+ * スキーマ (peercast/server/log/recording/favorites/yp) のサブセット。 */
+interface ServerConfigResponse {
+	peercast?: { host?: string; port?: number; auth_user?: string | null; auth_pass?: string | null };
+	favorites?: FavoritesCfg;
+	yp?: YpCfg;
+}
+
+/** pst-server のサーバ用 config を、ブラウザのハブが期待する Config 形へ
+ * 適合させる。favorites / yp / peercast はサーバ値を使い、hub / bbs /
+ * player などデスクトップ専用セクションは既定値で埋める。ブラウザでは
+ * pst-server 自身が同一オリジンなので hub.pst_server_url に origin を入れ、
+ * 録画操作 (pstServerUrl 空ならブロック) を有効化する。 */
+function browserConfig(s: ServerConfigResponse): Config {
+	return {
+		peercast: {
+			host: s.peercast?.host ?? 'localhost',
+			port: s.peercast?.port ?? 7144,
+			authUser: s.peercast?.auth_user ?? null,
+			authPass: s.peercast?.auth_pass ?? null,
+			timeoutSec: 10,
+			recentHosts: [],
+			ypUrl: '',
+		},
+		bbs: {
+			defaultName: '',
+			defaultMail: '',
+			autoRefreshSec: 5,
+			displayMode: 'plain',
+			submitKey: 'ctrl_enter',
+			notifyOnNewPost: false,
+			autoscroll: true,
+			autoscrollSpeed: 1,
+		},
+		player: {
+			volume: 80,
+			aspect_mode: '',
+			snapshot_dir: '',
+			snapshot_format: 'png',
+			snapshot_jpeg_quality: 90,
+			recording_dir: '',
+			recording_ext: '',
+			auto_reconnect: false,
+		},
+		favorites: s.favorites ?? { rules: [] },
+		yp: s.yp ?? { sources: [] },
+		hub: {
+			refresh_sec: 60,
+			watching_poll_sec: 5,
+			double_click: 'watch',
+			middle_click: 'open_bbs',
+			pst_server_url: typeof window !== 'undefined' ? window.location.origin : '',
+		},
+	};
+}
+
 export async function getConfig(): Promise<Config> {
-	return call<Config>('get_config');
+	return dual(
+		() => call<Config>('get_config'),
+		async () => browserConfig(await httpGet<ServerConfigResponse>('/api/config')),
+	);
 }
 
 export async function setConfig(config: Config): Promise<void> {
