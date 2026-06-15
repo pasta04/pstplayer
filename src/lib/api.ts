@@ -29,6 +29,74 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> 
 	}
 }
 
+// ── Transport (Tauri IPC / pst-server REST) ──────────────────────────
+// 同じ Svelte フロントを (1) Tauri デスクトップ (invoke) と (2) ブラウザ
+// (pst-server が配信する Web UI) の両方で動かすための薄い切替層。Tauri
+// 実行時は従来どおり invoke、ブラウザ実行時は pst-server の HTTP API を
+// 叩く。pst-server のエラー応答は {code, message} で Tauri 側と同じコード
+// 体系 (peercast_unreachable / thread_gone 等) なので CommandError に正規化
+// すれば UI のエラーハンドリングは両環境で共通になる。
+
+/** Tauri 実行環境か (webview に __TAURI_INTERNALS__ が注入される)。
+ * 視聴方式 (libmpv / HLS) や transport の切替に使う。 */
+export function isTauri(): boolean {
+	return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+}
+
+/** pst-server REST のベース URL。pst-server が配信する素のブラウザでは
+ * 同一オリジン (空文字 = 相対パス)。dev で別オリジンの pst-server を叩く
+ * ときだけ VITE_PST_API_BASE で上書きする。 */
+const API_BASE: string = (
+	(import.meta.env as Record<string, string | undefined>).VITE_PST_API_BASE ?? ''
+).replace(/\/+$/, '');
+
+async function httpRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
+	let res: Response;
+	try {
+		res = await fetch(API_BASE + path, {
+			method,
+			headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+			body: body === undefined ? undefined : JSON.stringify(body),
+		});
+	} catch (e) {
+		// ネットワーク到達不可は CommandError(network) に正規化。
+		throw new CommandError({
+			code: 'network',
+			message: e instanceof Error ? e.message : String(e),
+		});
+	}
+	if (!res.ok) {
+		// pst-server は {code, message} の JSON を返す。パースできなければ
+		// status から最小の CommandError を組む。
+		let code = 'http_error';
+		let message = `HTTP ${res.status}`;
+		try {
+			const j = (await res.json()) as Partial<IpcError>;
+			if (typeof j.code === 'string') code = j.code;
+			if (typeof j.message === 'string') message = j.message;
+		} catch {
+			/* non-JSON body */
+		}
+		throw new CommandError({ code, message });
+	}
+	if (res.status === 204) return undefined as T;
+	const text = await res.text();
+	return (text ? JSON.parse(text) : undefined) as T;
+}
+
+function httpGet<T>(path: string): Promise<T> {
+	return httpRequest<T>('GET', path);
+}
+function httpPost<T>(path: string, body?: unknown): Promise<T> {
+	return httpRequest<T>('POST', path, body);
+}
+
+/** Tauri なら tauriFn、ブラウザなら httpFn を呼ぶ。レスポンス型は
+ * 両 transport で同じ pst-core 型 (同一 serde) なので一致する。 */
+function dual<T>(tauriFn: () => Promise<T>, httpFn: () => Promise<T>): Promise<T> {
+	return isTauri() ? tauriFn() : httpFn();
+}
+
 // ── Types ───────────────────────────────────────────────────────────
 
 export interface BasicAuth {
@@ -122,22 +190,38 @@ export async function fetchChannelInfo(
 	endpoint: PeerCastEndpoint,
 	channelId: string,
 ): Promise<ChannelInfo> {
-	return call<ChannelInfo>('fetch_channel_info', { endpoint, channelId });
+	return dual(
+		() => call<ChannelInfo>('fetch_channel_info', { endpoint, channelId }),
+		() => httpGet<ChannelInfo>(`/api/channel/${encodeURIComponent(channelId)}/info`),
+	);
 }
 
 export async function fetchChannelStatus(
 	endpoint: PeerCastEndpoint,
 	channelId: string,
 ): Promise<ChannelStatus> {
-	return call<ChannelStatus>('fetch_channel_status', { endpoint, channelId });
+	return dual(
+		() => call<ChannelStatus>('fetch_channel_status', { endpoint, channelId }),
+		() => httpGet<ChannelStatus>(`/api/channel/${encodeURIComponent(channelId)}/status`),
+	);
 }
 
 export async function bumpChannel(endpoint: PeerCastEndpoint, channelId: string): Promise<void> {
-	return call<void>('bump_channel', { endpoint, channelId });
+	return dual(
+		() => call<void>('bump_channel', { endpoint, channelId }),
+		async () => {
+			await httpPost(`/api/channel/${encodeURIComponent(channelId)}/bump`);
+		},
+	);
 }
 
 export async function stopChannel(endpoint: PeerCastEndpoint, channelId: string): Promise<void> {
-	return call<void>('stop_channel', { endpoint, channelId });
+	return dual(
+		() => call<void>('stop_channel', { endpoint, channelId }),
+		async () => {
+			await httpPost(`/api/channel/${encodeURIComponent(channelId)}/stop`);
+		},
+	);
 }
 
 export async function startChannelPolling(
@@ -193,7 +277,10 @@ export async function fetchYpIndex(overrideUrl?: string): Promise<YpEntry[]> {
 /// 設定 (`[[yp.sources]]`) に登録された全 YP を並行 fetch して
 /// entries + failures をまとめて返す。
 export async function fetchYpSources(): Promise<YpMultiFetchOutcome> {
-	return call<YpMultiFetchOutcome>('fetch_yp_sources');
+	return dual(
+		() => call<YpMultiFetchOutcome>('fetch_yp_sources'),
+		() => httpGet<YpMultiFetchOutcome>('/api/yp/all'),
+	);
 }
 
 export type SpawnViewerOutcome = 'focused' | 'spawned';
@@ -249,20 +336,34 @@ export async function serverRecordStart(
 	id: string,
 	name: string,
 ): Promise<void> {
-	await call<unknown>('server_record_start', { serverUrl, id, name });
+	await dual(
+		() => call<unknown>('server_record_start', { serverUrl, id, name }),
+		() => httpPost<unknown>('/api/record/start', { id, name }),
+	);
 }
 
 /// pst-server の録画を停止 (id 省略で全停止)。
 export async function serverRecordStop(serverUrl: string, id?: string): Promise<void> {
-	await call<unknown>('server_record_stop', { serverUrl, id: id ?? null });
+	await dual(
+		() => call<unknown>('server_record_stop', { serverUrl, id: id ?? null }),
+		() => httpPost<unknown>('/api/record/stop', { id: id ?? null }),
+	);
 }
 
 /// pst-server で録画中のチャンネル一覧。
 export async function serverRecordList(serverUrl: string): Promise<ServerRecordingEntry[]> {
-	const v = await call<{ recordings: ServerRecordingEntry[] } | null>('server_record_list', {
-		serverUrl,
-	});
-	return v?.recordings ?? [];
+	return dual(
+		async () => {
+			const v = await call<{ recordings: ServerRecordingEntry[] } | null>('server_record_list', {
+				serverUrl,
+			});
+			return v?.recordings ?? [];
+		},
+		async () => {
+			const v = await httpGet<{ recordings: ServerRecordingEntry[] } | null>('/api/record/list');
+			return v?.recordings ?? [];
+		},
+	);
 }
 
 // ── BBS ─────────────────────────────────────────────────────────────
@@ -326,18 +427,50 @@ export async function threadUrlOf(boardUrl: string, key: string): Promise<string
 }
 
 export async function listThreads(boardUrl: string): Promise<SubjectEntry[]> {
-	return call<SubjectEntry[]>('list_threads', { boardUrl });
+	return dual(
+		() => call<SubjectEntry[]>('list_threads', { boardUrl }),
+		async () => {
+			const r = await httpGet<{ kind: BoardKind | null; threads: SubjectEntry[] }>(
+				`/api/board?url=${encodeURIComponent(boardUrl)}`,
+			);
+			return r.threads;
+		},
+	);
 }
 
 export async function fetchThread(
 	threadUrl: string,
 	prev?: FetchState | null,
 ): Promise<[Post[], FetchState]> {
-	return call<[Post[], FetchState]>('fetch_thread', { threadUrl, prev: prev ?? null });
+	return dual(
+		() => call<[Post[], FetchState]>('fetch_thread', { threadUrl, prev: prev ?? null }),
+		async () => {
+			const q = new URLSearchParams({ url: threadUrl });
+			if (prev) {
+				if (prev.lastCount) q.set('last_count', String(prev.lastCount));
+				if (prev.lastByte) q.set('last_byte', String(prev.lastByte));
+				if (prev.lastModified) q.set('last_modified', prev.lastModified);
+			}
+			const r = await httpGet<{ kind: BoardKind | null; posts: Post[]; state: FetchState }>(
+				`/api/thread?${q.toString()}`,
+			);
+			return [r.posts, r.state] as [Post[], FetchState];
+		},
+	);
 }
 
 export async function postToThread(threadUrl: string, req: PostRequest): Promise<void> {
-	return call<void>('post_to_thread', { threadUrl, req });
+	return dual(
+		() => call<void>('post_to_thread', { threadUrl, req }),
+		async () => {
+			await httpPost('/api/thread/post', {
+				url: threadUrl,
+				name: req.name,
+				mail: req.mail,
+				body: req.body,
+			});
+		},
+	);
 }
 
 export async function sanitizeHtml(html: string): Promise<string> {
