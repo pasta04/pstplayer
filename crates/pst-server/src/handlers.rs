@@ -86,6 +86,16 @@ pub async fn yp_index(Query(q): Query<YpQuery>) -> ApiResult<Json<YpResp>> {
     Ok(Json(YpResp { entries }))
 }
 
+/// 設定 (`[yp].sources`) の全 YP を並行 fetch して集約した一覧を返す。
+/// pst-server が「YP 一覧表示」を担うためのサーバ側集約。個別 YP の
+/// 取得失敗は他に影響させず `failures` に積んで継続する (pst-core の
+/// `fetch_indexes` をそのまま再利用)。
+pub async fn yp_all(State(s): State<AppState>) -> Json<yp::MultiFetchOutcome> {
+    // ロックは clone まで。fetch は guard を手放してから行う。
+    let sources = s.cfg.read().await.yp.sources.clone();
+    Json(yp::fetch_indexes(&sources).await)
+}
+
 // ── BBS ────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
@@ -316,6 +326,7 @@ pub async fn index() -> axum::response::Html<&'static str> {
   <li><code>POST /api/channel/{id}/bump</code></li>
   <li><code>POST /api/channel/{id}/stop</code></li>
   <li><code>GET /api/yp?url=...</code></li>
+  <li><code>GET /api/yp/all</code> (設定の全 YP を集約)</li>
   <li><code>GET /api/board?url=...</code></li>
   <li><code>GET /api/thread?url=...&amp;last_count=&amp;last_byte=&amp;last_modified=</code></li>
   <li><code>POST /api/thread/post</code></li>

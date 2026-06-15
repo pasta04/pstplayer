@@ -22,6 +22,12 @@ pub struct Config {
     pub recording: RecordingConfig,
     #[serde(default)]
     pub favorites: pst_core::favorites::FavoritesConfig,
+    /// 登録 YP の一覧。サーバ側で `index.txt` を集約して
+    /// `GET /api/yp/all` で配信するために使う (pst-server が
+    /// 「YP 一覧表示」を担うため)。デスクトップ版 config の `[yp]` と
+    /// 同じスキーマ。
+    #[serde(default)]
+    pub yp: pst_core::config::schema::YpConfig,
 }
 
 /// 録画機能の設定。SD カード保護方針に従い既定 OFF。`enabled = true`
@@ -217,5 +223,23 @@ public_url = "https://pst.example.lan/"
         assert_eq!(cfg.peercast.host, "localhost");
         assert_eq!(cfg.peercast.port, 7144);
         assert_eq!(cfg.server.bind.port(), 8080);
+        assert!(cfg.yp.sources.is_empty());
+    }
+
+    #[test]
+    fn parses_yp_sources() {
+        let s = r#"
+[[yp.sources]]
+name = "SP"
+url = "http://example.com/index.txt"
+
+[[yp.sources]]
+name = "EP"
+url = "http://example.org/index.txt"
+"#;
+        let cfg: Config = toml::from_str(s).unwrap();
+        assert_eq!(cfg.yp.sources.len(), 2);
+        assert_eq!(cfg.yp.sources[0].name, "SP");
+        assert_eq!(cfg.yp.sources[1].url, "http://example.org/index.txt");
     }
 }

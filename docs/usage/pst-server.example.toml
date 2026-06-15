@@ -16,6 +16,16 @@ bind = "0.0.0.0:8080"
 # URL を作る用途。
 public_url = ""
 
+# 登録 YP の一覧。サーバ側で index.txt を集約し GET /api/yp/all で配信する
+# (pst-server が「YP 一覧表示」を担う)。複数記述可。上から順に表示され、
+# 重複 channel_id は上の YP を優先。
+# [[yp.sources]]
+# name = "SP"
+# url = "http://example.com/index.txt"
+# [[yp.sources]]
+# name = "EP"
+# url = "http://example.org/index.txt"
+
 # Raspberry Pi の SD カード寿命対策として、本サーバは既定で一切
 # ログを書き出さない (起動失敗等の致命的なメッセージのみ stderr)。
 # 不具合調査時のみ tmpfs 等を指定して有効化する。

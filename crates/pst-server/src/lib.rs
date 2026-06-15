@@ -55,8 +55,9 @@ pub fn build_router(state: AppState, web_dir: Option<PathBuf>) -> Router {
             "/api/channel/:id/stop",
             routing::post(handlers::channel_stop),
         )
-        // YP
+        // YP (?url= で単一 index、/all で設定の全ソースを集約)
         .route("/api/yp", routing::get(handlers::yp_index))
+        .route("/api/yp/all", routing::get(handlers::yp_all))
         // BBS
         .route("/api/board", routing::get(handlers::board_threads))
         .route("/api/thread", routing::get(handlers::thread_fetch))
