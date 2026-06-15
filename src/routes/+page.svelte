@@ -48,7 +48,7 @@
 	} from '$lib/api';
 	import { formatUptime, linkifySanitized, renderBodyHtml, renderIdHtml } from '$lib/format';
 	import { openSettings, openYpList } from '$lib/windows';
-	import { installShortcuts, setAlwaysOnTop, setDecorations } from '$lib/shortcuts';
+	import { closeWindow, installShortcuts, setAlwaysOnTop, setDecorations } from '$lib/shortcuts';
 	import { notify } from '$lib/notifications';
 	import { initTheme } from '$lib/theme';
 	import { restoreMainWindowGeometry, watchMainWindowGeometry } from '$lib/window-state';
@@ -445,6 +445,12 @@
 				},
 				bump: onBump,
 				stop: onStop,
+				// 切断してウィンドウを閉じる (PCRPlayer の Alt+X 相当)。未接続でも
+				// onStop は早期 return するだけなので、いずれにせよ閉じる。
+				disconnectAndClose: async () => {
+					await onStop();
+					await closeWindow();
+				},
 				pasteUrl: async () => {
 					try {
 						const text = await navigator.clipboard.readText();

@@ -11,6 +11,8 @@ export interface ShortcutActions {
 	toggleAlwaysOnTop: () => void;
 	bump: () => void;
 	stop: () => void;
+	/** 切断してウィンドウを閉じる (PCRPlayer の Alt+X 相当)。 */
+	disconnectAndClose: () => void;
 	pasteUrl: () => void;
 	openSettings: () => void;
 	openThreadList: () => void;
@@ -150,6 +152,12 @@ export const HOTKEY_DEFS: HotkeyDef[] = [
 	},
 	{ id: 'bump', label: '再接続 (Bump)', defaultBinding: 'F5', action: 'bump' },
 	{ id: 'stop', label: '切断 (Stop)', defaultBinding: 'Ctrl+F5', action: 'stop' },
+	{
+		id: 'disconnect_and_close',
+		label: '切断してウィンドウを閉じる',
+		defaultBinding: 'Alt+X',
+		action: 'disconnectAndClose',
+	},
 	{
 		id: 'paste_url',
 		label: 'クリップボードから URL',
@@ -338,4 +346,9 @@ export async function setAlwaysOnTop(on: boolean): Promise<void> {
 
 export async function setDecorations(on: boolean): Promise<void> {
 	await getCurrentWindow().setDecorations(on);
+}
+
+/** 現在のウィンドウを閉じる (Alt+X の「切断して閉じる」で使用)。 */
+export async function closeWindow(): Promise<void> {
+	await getCurrentWindow().close();
 }
