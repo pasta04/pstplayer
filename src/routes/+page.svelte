@@ -698,12 +698,11 @@
 		);
 	});
 
-	// レス数表示は `{posts.length}` を直接埋め込むと本番ビルドで更新され
-	// ない事象があった (実機 QA で確認: レスは描画されるのに count が 0 の
-	// まま)。`visiblePosts` / `currentThreadTitle` の $derived は正しく
-	// 追従しているので、count も $derived 経由で出して確実に reactive にする。
-	const postCount = $derived(posts.length);
-	const visibleCount = $derived(visiblePosts.length);
+	// レス数表示。$derived 経由 (postCount = $derived(posts.length)) にすると
+	// 本番ビルドで 0 のまま更新されない事象が再発した (実機 QA)。`visiblePosts`
+	// の {#each} は追従している = posts 自体は reactive なので、CLAUDE.md の
+	// 方針どおりテンプレートに `{posts.length}` / `{visiblePosts.length}` を
+	// 直接バインドする (間に $derived を挟まない)。
 
 	// 現在開いているスレッドのタイトル。スレッドバーに URL でなくこれを
 	// 出す。1) 取得済みレスのスレタイ (通常 1 レス目)、2) スレ一覧から
@@ -1115,7 +1114,9 @@
 
 	async function onStop() {
 		if (!endpoint || !channelId) return;
-		if (!confirm('チャンネルを切断します。よろしいですか?')) return;
+		// 確認ダイアログ (window.confirm) は出さない。mpv 子窓の裏に隠れて
+		// 操作不能 = ウィンドウがフリーズする原因になった (実機 QA)。切断は
+		// 非破壊的 (再接続可) なので確認なしで実行する。
 		try {
 			await stopChannel(endpoint, channelId);
 			await stopChannelPolling().catch(() => undefined);
@@ -1135,8 +1136,8 @@
 	async function onSubmit() {
 		if (!currentThreadUrl) return;
 		if (!writeBody.trim()) return;
-		const ok = confirm(`書き込みを送信します:\n\n${writeBody}\n\nよろしいですか?`);
-		if (!ok) return;
+		// 送信前の確認ダイアログ (window.confirm) は廃止。mpv 子窓の裏に隠れて
+		// フリーズの原因になるため。送信は Ctrl/Cmd+Enter の明示操作なのでそのまま送る。
 		writeSending = true;
 		try {
 			await postToThread(currentThreadUrl, { name: writeName, mail: writeMail, body: writeBody });
@@ -1721,7 +1722,7 @@
 						title="検索:本文-名前-ID-番号 / >>N or >>N-M でレス番号抽出 / id:xxx で同一 ID 抽出"
 					/>
 					{#if filter}
-						<span class="filter-stat">{visibleCount} / {postCount}</span>
+						<span class="filter-stat">{visiblePosts.length} / {posts.length}</span>
 						<button class="filter-clear" onclick={() => (filter = '')}>×</button>
 					{/if}
 				</div>
@@ -1790,7 +1791,7 @@
 				<span class="t-title-main" title={currentThreadUrl}>
 					{currentThreadTitle || '(無題)'}
 				</span>
-				<span class="t-count-main">({postCount})</span>
+				<span class="t-count-main">({posts.length})</span>
 				{#if threadDead}
 					<span
 						class="t-dead"
@@ -2210,8 +2211,8 @@
 			     依存に持たないので分けて直接バインドする (これで Svelte 5 で
 			     確実に reactive になる)。フィルタ中はそのカウントも併記。 -->
 			<span class="s-posts" title="現スレッドのレス件数 (フィルタ中は表示中 / 全件)">
-				📝 {#if visibleCount !== postCount}{visibleCount} /
-				{/if}{postCount}
+				📝 {#if visiblePosts.length !== posts.length}{visiblePosts.length} /
+				{/if}{posts.length}
 			</span>
 		{/if}
 		{#if reconnectStatus}
