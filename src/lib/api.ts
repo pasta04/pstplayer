@@ -252,6 +252,36 @@ export async function startViewerRecording(channelId: string): Promise<boolean> 
 	return call<boolean>('start_viewer_recording', { channelId });
 }
 
+/// pst-server (ハブ常駐サーバ) で録画中の 1 件。
+export interface ServerRecordingEntry {
+	channel_id: string;
+	channel_name: string;
+	path: string;
+}
+
+/// pst-server に「再生せず録画開始」を依頼する (視聴ウィンドウを開かない /
+/// 音を出さない)。pst-server が HTTP ストリームを直接ファイルへ保存する。
+export async function serverRecordStart(
+	serverUrl: string,
+	id: string,
+	name: string,
+): Promise<void> {
+	await call<unknown>('server_record_start', { serverUrl, id, name });
+}
+
+/// pst-server の録画を停止 (id 省略で全停止)。
+export async function serverRecordStop(serverUrl: string, id?: string): Promise<void> {
+	await call<unknown>('server_record_stop', { serverUrl, id: id ?? null });
+}
+
+/// pst-server で録画中のチャンネル一覧。
+export async function serverRecordList(serverUrl: string): Promise<ServerRecordingEntry[]> {
+	const v = await call<{ recordings: ServerRecordingEntry[] } | null>('server_record_list', {
+		serverUrl,
+	});
+	return v?.recordings ?? [];
+}
+
 // ── BBS ─────────────────────────────────────────────────────────────
 
 export type BoardKind = 'Shitaraba' | 'Ch2Compat';

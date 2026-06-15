@@ -308,6 +308,9 @@ pub fn run() {
             commands::player::recording_target_dir,
             commands::player::player_set_aspect,
             commands::player::player_set_auto_reconnect,
+            commands::server::server_record_start,
+            commands::server::server_record_stop,
+            commands::server::server_record_list,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

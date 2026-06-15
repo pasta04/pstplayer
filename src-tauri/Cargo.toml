@@ -21,6 +21,10 @@ tauri-plugin-opener = "2"
 tauri-plugin-notification = "2"
 serde.workspace = true
 serde_json.workspace = true
+# pst-server (ハブ常駐サーバ) の録画 API を Desktop から叩くため
+# (commands/server.rs)。webview は CSP で任意ホストへ fetch できないので
+# Rust 側から HTTP する。
+reqwest.workspace = true
 # バックエンドのチャンネル状態ポーラー (channel_polling.rs) で
 # tokio::spawn / interval / JoinHandle::abort を直接使うため。
 # pst-core 経由でも入っているが、本クレートのコードから直接参照する

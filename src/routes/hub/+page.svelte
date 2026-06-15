@@ -21,6 +21,9 @@
 		listRecordingViewers,
 		matchYpEntry,
 		peercastPing,
+		serverRecordList,
+		serverRecordStart,
+		serverRecordStop,
 		spawnViewer,
 		type FavoriteAction,
 		type FavoriteRule,
@@ -168,6 +171,9 @@
 	let newIds = $state<Set<string>>(new Set());
 	let watchingIds = $state<Set<string>>(new Set());
 	let recordingIds = $state<Set<string>>(new Set());
+	// pst-server に委譲した「録画のみ」の channel_id (視聴ウィンドウ無しで録画中)。
+	// 停止時に viewer IPC ではなく pst-server へ振り分けるのに使う。
+	let serverRecordingIds = $state<Set<string>>(new Set());
 	// 既に通知済みの新着 ID。重複通知防止 (同じセッションで何度も
 	// 「新着 X」を出さない)。長時間運用で肥大化しないよう、追加時に
 	// 1000 件で切る (FIFO に近い)。
@@ -232,14 +238,20 @@
 		try {
 			const ids = await listActiveViewers();
 			watchingIds = new Set(ids);
-			// 録画中チェック (各 viewer に IPC 投げる)。視聴中 0 件なら
-			// 録画中も 0 件なので呼び出し省略。
-			if (ids.length > 0) {
-				const recIds = await listRecordingViewers();
-				recordingIds = new Set(recIds);
-			} else {
-				recordingIds = new Set();
+			// 視聴ウィンドウ側の録画 (各 viewer に IPC)。視聴中 0 件なら省略。
+			const rec = new Set(ids.length > 0 ? await listRecordingViewers() : []);
+			// pst-server に委譲した「録画のみ」も録画中として併合表示する。
+			// pstServerUrl 未設定や pst-server 未起動は黙って無視 (次回再試行)。
+			if (pstServerUrl) {
+				try {
+					const server = await serverRecordList(pstServerUrl);
+					serverRecordingIds = new Set(server.map((r) => r.channel_id));
+					for (const id of serverRecordingIds) rec.add(id);
+				} catch {
+					serverRecordingIds = new Set();
+				}
 			}
+			recordingIds = rec;
 		} catch {
 			/* ignore: lock 読み取りエラーは無視して次回再試行 */
 		}
@@ -458,10 +470,35 @@
 	async function stopRecordingRow(e: YpEntry) {
 		closeMenu();
 		try {
-			await stopViewerRecording(e.id);
+			// pst-server 録画 (= 録画のみ) は pst-server へ、視聴ウィンドウ録画は
+			// 従来どおり viewer IPC へ振り分ける。
+			if (serverRecordingIds.has(e.id) && pstServerUrl) {
+				await serverRecordStop(pstServerUrl, e.id);
+			} else {
+				await stopViewerRecording(e.id);
+			}
 			setTimeout(() => {
 				void refreshWatching();
 			}, 400);
+		} catch (err) {
+			lastError = err instanceof Error ? err.message : String(err);
+		}
+	}
+
+	// 「録画のみ」= 視聴ウィンドウを開かず pst-server に録画させる (再生なし /
+	// 音なし)。録画は pst-server が HTTP ストリームを直接ファイルへ保存する。
+	async function recordOnlyRow(e: YpEntry) {
+		closeMenu();
+		if (!pstServerUrl) {
+			lastError =
+				'「録画のみ」には pst-server が必要です (設定 → ハブ → pst-server URL を設定し、pst-server を起動してください)。「視聴 + 録画」なら不要です。';
+			return;
+		}
+		try {
+			await serverRecordStart(pstServerUrl, e.id, e.name ?? '');
+			setTimeout(() => {
+				void refreshWatching();
+			}, 600);
 		} catch (err) {
 			lastError = err instanceof Error ? err.message : String(err);
 		}
@@ -984,8 +1021,9 @@
 		{:else}
 			<button onclick={() => watchRow(t)} class="primary">▶ 視聴 (別ウィンドウで開く)</button>
 			<button onclick={() => watchRow(t, true)}>⏺ 視聴 + 録画開始</button>
-			<button onclick={() => watchRow(t, true, true)} title="ウィンドウを表示せず録画だけ行う"
-				>⏺ 録画のみ</button
+			<button
+				onclick={() => recordOnlyRow(t)}
+				title="pst-server に録画させる (視聴ウィンドウを開かず、再生も音も無し)">⏺ 録画のみ</button
 			>
 		{/if}
 		<hr />
