@@ -26,8 +26,8 @@ pub type InputEmitter = Box<dyn Fn(&str, i32, i32, i32) + Send + Sync>;
 mod imp {
     use std::sync::{Mutex, OnceLock};
 
-    use windows::core::w;
-    use windows::Win32::Foundation::{BOOL, HWND, LPARAM, LRESULT, RECT, TRUE, WPARAM};
+    use windows::core::{w, BOOL};
+    use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
     use windows::Win32::UI::WindowsAndMessaging::{
@@ -110,7 +110,7 @@ mod imp {
     unsafe extern "system" fn enum_subclass_children(child: HWND, _lp: LPARAM) -> BOOL {
         // 同じ id で 2 回呼んでも SetWindowSubclass は冪等 (既存を置換)。
         let _ = SetWindowSubclass(child, Some(child_subclass_proc), SUBCLASS_ID, 0);
-        TRUE
+        BOOL(1)
     }
 
     const SUBCLASS_ID: usize = 0x70_73_74_70; // 'pstp'
