@@ -12,6 +12,7 @@ pub mod error;
 pub mod handlers;
 pub mod hls;
 pub mod recording;
+pub mod serve;
 pub mod state;
 
 use std::path::PathBuf;

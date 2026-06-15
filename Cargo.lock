@@ -3082,6 +3082,7 @@ dependencies = [
  "libmpv2",
  "libmpv2-sys",
  "pst-core",
+ "pst-server",
  "raw-window-handle",
  "reqwest 0.12.28",
  "serde",
