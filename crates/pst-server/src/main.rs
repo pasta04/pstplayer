@@ -3,8 +3,10 @@
 //! 使い方:
 //!
 //! ```bash
-//! pst-server                       # デフォルト config パスを使用
-//! pst-server --config ./foo.toml   # 明示パス
+//! pst-server                        # デフォルト config パスを使用
+//! pst-server --config ./foo.toml    # 明示パス
+//! pst-server --port 9000            # 待受ポートだけ上書き
+//! pst-server --bind 127.0.0.1:9000  # 待受アドレス全体を上書き
 //! ```
 //!
 //! 起動ロジックは [`pst_server::serve::run`] に集約してあり、デスクトップ版

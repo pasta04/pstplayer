@@ -5,6 +5,7 @@
 //! よう、起動処理を main から分離してここに集約する。これにより
 //! 「1 バイナリ 2 モード (アプリ / 常駐サーバ)」を実現する。
 
+use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use crate::config::{self, Config, ConfigError};
@@ -42,15 +43,19 @@ pub async fn run(args: Vec<String>) -> u8 {
     // スコープで保持する。
     let _log_guard = init_tracing(&cfg);
 
+    // 待受アドレスは config の [server] bind が基本。CLI で上書きできる:
+    //   --port <n>        … ポートだけ差し替え (host は config/既定のまま)
+    //   --bind <ip:port>  … 全体を差し替え (--port より優先)
+    let bind = resolve_bind(&args, cfg.server.bind);
+
     tracing::info!(
         "starting pst-server: bind={} upstream={}:{} config={}",
-        cfg.server.bind,
+        bind,
         cfg.peercast.host,
         cfg.peercast.port,
         cfg_path.display()
     );
 
-    let bind = cfg.server.bind;
     let state = AppState::new(cfg, cfg_path);
 
     // 自動配信録画タスク。recording.enabled + favorites.rules に
@@ -118,17 +123,42 @@ fn parse_config_arg(args: &[String]) -> Option<PathBuf> {
 }
 
 fn parse_flag(args: &[String], name: &str) -> Option<PathBuf> {
+    parse_value(args, name).map(PathBuf::from)
+}
+
+/// `--name value` または `--name=value` の値を取り出す汎用パーサ。
+fn parse_value(args: &[String], name: &str) -> Option<String> {
     let mut it = args.iter();
     let prefix = format!("{name}=");
     while let Some(arg) = it.next() {
         if arg == name {
-            return it.next().map(PathBuf::from);
+            return it.next().cloned();
         }
         if let Some(rest) = arg.strip_prefix(&prefix) {
-            return Some(PathBuf::from(rest));
+            return Some(rest.to_string());
         }
     }
     None
+}
+
+/// 待受アドレスを CLI 引数で上書きする。`--bind <ip:port>` は全体を、
+/// `--port <n>` はポートのみを差し替える (両方あれば `--bind` 優先)。
+/// 不正値は警告して `base` (config / 既定) を維持する。
+fn resolve_bind(args: &[String], base: SocketAddr) -> SocketAddr {
+    let mut bind = base;
+    if let Some(p) = parse_value(args, "--port") {
+        match p.parse::<u16>() {
+            Ok(port) => bind.set_port(port),
+            Err(_) => eprintln!("warning: --port の値が不正です: {p} (config/既定値を使用)"),
+        }
+    }
+    if let Some(b) = parse_value(args, "--bind") {
+        match b.parse::<SocketAddr>() {
+            Ok(addr) => bind = addr,
+            Err(_) => eprintln!("warning: --bind の値が不正です: {b} (例: 0.0.0.0:9000)"),
+        }
+    }
+    bind
 }
 
 /// 静的フロントのディレクトリを解決する。順序: CLI 引数 `--web` →
@@ -158,4 +188,61 @@ fn resolve_web_dir(args: &[String]) -> Option<PathBuf> {
         return Some(dev);
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_bind;
+    use std::net::SocketAddr;
+
+    fn base() -> SocketAddr {
+        "0.0.0.0:8080".parse().unwrap()
+    }
+
+    #[test]
+    fn bind_unchanged_without_flags() {
+        assert_eq!(resolve_bind(&[], base()), base());
+    }
+
+    #[test]
+    fn port_flag_overrides_port_only() {
+        let args = vec!["--port".to_string(), "9001".to_string()];
+        assert_eq!(resolve_bind(&args, base()).port(), 9001);
+        assert_eq!(resolve_bind(&args, base()).ip(), base().ip());
+    }
+
+    #[test]
+    fn bind_flag_overrides_whole_addr() {
+        let args = vec!["--bind".to_string(), "127.0.0.1:9123".to_string()];
+        assert_eq!(
+            resolve_bind(&args, base()),
+            "127.0.0.1:9123".parse().unwrap()
+        );
+    }
+
+    #[test]
+    fn bind_flag_wins_over_port() {
+        let args = vec![
+            "--port".to_string(),
+            "9001".to_string(),
+            "--bind".to_string(),
+            "127.0.0.1:9123".to_string(),
+        ];
+        assert_eq!(
+            resolve_bind(&args, base()),
+            "127.0.0.1:9123".parse().unwrap()
+        );
+    }
+
+    #[test]
+    fn invalid_values_keep_base() {
+        assert_eq!(
+            resolve_bind(&["--port".into(), "abc".into()], base()),
+            base()
+        );
+        assert_eq!(
+            resolve_bind(&["--bind".into(), "nope".into()], base()),
+            base()
+        );
+    }
 }
