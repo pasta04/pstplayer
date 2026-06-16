@@ -647,23 +647,43 @@
 
 	function openInBrowser(url: string) {
 		if (!url) return;
-		// tauri-plugin-opener: window.__TAURI__ etc. 経由 / 簡易には a タグ click
-		void import('@tauri-apps/plugin-opener').then((m) => m.openUrl(url)).catch(() => undefined);
+		if (isTauri()) {
+			// tauri-plugin-opener で OS の既定ブラウザに渡す。
+			void import('@tauri-apps/plugin-opener').then((m) => m.openUrl(url)).catch(() => undefined);
+		} else {
+			// ブラウザ: 別タブで開く。
+			window.open(url, '_blank', 'noopener');
+		}
 		closeMenu();
 	}
 
 	function openPstServer() {
 		// pst-server URL は config.toml の `pst_server_url` を使う (空なら
-		// localhost:8080)。同居運用が主な想定なので localhost が既定。
-		const url = (pstServerUrl || 'http://localhost:8080/').trim();
-		void import('@tauri-apps/plugin-opener').then((m) => m.openUrl(url)).catch(() => undefined);
+		// localhost:8080)。ブラウザでは pst-server 自身が同一オリジン。
+		const fallback = isTauri()
+			? 'http://localhost:8080/'
+			: typeof window !== 'undefined'
+				? window.location.origin
+				: 'http://localhost:8080/';
+		const url = (pstServerUrl || fallback).trim();
+		if (isTauri()) {
+			void import('@tauri-apps/plugin-opener').then((m) => m.openUrl(url)).catch(() => undefined);
+		} else {
+			window.open(url, '_blank', 'noopener');
+		}
 	}
 
 	let pstServerUrl = $state('');
 
 	async function openBbs(url: string) {
 		if (!url) return;
-		await openThreadList(url);
+		if (isTauri()) {
+			await openThreadList(url);
+		} else {
+			// ブラウザ: コンタクト URL (BBS) を別タブで開く。視聴ページ (/watch) にも
+			// BBS ペインがあるが、ここはハブからの「BBS を開く」操作の素直な対応。
+			window.open(url, '_blank', 'noopener');
+		}
 		closeMenu();
 	}
 
