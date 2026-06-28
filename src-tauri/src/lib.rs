@@ -3,6 +3,7 @@
 
 pub mod channel_polling;
 pub mod commands;
+pub mod embedded_server;
 pub mod player;
 
 use std::path::Path;
@@ -191,9 +192,15 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .setup(move |app| {
             let start_hidden = cli_args.hidden;
+            // ハブ起動 (URL 引数なし) のときだけ内蔵録画サーバを動かす
+            // (viewer は別プロセスなので起動させない)。
+            let is_hub = cli_args.url.is_none();
             app.handle().manage(cli_args);
             app.handle().manage(ChannelPolling::new());
             app.handle().manage(player::embed::VideoEmbed::new());
+            // 内蔵録画サーバの state は常に manage する (viewer プロセスや
+            // bind 失敗時は None のまま)。get_config / set_config が参照する。
+            app.handle().manage(embedded_server::EmbeddedServerState::default());
             // 動画ウィンドウのマウス操作 (mpv 描画窓が食う右クリック/ホイール/
             // クリック/ダブルクリック) を embed の WNDPROC/サブクラスから受けて
             // `player:*` イベントとしてフロントへ転送する。
@@ -239,6 +246,12 @@ pub fn run() {
                 if let Some(win) = app.get_webview_window("main") {
                     let _ = win.hide();
                 }
+            }
+            // ゼロ設定バックグラウンド録画: ハブ起動時に内蔵録画サーバを
+            // 立ち上げる (外部 pst-server 設定時は内部で skip)。録画は HTTP で
+            // 配信を受信しファイル保存するだけで、ウィンドウも再生も無い。
+            if is_hub {
+                embedded_server::start_if_enabled(app.handle().clone());
             }
             Ok(())
         })

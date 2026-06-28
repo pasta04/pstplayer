@@ -7,6 +7,10 @@
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::Arc;
+
+use tokio::sync::RwLock;
+use tokio::task::JoinHandle;
 
 use crate::config::{self, Config, ConfigError};
 use crate::state::AppState;
@@ -56,18 +60,14 @@ pub async fn run(args: Vec<String>) -> u8 {
         cfg_path.display()
     );
 
-    let state = AppState::new(cfg, cfg_path);
-
-    // 自動配信録画タスク。recording.enabled + favorites.rules に
-    // auto_record=true のルールがあれば polling して録画開始する。
-    // task 内で都度設定を読み直すので、ここで条件分岐はしない。
-    crate::auto_record::spawn(state.clone());
-
     // 静的フロントの場所: ① CLI 引数 `--web <dir>` ② 環境変数
     // `PST_SERVER_WEB_DIR` ③ exe 隣の `web/` ④ ソースツリーの
     // `crates/pst-server/web/` (開発時)。
     let web_dir = resolve_web_dir(&args);
-    let app = crate::build_router(state, web_dir);
+
+    // AppState + 自動録画タスク + router を共通ロジックで組み立てる
+    // (auto_record は task 内で都度設定を読み直すので条件分岐はしない)。
+    let (_state, app, _auto) = build(cfg, web_dir, cfg_path);
 
     let listener = match tokio::net::TcpListener::bind(bind).await {
         Ok(l) => l,
@@ -82,6 +82,75 @@ pub async fn run(args: Vec<String>) -> u8 {
         return 4;
     }
     0
+}
+
+/// AppState + Router を組み立て、自動録画タスクを起動する共通部分。
+/// `run()` (CLI ブロッキング) と `spawn_embedded()` (in-process) で共有し、
+/// bind/serve/auto_record のロジックを重複させない。返り値の AppState は
+/// `cfg` (Arc<RwLock>) のホットスワップに使える。
+fn build(
+    cfg: Config,
+    web_dir: Option<PathBuf>,
+    config_path: PathBuf,
+) -> (AppState, axum::Router, JoinHandle<()>) {
+    let state = AppState::new(cfg, config_path);
+    let auto_handle = crate::auto_record::spawn(state.clone());
+    let app = crate::build_router(state.clone(), web_dir);
+    (state, app, auto_handle)
+}
+
+/// in-process 埋め込みサーバのハンドル。デスクトップアプリが録画サーバを
+/// 自前プロセス内でバックグラウンド起動するために使う。
+pub struct EmbeddedServer {
+    pub addr: SocketAddr,
+    cfg: Arc<RwLock<Config>>,
+    serve_handle: JoinHandle<()>,
+    auto_handle: JoinHandle<()>,
+}
+
+impl EmbeddedServer {
+    /// `http://<addr>/` 形式のベース URL (ハブの pst_server_url に注入する)。
+    pub fn base_url(&self) -> String {
+        format!("http://{}/", self.addr)
+    }
+
+    /// 設定の Arc ハンドルを clone して返す。ホットスワップは
+    /// `*handle.write().await = new_cfg` で行う (呼び出し側が std Mutex を
+    /// await 跨ぎで保持しないで済むよう、メソッドではなくハンドルを渡す)。
+    /// これで稼働中サーバの設定 (お気に入り / YP / 録画先 / peercast) を
+    /// 次の polling・録画から反映できる。
+    pub fn config_handle(&self) -> Arc<RwLock<Config>> {
+        self.cfg.clone()
+    }
+
+    /// serve / auto_record タスクを停止する。
+    pub fn shutdown(&self) {
+        self.serve_handle.abort();
+        self.auto_handle.abort();
+    }
+}
+
+/// axum サーバをバックグラウンド (tokio task) で起動し、ブロックせずに
+/// ハンドルを返す。`cfg.server.bind` に bind し、実際の `local_addr()` を
+/// `addr` に入れる (port=0 の OS 割当にも対応)。
+pub async fn spawn_embedded(
+    cfg: Config,
+    web_dir: Option<PathBuf>,
+    config_path: PathBuf,
+) -> std::io::Result<EmbeddedServer> {
+    let bind = cfg.server.bind;
+    let (state, app, auto_handle) = build(cfg, web_dir, config_path);
+    let listener = tokio::net::TcpListener::bind(bind).await?;
+    let addr = listener.local_addr()?;
+    let serve_handle = tokio::spawn(async move {
+        let _ = axum::serve(listener, app).await;
+    });
+    Ok(EmbeddedServer {
+        addr,
+        cfg: state.cfg.clone(),
+        serve_handle,
+        auto_handle,
+    })
 }
 
 /// `[log] debug = true` && `dir` 指定時のみ tracing を有効化する。

@@ -30,11 +30,13 @@ use crate::state::AppState;
 const DEFAULT_POLL_INTERVAL_SEC: u64 = 60;
 const DEFAULT_STOP_GRACE_SEC: u64 = 30;
 
-/// `pst-server` 起動時に 1 度だけ呼ぶ。tokio task を生やして即返る。
-pub fn spawn(state: AppState) {
+/// `pst-server` 起動時に 1 度だけ呼ぶ。tokio task を生やして JoinHandle を
+/// 返す (in-process 埋め込み時に host から abort できるように)。返り値を
+/// 無視すれば従来どおり detach されてタスクは生き続ける。
+pub fn spawn(state: AppState) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         run(state).await;
-    });
+    })
 }
 
 async fn run(state: AppState) {
