@@ -68,8 +68,11 @@ async function reopenWithUrl(
 export async function openSettings(): Promise<void> {
 	await openOrFocus('settings', '/settings', {
 		title: 'PSTPlayer · 設定',
-		width: 560,
-		height: 540,
+		// タブ (一般 / PeerCast / YP / BBS / プレイヤー / お気に入り /
+		// ショートカット / 履歴) が 1 行に収まる初期幅にする。560 では
+		// 折り返して窮屈だったため広げた (resizable なので後から変更可)。
+		width: 900,
+		height: 660,
 	});
 }
 
