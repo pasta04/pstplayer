@@ -18,7 +18,13 @@
 		type YpSource,
 	} from '$lib/api';
 	import { applyTheme, getTheme, setTheme, type Theme } from '$lib/theme';
-	import { HOTKEY_DEFS, bindingFromEvent, detectConflicts, type HotkeyDef } from '$lib/shortcuts';
+	import {
+		HOTKEY_DEFS,
+		bindingFromEvent,
+		closeWindow,
+		detectConflicts,
+		type HotkeyDef,
+	} from '$lib/shortcuts';
 
 	let cfg = $state<Config | null>(null);
 	let tab = $state<
@@ -166,7 +172,13 @@
 				cfg = await getConfig();
 			}
 			await emit('config:saved');
-			message = '保存しました。';
+			// 保存に成功したら設定ウィンドウを閉じる (実機 QA 要望)。閉じられ
+			// ない環境では従来どおり成功メッセージにフォールバックする。
+			try {
+				await closeWindow();
+			} catch {
+				message = '保存しました。';
+			}
 		} catch (e) {
 			message = errMsg(e);
 		} finally {
