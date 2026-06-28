@@ -228,6 +228,16 @@ jobs:
         shell: pwsh
         run: npm run tauri build -- --no-bundle
 
+      # スタンドアロンの録画サーバ (常駐録画 / LAN・モバイルからのブラウザ
+      # 視聴用)。録画機能は pstplayer.exe にも内蔵されているが、アプリを閉じても
+      # 録画を続けたい / ヘッドレス運用したい場合はこの単体 exe を使う。
+      # tauri build は pstplayer パッケージしか作らない (pst-server は lib 依存)
+      # ので明示ビルドする。pst-server は libmpv 非依存なので DLL は不要。
+      - name: Build pst-server.exe (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: cargo build --release -p pst-server
+
       - name: Stage Windows portable bundle
         if: runner.os == 'Windows'
         shell: pwsh
@@ -235,6 +245,11 @@ jobs:
           $out = "$env:GITHUB_WORKSPACE\portable-windows"
           New-Item -ItemType Directory -Force -Path $out | Out-Null
           Copy-Item "target\release\pstplayer.exe" $out -Force
+          Copy-Item "target\release\pst-server.exe" $out -Force
+          # スタンドアロン pst-server がブラウザ UI (YP 一覧 → 視聴/録画) も配信
+          # できるよう、SPA ビルドを web/ として同梱する。pst-server.exe は exe
+          # 隣の web/ を自動検出するので、--web 指定なしでブラウザ視聴が使える。
+          Copy-Item -Recurse -Force "build" "$out\web"
           Copy-Item "$env:MPV_SOURCE\64\libmpv-2.dll" $out -Force
           Copy-Item "src-tauri\distrib\windows-portable-readme.txt" "$out\README.txt" -Force
           Get-ChildItem $out | Format-List Name, Length
