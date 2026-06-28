@@ -694,6 +694,15 @@
 		await emit('settings:add-favorite', { channelName });
 	}
 
+	// 既存のお気に入りルールに、このチャンネル名を `既存|チャンネル名` の形で
+	// 追記する (お気に入りマッチは `|` 区切りで OR)。設定のお気に入りタブへ
+	// 遷移し、保存ボタンで確定する。
+	async function appendToFavorite(rule: FavoriteRule, index: number, channelName: string) {
+		closeMenu();
+		await openSettings();
+		await emit('settings:append-favorite', { index, name: rule.name, channelName });
+	}
+
 	function plsUrlFor(e: YpEntry, host: string, port: number) {
 		return `http://${host}:${port}/pls/${e.id}`;
 	}
@@ -1072,7 +1081,16 @@
 			>🌐 コンタクト URL をブラウザで開く</button
 		>
 		<hr />
-		<button onclick={() => addToFavorite(t.name)}>★ お気に入りルールに追加…</button>
+		<div class="submenu-label">★ お気に入りに追加</div>
+		{#each favorites as rule, i (i)}
+			<button
+				class="indent"
+				onclick={() => appendToFavorite(rule, i, t.name)}
+				title={`「${rule.channel_name}」に「${t.name}」を追記`}
+				>{rule.name || '(無名ルール)'}</button
+			>
+		{/each}
+		<button class="indent" onclick={() => addToFavorite(t.name)}>＋ 新規ルールとして追加…</button>
 		<hr />
 		<div class="submenu-label">📋 コピー</div>
 		<button class="indent" onclick={() => copy(t.name)}>チャンネル名</button>
@@ -1425,6 +1443,9 @@
 		border: 1px solid #777;
 		border-radius: 3px;
 		min-width: 240px;
+		/* お気に入りが多いとメニューが長くなるのでスクロール可能にする。 */
+		max-height: 80vh;
+		overflow-y: auto;
 		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 		padding: 4px 0;
 		z-index: 1000;

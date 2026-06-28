@@ -95,6 +95,7 @@
 	let recordingPreview = $state<string>('');
 
 	let addFavoriteUnlisten: UnlistenFn | null = null;
+	let appendFavoriteUnlisten: UnlistenFn | null = null;
 
 	onMount(async () => {
 		applyTheme(getTheme()); // settings window also reflects the chosen theme
@@ -120,10 +121,43 @@
 			tab = 'favorites';
 			message = `「${rule.name}」を新しいお気に入りルールとして追加しました (保存ボタンで確定)`;
 		});
+
+		// ハブ側「お気に入りに追加 → 既存ルール」からの追記。対象ルールの
+		// channel_name 末尾に `|チャンネル名` を足し、お気に入りタブへ切替える。
+		appendFavoriteUnlisten = await listen<{ index: number; name: string; channelName: string }>(
+			'settings:append-favorite',
+			(ev) => {
+				const p = ev.payload;
+				if (!cfg || !p?.channelName) return;
+				const rules = ensureFavorites();
+				// index を優先し、ズレていれば name で照合 (どちらも同じ config 由来)。
+				let rule: FavoriteRule | undefined = rules[p.index];
+				if (!rule || (p.name && rule.name !== p.name)) {
+					rule = rules.find((r) => r.name === p.name);
+				}
+				if (rule) {
+					rule.channel_name = rule.channel_name
+						? `${rule.channel_name}|${p.channelName}`
+						: p.channelName;
+					message = `「${rule.name || '(無名)'}」のチャンネル名に「${p.channelName}」を追加しました (保存ボタンで確定)`;
+				} else {
+					// 対象が見つからない場合は新規ルールとしてフォールバック。
+					const r = emptyRule();
+					r.name = p.channelName;
+					r.channel_name = p.channelName;
+					rules.push(r);
+					message =
+						'対象ルールが見つからなかったため新規ルールとして追加しました (保存ボタンで確定)';
+				}
+				cfg = { ...cfg };
+				tab = 'favorites';
+			},
+		);
 	});
 
 	onDestroy(() => {
 		addFavoriteUnlisten?.();
+		appendFavoriteUnlisten?.();
 	});
 
 	async function refreshSnapshotPreview() {
