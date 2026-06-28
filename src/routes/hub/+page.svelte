@@ -8,6 +8,7 @@
 
 	import { onDestroy, onMount } from 'svelte';
 	import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event';
+	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import {
 		CommandError,
 		closeAllViewers,
@@ -208,6 +209,9 @@
 	let menuTarget = $state<YpEntry | null>(null);
 
 	let configSavedUnlisten: UnlistenFn | null = null;
+	let closeUnlisten: UnlistenFn | null = null;
+	// 閉じる確定後の destroy() で onCloseRequested が再入しないようにするフラグ。
+	let closing = false;
 
 	onMount(() => {
 		void refresh();
@@ -219,6 +223,38 @@
 		}).then((u) => {
 			configSavedUnlisten = u;
 		});
+		// 録画中にメインウィンドウを閉じようとしたら確認する (実機 QA 要望)。
+		// 録画は内蔵 / 外部 pst-server で進行するので、停止してファイルを正しく
+		// クローズしてから終了する。ブラウザ (非 Tauri) では無効。
+		if (isTauri()) {
+			void getCurrentWindow()
+				.onCloseRequested(async (event) => {
+					if (closing) return;
+					event.preventDefault(); // まず必ず止めてから判定する
+					let recording = recordingIds.size > 0;
+					if (pstServerUrl) {
+						try {
+							recording = (await serverRecordList(pstServerUrl)).length > 0;
+						} catch {
+							/* 取得不可なら recordingIds の値で判断する */
+						}
+					}
+					if (recording) {
+						const ok = confirm('録画中です。閉じると録画を停止します。閉じますか?');
+						if (!ok) return; // 閉じない
+						try {
+							if (pstServerUrl) await serverRecordStop(pstServerUrl);
+						} catch {
+							/* 停止に失敗しても終了は続行する */
+						}
+					}
+					closing = true;
+					await getCurrentWindow().destroy();
+				})
+				.then((u) => {
+					closeUnlisten = u;
+				});
+		}
 		return () => {
 			if (refreshTimer) clearInterval(refreshTimer);
 			if (watchingTimer) clearInterval(watchingTimer);
@@ -227,6 +263,7 @@
 
 	onDestroy(() => {
 		configSavedUnlisten?.();
+		closeUnlisten?.();
 	});
 
 	async function refreshWatching() {
