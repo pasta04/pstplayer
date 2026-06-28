@@ -400,6 +400,15 @@
 				<p class="hint">設定ファイル (TOML):</p>
 				<code class="path">{configPath}</code>
 				<p class="hint small">直接編集も可能です。</p>
+				{#if cfg.window}
+					<label>
+						<input type="checkbox" bind:checked={cfg.window.minimize_to_tray} />
+						最小化時にタスクトレイへ格納する (既定: タスクバー)
+					</label>
+					<p class="hint small muted">
+						変更は次回起動から反映されます。タスクトレイのアイコンから復帰できます。
+					</p>
+				{/if}
 			{:else if tab === 'peercast'}
 				<label>
 					ホスト

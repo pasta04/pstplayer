@@ -154,6 +154,52 @@ fn start_focus_listener<R: Runtime>(mut handle: LockHandle, app: AppHandle<R>) -
     handle
 }
 
+/// メインウィンドウを復帰させる (トレイアイコン / トレイメニューから)。
+fn show_main<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
+
+/// 最小化トレイ用のトレイアイコンを生成する。左クリック / メニュー「表示」で
+/// 復帰、メニュー「終了」でアプリ終了。`window.minimize_to_tray` が ON の
+/// ハブ起動時のみ呼ぶ (フロントの最小化→hide と起動時の同じ値に従わせて
+/// 「トレイ無しでウィンドウが消える」事故を避ける)。
+fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
+    use tauri::menu::{MenuBuilder, MenuItemBuilder};
+    use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+
+    let Some(icon) = app.default_window_icon().cloned() else {
+        return Ok(()); // アイコンが無ければトレイは出さない
+    };
+    let show = MenuItemBuilder::with_id("tray_show", "表示").build(app)?;
+    let quit = MenuItemBuilder::with_id("tray_quit", "終了").build(app)?;
+    let menu = MenuBuilder::new(app).items(&[&show, &quit]).build()?;
+    TrayIconBuilder::with_id("main-tray")
+        .icon(icon)
+        .tooltip("PSTPlayer")
+        .menu(&menu)
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "tray_show" => show_main(app),
+            "tray_quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                show_main(tray.app_handle());
+            }
+        })
+        .build(app)?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Windows: WebView2 (Chromium) は前面に居ないウィンドウのタイマー /
@@ -252,6 +298,15 @@ pub fn run() {
             // 配信を受信しファイル保存するだけで、ウィンドウも再生も無い。
             if is_hub {
                 embedded_server::start_if_enabled(app.handle().clone());
+                // 最小化トレイ設定が ON のときだけ復帰用トレイを生成する
+                // (起動時固定。変更は次回起動から反映)。
+                let tray_on =
+                    pst_core::config::load().map(|c| c.window.minimize_to_tray).unwrap_or(false);
+                if tray_on {
+                    if let Err(e) = setup_tray(app) {
+                        eprintln!("tray setup failed: {e}");
+                    }
+                }
             }
             Ok(())
         })

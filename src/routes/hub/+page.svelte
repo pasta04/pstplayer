@@ -210,8 +210,12 @@
 
 	let configSavedUnlisten: UnlistenFn | null = null;
 	let closeUnlisten: UnlistenFn | null = null;
+	let resizeUnlisten: UnlistenFn | null = null;
 	// 閉じる確定後の destroy() で onCloseRequested が再入しないようにするフラグ。
 	let closing = false;
+	// 最小化トレイ設定 (起動時に config から固定。lib.rs のトレイ生成も起動時
+	// 固定なので、トレイ無しでウィンドウが隠れる事故を避けられる)。
+	let minimizeToTray = false;
 
 	onMount(() => {
 		void refresh();
@@ -227,7 +231,8 @@
 		// 録画は内蔵 / 外部 pst-server で進行するので、停止してファイルを正しく
 		// クローズしてから終了する。ブラウザ (非 Tauri) では無効。
 		if (isTauri()) {
-			void getCurrentWindow()
+			const win = getCurrentWindow();
+			void win
 				.onCloseRequested(async (event) => {
 					if (closing) return;
 					event.preventDefault(); // まず必ず止めてから判定する
@@ -249,10 +254,29 @@
 						}
 					}
 					closing = true;
-					await getCurrentWindow().destroy();
+					await win.destroy();
 				})
 				.then((u) => {
 					closeUnlisten = u;
+				});
+			// 最小化トレイ: 設定 ON のとき最小化でウィンドウを隠す (トレイのみ)。
+			// 値は起動時に固定する (lib.rs のトレイ生成も起動時固定)。
+			void getConfig()
+				.then((cfg) => {
+					minimizeToTray = cfg?.window?.minimize_to_tray ?? false;
+				})
+				.catch(() => undefined);
+			void win
+				.onResized(async () => {
+					if (!minimizeToTray) return;
+					try {
+						if (await win.isMinimized()) await win.hide();
+					} catch {
+						/* ignore */
+					}
+				})
+				.then((u) => {
+					resizeUnlisten = u;
 				});
 		}
 		return () => {
@@ -264,6 +288,7 @@
 	onDestroy(() => {
 		configSavedUnlisten?.();
 		closeUnlisten?.();
+		resizeUnlisten?.();
 	});
 
 	async function refreshWatching() {

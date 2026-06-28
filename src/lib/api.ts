@@ -527,6 +527,8 @@ export interface WindowCfg {
 	bbs_pane_ratio: number | null;
 	bbs_pane_position: string | null;
 	always_on_top: boolean;
+	/// 最小化時にタスクトレイへ格納する (既定 false=タスクバー)。次回起動から反映。
+	minimize_to_tray: boolean;
 }
 
 export type FavoriteAction = 'show' | 'ignore' | 'block';

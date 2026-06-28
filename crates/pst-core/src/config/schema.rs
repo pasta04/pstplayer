@@ -339,6 +339,11 @@ pub struct WindowConfig {
     pub bbs_pane_ratio: Option<f32>,
     pub bbs_pane_position: Option<String>,
     pub always_on_top: bool,
+    /// true なら最小化時にウィンドウをタスクトレイへ格納する (タスクバーからも
+    /// 消す)。既定 false = 通常のタスクバー最小化。トレイアイコンから復帰する。
+    /// 変更は次回起動から反映 (トレイ生成が起動時のため)。
+    #[serde(default)]
+    pub minimize_to_tray: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
