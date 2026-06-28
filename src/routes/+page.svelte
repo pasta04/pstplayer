@@ -443,7 +443,15 @@
 				// 切断してウィンドウを閉じる (PCRPlayer の Alt+X 相当)。未接続でも
 				// onStop は早期 return するだけなので、いずれにせよ閉じる。
 				disconnectAndClose: async () => {
-					await onStop();
+					// 先に player を止めて自動再接続を抑止 (engine.stop → user_stop)。
+					await playerStop().catch(() => undefined);
+					// サーバへの切断要求は best-effort (遅延/失敗しても close を
+					// ブロックしない)。確実に閉じることを優先する。
+					if (endpoint && channelId) {
+						void stopChannel(endpoint, channelId).catch(() => undefined);
+					}
+					void stopChannelPolling().catch(() => undefined);
+					streamUrl = null;
 					await closeWindow();
 				},
 				pasteUrl: async () => {
@@ -1084,9 +1092,12 @@
 		// 操作不能 = ウィンドウがフリーズする原因になった (実機 QA)。切断は
 		// 非破壊的 (再接続可) なので確認なしで実行する。
 		try {
+			// 先に player を止める (engine.stop → user_stop=true)。stopChannel で
+			// 配信が止まり libmpv が EOF を出しても、user_stop が立っているので
+			// auto_reconnect が発火しない (逆順だと切断時に再接続してしまう)。
+			await playerStop().catch((e) => console.warn('player_stop failed', e));
 			await stopChannel(endpoint, channelId);
 			await stopChannelPolling().catch(() => undefined);
-			await playerStop().catch((e) => console.warn('player_stop failed', e));
 			streamUrl = null;
 		} catch (e) {
 			lastError = errorMessage(e);

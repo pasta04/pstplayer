@@ -317,7 +317,11 @@ pub fn run() {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
                 if window.label() == "main" {
                     if let Some(engine) = window.app_handle().try_state::<PlayerEngine>() {
+                        // 録画をファイナライズしつつ、保留中の自動再接続も止めてから
+                        // 閉じる (user_stop / generation で reconnect ワーカーを
+                        // キャンセルし、閉じ際の再接続の残り火を防ぐ)。
                         let _ = engine.stop_record();
+                        let _ = engine.stop();
                     }
                 }
             }
