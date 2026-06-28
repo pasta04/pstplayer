@@ -165,6 +165,8 @@
 	// In-thread filter (Ctrl+F to focus, empty string = show all)
 	let filter = $state('');
 	let filterInput: HTMLInputElement | null = $state(null);
+	// 書き込み欄 (textarea) の ref。送信後にフォーカスを書き込み欄へ戻すため。
+	let writeTextarea: HTMLTextAreaElement | null = $state(null);
 
 	// Display mode (plain text vs HTML rendering). Sourced from config
 	// on mount and cached. Defaults to plain.
@@ -1113,6 +1115,11 @@
 		} finally {
 			writeSending = false;
 		}
+		// 投稿中は textarea が disabled になりフォーカスが .posts に移るので、
+		// 再有効化 (writeSending=false) を tick で反映してから書き込み欄へ
+		// フォーカスを戻す。失敗時も入力内容が残るので書き込み欄に留まると自然。
+		await tick();
+		writeTextarea?.focus();
 	}
 
 	// 動画領域をクリックしたらウィンドウを前面化 + フォーカスする (#15)。
@@ -1820,6 +1827,7 @@
 	<!-- Write box (黒) -->
 	<div class="write-box">
 		<textarea
+			bind:this={writeTextarea}
 			placeholder={currentThreadUrl
 				? `ここに書き込む  (${submitKey === 'shift_enter' ? 'Shift' : 'Ctrl/Cmd'}+Enter で送信)`
 				: '書き込み欄'}
