@@ -697,11 +697,13 @@
 		);
 	});
 
-	// レス数表示。$derived 経由 (postCount = $derived(posts.length)) にすると
-	// 本番ビルドで 0 のまま更新されない事象が再発した (実機 QA)。`visiblePosts`
-	// の {#each} は追従している = posts 自体は reactive なので、CLAUDE.md の
-	// 方針どおりテンプレートに `{posts.length}` / `{visiblePosts.length}` を
-	// 直接バインドする (間に $derived を挟まない)。
+	// レス数表示。`.length` の直読み ({posts.length} や $derived(posts.length))
+	// は本番ビルドで 0 のまま更新されない事象が実機で再発した (スレ一覧では正しい
+	// 件数なのに視聴画面が 0)。一方 {#each visiblePosts} は確実に追従する = 配列の
+	// iterate は本番でも反応する。そこで $derived の中で {#each} と同じく iterate
+	// (spread) してから長さを取る。依存が `.length` 直読みでなく iterate ベースに
+	// なるので本番でも追従し、$derived は同期評価なので描画とズレない。
+	const postCount = $derived([...posts].length);
 
 	// 現在開いているスレッドのタイトル。スレッドバーに URL でなくこれを
 	// 出す。1) 取得済みレスのスレタイ (通常 1 レス目)、2) スレ一覧から
@@ -1726,7 +1728,7 @@
 						title="検索:本文-名前-ID-番号 / >>N or >>N-M でレス番号抽出 / id:xxx で同一 ID 抽出"
 					/>
 					{#if filter}
-						<span class="filter-stat">{visiblePosts.length} / {posts.length}</span>
+						<span class="filter-stat">{visiblePosts.length} / {postCount}</span>
 						<button class="filter-clear" onclick={() => (filter = '')}>×</button>
 					{/if}
 				</div>
@@ -1795,7 +1797,7 @@
 				<span class="t-title-main" title={currentThreadUrl}>
 					{currentThreadTitle || '(無題)'}
 				</span>
-				<span class="t-count-main">({posts.length})</span>
+				<span class="t-count-main">({postCount})</span>
 				{#if threadDead}
 					<span
 						class="t-dead"
@@ -2203,12 +2205,12 @@
 			<span class="muted">未接続</span>
 		{/if}
 		{#if currentThreadUrl}
-			<!-- スレッド表示中のレス件数。`statusLine` $derived は posts を
-			     依存に持たないので分けて直接バインドする (これで Svelte 5 で
-			     確実に reactive になる)。フィルタ中はそのカウントも併記。 -->
+			<!-- スレッド表示中のレス件数。`.length` 直読みは本番で追従しない
+			     ため iterate ベースの postCount を使う (上の $effect を参照)。
+			     フィルタ中は表示中件数も併記。 -->
 			<span class="s-posts" title="現スレッドのレス件数 (フィルタ中は表示中 / 全件)">
-				📝 {#if visiblePosts.length !== posts.length}{visiblePosts.length} /
-				{/if}{posts.length}
+				📝 {#if visiblePosts.length !== postCount}{visiblePosts.length} /
+				{/if}{postCount}
 			</span>
 		{/if}
 		{#if reconnectStatus}
