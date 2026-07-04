@@ -170,14 +170,17 @@ impl RecordingState {
             });
         }
 
-        let mut upstream =
-            format!("http://{peercast_host}:{peercast_port}/stream/{channel_id}.{ext}");
-        // 未リレーのチャンネルは tip (配信元ヒント) が無いと PeerCast が
-        // ソースを見つけられず接続に失敗する。視聴の pls と同様に付ける
-        // (「録画のみ」は viewer が先にチャンネルを載せてくれないため必須)。
-        if let Some(t) = tip.as_deref().filter(|t| !t.trim().is_empty()) {
-            upstream.push_str(&format!("?tip={t}"));
-        }
+        // 視聴 (viewer) と同じ経路でストリーム URL を得る: まず
+        // `/pls/{id}?tip=` を取得し、プレイリストが指すストリーム URL に
+        // 接続する。`/stream/{id}.{ext}?tip=` の直叩きは PeerCast 実装に
+        // よっては チャンネル join が始まらず無応答のままブロックする
+        // (実機 QA: 録画のみ が recordings/ に何も書かずハングした)。
+        let pls_url = pst_core::peercast::url::build_pls_url(
+            &peercast_host,
+            peercast_port,
+            &channel_id,
+            tip.as_deref(),
+        );
         let path_for_task = path.clone();
         let stop_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let stop_flag_task = stop_flag.clone();
@@ -186,7 +189,7 @@ impl RecordingState {
         let flag_for_cleanup = stop_flag.clone();
         let handle = tokio::spawn(async move {
             if let Err(e) = run_recording(
-                upstream,
+                pls_url,
                 path_for_task,
                 auth_user,
                 auth_pass,
@@ -273,22 +276,31 @@ impl RecordingState {
 /// の writer buffer が確実に flush され、途中切断によるファイル末尾
 /// 欠損を最小化する。
 async fn run_recording(
-    upstream: String,
+    pls_url: String,
     path: PathBuf,
     auth_user: Option<String>,
     auth_pass: Option<String>,
     stop_flag: Arc<std::sync::atomic::AtomicBool>,
 ) -> Result<(), String> {
+    // プレイリスト経由でストリーム URL を解決する (視聴と同じ join 経路)。
+    let upstream = pst_core::peercast::client::resolve_stream_url(&pls_url)
+        .await
+        .map_err(|e| format!("resolve stream url: {e}"))?;
     // 録画は何時間でも続く可能性があるため total timeout の無い
     // STREAM_CLIENT を使う (CLIENT の 5 秒 total timeout を使うと
-    // 録画が必ず 5 秒で切断される)。
+    // 録画が必ず 5 秒で切断される)。接続 (ヘッダ受信) までは
+    // タイムアウトを張り、チャンネルに繋がらないまま「録画中」で
+    // ハングし続けるのを防ぐ。
     let mut req = STREAM_CLIENT.get(&upstream);
     if let (Some(u), Some(p)) = (auth_user.as_deref(), auth_pass.as_deref()) {
         if !u.is_empty() {
             req = req.basic_auth(u, Some(p));
         }
     }
-    let resp = req.send().await.map_err(|e| e.to_string())?;
+    let resp = tokio::time::timeout(std::time::Duration::from_secs(45), req.send())
+        .await
+        .map_err(|_| "upstream connect timed out (45s)".to_string())?
+        .map_err(|e| e.to_string())?;
     if !resp.status().is_success() {
         return Err(format!("upstream returned {}", resp.status()));
     }
