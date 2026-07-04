@@ -1278,17 +1278,21 @@
 		<button onclick={() => openInBrowser(t.contact_url)} disabled={!t.contact_url}
 			>🌐 コンタクト URL をブラウザで開く</button
 		>
-		<hr />
-		<div class="submenu-label">★ お気に入りに追加</div>
-		{#each favorites as rule, i (i)}
-			<button
-				class="indent"
-				onclick={() => appendToFavorite(rule, i, t.name)}
-				title={`「${rule.pattern || rule.channel_name}」に「${t.name}」を追記`}
-				>{rule.name || '(無名ルール)'}</button
-			>
-		{/each}
-		<button class="indent" onclick={() => addToFavorite(t.name)}>＋ 新規ルールとして追加…</button>
+		{#if isTauri()}
+			<!-- お気に入り編集は設定ウィンドウ (Tauri 専用) が担うため、
+			     ブラウザのハブではセクションごと出さない。 -->
+			<hr />
+			<div class="submenu-label">★ お気に入りに追加</div>
+			{#each favorites as rule, i (i)}
+				<button
+					class="indent"
+					onclick={() => appendToFavorite(rule, i, t.name)}
+					title={`「${rule.pattern || rule.channel_name}」に「${t.name}」を追記`}
+					>{rule.name || '(無名ルール)'}</button
+				>
+			{/each}
+			<button class="indent" onclick={() => addToFavorite(t.name)}>＋ 新規ルールとして追加…</button>
+		{/if}
 		<hr />
 		<div class="submenu-label">📋 コピー</div>
 		<button class="indent" onclick={() => copy(t.name)}>チャンネル名</button>
