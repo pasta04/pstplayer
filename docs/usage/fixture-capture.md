@@ -55,7 +55,7 @@ python scripts/fixtures.py replay --fixtures fixtures --web build --bind 127.0.0
 ```
 
 - ブラウザで `http://127.0.0.1:8080/hub` を開くと**実データ**で YP 一覧が出る。
-- チャンネルを開けば `/watch` が実 HLS playlist / 実 BBS レスを (キャプチャ
+- チャンネルを開けば `/player` が実 HLS playlist / 実 BBS レスを (キャプチャ
   範囲で) 表示する。
 - 書き込み (`POST /api/thread/post`) はリプレイでは受理のみの no-op。
 

@@ -522,8 +522,8 @@
 				// ネイティブ: 別プロセスの libmpv 視聴ウィンドウを起動。
 				await spawnViewer(e.id, { tip: e.tip });
 			} else {
-				// ブラウザ: HLS 視聴ページを別タブで開く (/watch?id=...)。
-				window.open(`/watch?id=${encodeURIComponent(e.id)}`, '_blank', 'noopener');
+				// ブラウザ: HLS 視聴ページを別タブで開く (/player?id=...)。
+				window.open(`/player?id=${encodeURIComponent(e.id)}`, '_blank', 'noopener');
 			}
 			if (record) {
 				await serverRecordStart(pstServerUrl, e.id, e.name ?? '');
@@ -859,12 +859,21 @@
 
 	let pstServerUrl = $state('');
 
+	// 設定を開く。Tauri は専用ウィンドウ、ブラウザは /settings を別タブで。
+	async function openSettingsUi() {
+		if (isTauri()) {
+			await openSettings();
+		} else {
+			window.open('/settings', '_blank', 'noopener');
+		}
+	}
+
 	async function openBbs(url: string) {
 		if (!url) return;
 		if (isTauri()) {
 			await openThreadList(url);
 		} else {
-			// ブラウザ: コンタクト URL (BBS) を別タブで開く。視聴ページ (/watch) にも
+			// ブラウザ: コンタクト URL (BBS) を別タブで開く。視聴ページ (/player) にも
 			// BBS ペインがあるが、ここはハブからの「BBS を開く」操作の素直な対応。
 			window.open(url, '_blank', 'noopener');
 		}
@@ -893,7 +902,7 @@
 
 	async function addToFavorite(channelName: string) {
 		closeMenu();
-		await openSettings();
+		await openSettingsUi();
 		await emitToSettingsWithAck('settings:add-favorite', { channelName });
 	}
 
@@ -902,7 +911,7 @@
 	// 遷移し、保存ボタンで確定する。
 	async function appendToFavorite(rule: FavoriteRule, index: number, channelName: string) {
 		closeMenu();
-		await openSettings();
+		await openSettingsUi();
 		await emitToSettingsWithAck('settings:append-favorite', {
 			index,
 			name: rule.name,
@@ -1005,7 +1014,7 @@
 	<header class="toolbar">
 		<button onclick={refresh} disabled={loading}>{loading ? '更新中…' : '↻ 更新'}</button>
 		<button onclick={watchUrl} title="URL を直接入力して視聴する">🔗 URL から開く</button>
-		<button onclick={openSettings}>⚙ 設定</button>
+		<button onclick={openSettingsUi}>⚙ 設定</button>
 		<button
 			onclick={openPstServer}
 			title="pst-server の Web UI (Web グリッド / モバイル UI) をブラウザで開く"
@@ -1222,7 +1231,7 @@
 								読み込み中…
 							{:else if ypSources.length === 0}
 								<div>YP が登録されていません。</div>
-								<button onclick={openSettings} class="empty-cta">⚙ 設定で YP を追加する</button>
+								<button onclick={openSettingsUi} class="empty-cta">⚙ 設定で YP を追加する</button>
 							{:else if entries.length === 0 && failures.length > 0}
 								<div>全 YP の取得に失敗しています。</div>
 								<button onclick={refresh} class="empty-cta">↻ 再試行</button>

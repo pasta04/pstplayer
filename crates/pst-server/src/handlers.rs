@@ -312,6 +312,23 @@ pub struct ConfigPathResp {
     pub path: String,
 }
 
+// ── Redirects ──────────────────────────────────────────────────
+
+/// `/` はハブ (YP 一覧) へ。ブラウザでユーザーが最初に見たいのは YP。
+pub async fn root_redirect() -> axum::response::Redirect {
+    axum::response::Redirect::temporary("/hub")
+}
+
+/// 旧 `/watch` → `/player`。`?id=...` 等のクエリを引き継ぐ。
+pub async fn watch_redirect(
+    axum::extract::RawQuery(q): axum::extract::RawQuery,
+) -> axum::response::Redirect {
+    match q.as_deref() {
+        Some(q) if !q.is_empty() => axum::response::Redirect::temporary(&format!("/player?{q}")),
+        _ => axum::response::Redirect::temporary("/player"),
+    }
+}
+
 // ── Index ──────────────────────────────────────────────────────
 
 /// MVP の最小ランディング。Svelte の Web ビルドを後で /pkg にマウントする

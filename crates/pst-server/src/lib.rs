@@ -87,11 +87,16 @@ pub fn build_router(state: AppState, web_dir: Option<PathBuf>) -> Router {
         // 該当しないパス (/hub 等のクライアントルート) では index.html を返し、
         // クライアント側ルーティングに委ねる。
         let index = dir.join("index.html");
-        router = router.fallback_service(
-            ServeDir::new(dir)
-                .append_index_html_on_directories(true)
-                .fallback(ServeFile::new(index)),
-        );
+        router = router
+            // ユーザーが最初に見たいのは YP 一覧なので、ルートはハブへ。
+            .route("/", routing::get(handlers::root_redirect))
+            // 旧 URL 互換: /watch → /player (クエリ ?id= を引き継ぐ)。
+            .route("/watch", routing::get(handlers::watch_redirect))
+            .fallback_service(
+                ServeDir::new(dir)
+                    .append_index_html_on_directories(true)
+                    .fallback(ServeFile::new(index)),
+            );
     } else {
         router = router.route("/", routing::get(handlers::index));
     }

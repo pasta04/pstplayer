@@ -90,6 +90,9 @@ function httpGet<T>(path: string): Promise<T> {
 function httpPost<T>(path: string, body?: unknown): Promise<T> {
 	return httpRequest<T>('POST', path, body);
 }
+function httpPut<T>(path: string, body?: unknown): Promise<T> {
+	return httpRequest<T>('PUT', path, body);
+}
 
 /** Tauri なら tauriFn、ブラウザなら httpFn を呼ぶ。レスポンス型は
  * 両 transport で同じ pst-core 型 (同一 serde) なので一致する。 */
@@ -743,7 +746,22 @@ export async function setConfig(config: Config): Promise<void> {
 }
 
 export async function configFilePath(): Promise<string> {
-	return call<string>('config_file_path');
+	return dual(
+		() => call<string>('config_file_path'),
+		async () => (await httpGet<{ path: string }>('/api/config/path')).path,
+	);
+}
+
+/** pst-server の生 config (サーバ用スキーマ)。ブラウザの設定画面は
+ * これを取得し、編集対象のセクション (peercast / yp / favorites) だけ
+ * 差し替えて PUT する。未知のセクション (server / log / recording 等)
+ * を Record のまま保持して往復させることで消さない。 */
+export async function getServerConfigRaw(): Promise<Record<string, unknown>> {
+	return httpGet<Record<string, unknown>>('/api/config');
+}
+
+export async function putServerConfigRaw(cfg: Record<string, unknown>): Promise<void> {
+	await httpPut('/api/config', cfg);
 }
 
 export async function saveWindowGeometry(

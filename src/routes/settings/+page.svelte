@@ -5,7 +5,10 @@
 		CommandError,
 		configFilePath,
 		getConfig,
+		getServerConfigRaw,
+		isTauri,
 		pushRecentHost,
+		putServerConfigRaw,
 		recordingTargetDir,
 		setConfig,
 		snapshotTargetDir,
@@ -24,6 +27,10 @@
 	} from '$lib/shortcuts';
 
 	let cfg = $state<Config | null>(null);
+	// ブラウザ (pst-server 配信) では Tauri 専用の機能 (トレイ / BBS /
+	// プレイヤー / ショートカット、ウィンドウ操作、イベント連携) を隠し、
+	// 保存は pst-server の PUT /api/config に向ける。
+	const browserMode = !isTauri();
 	let tab = $state<'general' | 'peercast' | 'yp' | 'bbs' | 'player' | 'favorites' | 'hotkeys'>(
 		'general',
 	);
@@ -102,11 +109,15 @@
 		try {
 			cfg = await getConfig();
 			configPath = await configFilePath();
-			snapshotPreview = await snapshotTargetDir();
-			recordingPreview = await recordingTargetDir();
+			if (!browserMode) {
+				snapshotPreview = await snapshotTargetDir();
+				recordingPreview = await recordingTargetDir();
+			}
 		} catch (e) {
 			message = errMsg(e);
 		}
+		// Tauri イベント連携 (ハブからのお気に入り追加) はブラウザでは無い。
+		if (browserMode) return;
 		// ハブ側「お気に入りに追加」からの prefill: 新規ルールを追加して
 		// お気に入りタブに切り替える。ハブは ack を受け取るまで同じ token で
 		// 再送する (設定ウィンドウ新規作成時、この listen 登録前の emit は
@@ -203,6 +214,25 @@
 		saving = true;
 		message = null;
 		try {
+			if (browserMode) {
+				// pst-server の生 config を取得し、この画面で編集できる
+				// セクションだけ差し替えて PUT する (server/log/recording 等
+				// の未編集セクションを消さないため)。
+				const raw = await getServerConfigRaw();
+				const rawPeercast = (raw.peercast as Record<string, unknown> | null) ?? {};
+				raw.peercast = {
+					...rawPeercast,
+					host: cfg.peercast.host,
+					port: cfg.peercast.port,
+					auth_user: cfg.peercast.authUser || null,
+					auth_pass: cfg.peercast.authPass || null,
+				};
+				raw.yp = cfg.yp;
+				raw.favorites = cfg.favorites;
+				await putServerConfigRaw(raw);
+				message = '保存しました (pst-server の設定ファイルに反映)。';
+				return;
+			}
 			await setConfig(cfg);
 			// MRU: 直前に入力された host:port を最近使ったホストに push。
 			// (host=空 / port 不正は backend 側で no-op)
@@ -385,14 +415,18 @@
 			<button class:active={tab === 'general'} onclick={() => (tab = 'general')}>一般</button>
 			<button class:active={tab === 'peercast'} onclick={() => (tab = 'peercast')}>PeerCast</button>
 			<button class:active={tab === 'yp'} onclick={() => (tab = 'yp')}>YP</button>
-			<button class:active={tab === 'bbs'} onclick={() => (tab = 'bbs')}>BBS</button>
-			<button class:active={tab === 'player'} onclick={() => (tab = 'player')}>プレイヤー</button>
+			{#if !browserMode}
+				<button class:active={tab === 'bbs'} onclick={() => (tab = 'bbs')}>BBS</button>
+				<button class:active={tab === 'player'} onclick={() => (tab = 'player')}>プレイヤー</button>
+			{/if}
 			<button class:active={tab === 'favorites'} onclick={() => (tab = 'favorites')}>
 				お気に入り
 			</button>
-			<button class:active={tab === 'hotkeys'} onclick={() => (tab = 'hotkeys')}>
-				ショートカット
-			</button>
+			{#if !browserMode}
+				<button class:active={tab === 'hotkeys'} onclick={() => (tab = 'hotkeys')}>
+					ショートカット
+				</button>
+			{/if}
 		</nav>
 
 		<section class="tab">
@@ -409,7 +443,7 @@
 				<p class="hint">設定ファイル (TOML):</p>
 				<code class="path">{configPath}</code>
 				<p class="hint small">直接編集も可能です。</p>
-				{#if cfg.window}
+				{#if cfg.window && !browserMode}
 					<label class="check">
 						<input type="checkbox" bind:checked={cfg.window.minimize_to_tray} />
 						最小化時にタスクトレイへ格納する (既定: タスクバー)
