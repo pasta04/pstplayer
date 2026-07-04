@@ -508,6 +508,7 @@
 							<th title="「すべて」タブに混ぜる">すべて</th>
 							<th title="背景色 (CSS 色)">背景</th>
 							<th title="文字色 (CSS 色)">文字</th>
+							<th title="背景色 + 文字色を重ねた見え方">見本</th>
 							<th></th>
 						</tr>
 					</thead>
@@ -756,6 +757,7 @@
 							<th title="動作: show=表示 / ignore=非表示 / block=完全ブロック">動作</th>
 							<th title="背景色 (CSS 色)">背景</th>
 							<th title="文字色 (CSS 色)">文字</th>
+							<th title="背景色 + 文字色を重ねた見え方">見本</th>
 							<th></th>
 						</tr>
 					</thead>
@@ -765,10 +767,6 @@
 							<tr
 								class:row-ignore={rule.action === 'ignore'}
 								class:row-block={rule.action === 'block'}
-								style={[
-									bgEff ? `background:${bgEff};` : '',
-									rule.text_color ? `color:${rule.text_color};` : '',
-								].join('')}
 							>
 								<td><input type="text" bind:value={rule.name} placeholder="メイン" /></td>
 								<td class="pattern-cell">
@@ -790,18 +788,16 @@
 									{/if}
 								</td>
 								<td class="match-fields">
-									<label title="チャンネル名"
-										><input type="checkbox" bind:checked={rule.match_name} />名</label
-									>
-									<label title="ジャンル"
-										><input type="checkbox" bind:checked={rule.match_genre} />ジ</label
-									>
-									<label title="詳細"
-										><input type="checkbox" bind:checked={rule.match_desc} />詳</label
-									>
-									<label title="コメント"
-										><input type="checkbox" bind:checked={rule.match_comment} />コ</label
-									>
+									<div class="match-grid">
+										<label
+											><input type="checkbox" bind:checked={rule.match_name} />チャンネル名</label
+										>
+										<label><input type="checkbox" bind:checked={rule.match_genre} />ジャンル</label>
+										<label><input type="checkbox" bind:checked={rule.match_desc} />詳細</label>
+										<label
+											><input type="checkbox" bind:checked={rule.match_comment} />コメント</label
+										>
+									</div>
 								</td>
 								<td><input type="checkbox" bind:checked={rule.pin_top} /></td>
 								<td><input type="checkbox" bind:checked={rule.auto_record} /></td>
@@ -832,6 +828,17 @@
 										bind:value={rule.text_color}
 										placeholder="#000000"
 									/>
+								</td>
+								<td>
+									<!-- 背景色 + 文字色を重ねた見た目のシミュレーション
+									     (PeCaRecorder の「サンプル」相当)。行全体には塗らない。 -->
+									<span
+										class="color-sample"
+										style={[
+											bgEff ? `background:${bgEff};` : '',
+											rule.text_color ? `color:${rule.text_color};` : '',
+										].join('')}>サンプル</span
+									>
 								</td>
 								<td class="ops">
 									<button type="button" onclick={() => moveRule(i, -1)} title="上へ">↑</button>
@@ -1197,18 +1204,29 @@
 		white-space: nowrap;
 		cursor: help;
 	}
-	table.favorites td.match-fields {
-		white-space: nowrap;
+	table.favorites td.match-fields .match-grid {
+		/* 2 列グリッドでフル名称のチェックボックスを並べる (縦潰れ防止)。 */
+		display: grid;
+		grid-template-columns: auto auto;
+		gap: 0 0.6rem;
 	}
 	table.favorites td.match-fields label {
 		font-size: 0.72rem;
-		margin-right: 0.35rem;
+		white-space: nowrap;
 		user-select: none;
 		cursor: pointer;
 	}
 	table.favorites td.match-fields input[type='checkbox'] {
 		vertical-align: -0.15rem;
 		margin-right: 0.1rem;
+	}
+	table.favorites .color-sample {
+		display: inline-block;
+		padding: 0.1rem 0.5rem;
+		border: 1px solid var(--border);
+		border-radius: 3px;
+		white-space: nowrap;
+		font-size: 0.75rem;
 	}
 	table.favorites input[type='text'] {
 		width: 100%;
