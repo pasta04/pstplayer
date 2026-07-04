@@ -535,6 +535,15 @@ export type FavoriteAction = 'show' | 'ignore' | 'block';
 
 export interface FavoriteRule {
 	name: string;
+	/// マッチパターン (部分一致 / 大文字小文字無視 / `|` 区切り OR)。
+	/// match_* でチェックした対象フィールドのどれかに一致すればマッチ。
+	/// 空欄なら旧形式 (channel_name 等のフィールド別 AND) にフォールバック。
+	pattern: string;
+	match_name: boolean;
+	match_genre: boolean;
+	match_desc: boolean;
+	match_comment: boolean;
+	/// 旧形式のフィールド別パターン (pattern が空のときだけ使われる)。
 	channel_name: string;
 	genre: string;
 	desc: string;
@@ -599,9 +608,11 @@ export interface Config {
 }
 
 /** お気に入りルールでチャンネル系のオブジェクトを判定する。
- * 全フィールド空欄ならワイルドカード、複数指定は AND。
- * `|` 区切りで OR (例: "foo|bar|baz")。pst-core::favorites::matches と
- * ロジックを揃える。 */
+ * pst-core::favorites::matches とロジックを揃える。
+ * - 新形式 (pattern 非空): チェックした対象フィールドのどれか (OR) に
+ *   部分一致すればマッチ。対象が 1 つも無ければマッチしない。
+ * - 旧形式 (pattern 空): フィールド別パターンの AND。空欄はワイルドカード。
+ * どちらも `|` 区切りで OR (例: "foo|bar|baz")。 */
 export function ruleMatches(
 	rule: FavoriteRule,
 	t: { name: string; genre: string; desc: string; comment: string },
@@ -616,6 +627,15 @@ export function ruleMatches(
 			.filter(Boolean)
 			.some((alt) => hayLc.includes(alt.toLowerCase()));
 	};
+	const p = (rule.pattern ?? '').trim();
+	if (p) {
+		const hays: string[] = [];
+		if (rule.match_name) hays.push(t.name);
+		if (rule.match_genre) hays.push(t.genre);
+		if (rule.match_desc) hays.push(t.desc);
+		if (rule.match_comment) hays.push(t.comment);
+		return hays.some((hay) => part(p, hay));
+	}
 	return (
 		part(rule.channel_name, t.name) &&
 		part(rule.genre, t.genre) &&

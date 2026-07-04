@@ -95,6 +95,9 @@
 	let recordingPreview = $state<string>('');
 
 	let addFavoriteUnlisten: UnlistenFn | null = null;
+	/// ハブからの add/append イベントは ack まで再送されるため、適用済み
+	/// token を覚えて二重適用を防ぐ。
+	const processedFavoriteTokens = new Set<string>();
 	let appendFavoriteUnlisten: UnlistenFn | null = null;
 
 	onMount(async () => {
@@ -110,49 +113,67 @@
 			message = errMsg(e);
 		}
 		// ハブ側「お気に入りに追加」からの prefill: 新規ルールを追加して
-		// お気に入りタブに切り替える。
-		addFavoriteUnlisten = await listen<{ channelName: string }>('settings:add-favorite', (ev) => {
-			if (!cfg) return;
-			const rule = emptyRule();
-			rule.name = ev.payload?.channelName ?? '';
-			rule.channel_name = ev.payload?.channelName ?? '';
-			ensureFavorites().push(rule);
-			cfg = { ...cfg };
-			tab = 'favorites';
-			message = `「${rule.name}」を新しいお気に入りルールとして追加しました (保存ボタンで確定)`;
-		});
+		// お気に入りタブに切り替える。ハブは ack を受け取るまで同じ token で
+		// 再送する (設定ウィンドウ新規作成時、この listen 登録前の emit は
+		// 消えるため)。token で重複適用を防ぎ、受理したら ack を返す。
+		addFavoriteUnlisten = await listen<{ channelName: string; token?: string }>(
+			'settings:add-favorite',
+			(ev) => {
+				if (!cfg) return;
+				const token = ev.payload?.token ?? '';
+				if (token && processedFavoriteTokens.has(token)) return;
+				if (token) processedFavoriteTokens.add(token);
+				const rule = emptyRule();
+				rule.name = ev.payload?.channelName ?? '';
+				rule.pattern = ev.payload?.channelName ?? '';
+				ensureFavorites().push(rule);
+				cfg = { ...cfg };
+				tab = 'favorites';
+				message = `「${rule.name}」を新しいお気に入りルールとして追加しました (保存ボタンで確定)`;
+				if (token) void emit('settings:add-favorite:ack', { token });
+			},
+		);
 
 		// ハブ側「お気に入りに追加 → 既存ルール」からの追記。対象ルールの
 		// channel_name 末尾に `|チャンネル名` を足し、お気に入りタブへ切替える。
-		appendFavoriteUnlisten = await listen<{ index: number; name: string; channelName: string }>(
-			'settings:append-favorite',
-			(ev) => {
-				const p = ev.payload;
-				if (!cfg || !p?.channelName) return;
-				const rules = ensureFavorites();
-				// index を優先し、ズレていれば name で照合 (どちらも同じ config 由来)。
-				let rule: FavoriteRule | undefined = rules[p.index];
-				if (!rule || (p.name && rule.name !== p.name)) {
-					rule = rules.find((r) => r.name === p.name);
-				}
-				if (rule) {
-					rule.channel_name = rule.channel_name
-						? `${rule.channel_name}|${p.channelName}`
-						: p.channelName;
-					message = `「${rule.name || '(無名)'}」のチャンネル名に「${p.channelName}」を追加しました (保存ボタンで確定)`;
+		appendFavoriteUnlisten = await listen<{
+			index: number;
+			name: string;
+			channelName: string;
+			token?: string;
+		}>('settings:append-favorite', (ev) => {
+			const p = ev.payload;
+			if (!cfg || !p?.channelName) return;
+			const token = p.token ?? '';
+			if (token && processedFavoriteTokens.has(token)) return;
+			if (token) processedFavoriteTokens.add(token);
+			const rules = ensureFavorites();
+			// index を優先し、ズレていれば name で照合 (どちらも同じ config 由来)。
+			let rule: FavoriteRule | undefined = rules[p.index];
+			if (!rule || (p.name && rule.name !== p.name)) {
+				rule = rules.find((r) => r.name === p.name);
+			}
+			if (rule) {
+				// 新形式 (pattern) を優先。旧形式のままのルールは旧フィールドへ追記。
+				if (rule.pattern?.trim() || !rule.channel_name?.trim()) {
+					rule.pattern = rule.pattern?.trim() ? `${rule.pattern}|${p.channelName}` : p.channelName;
+					rule.match_name = true;
 				} else {
-					// 対象が見つからない場合は新規ルールとしてフォールバック。
-					const r = emptyRule();
-					r.name = p.channelName;
-					r.channel_name = p.channelName;
-					rules.push(r);
-					message =
-						'対象ルールが見つからなかったため新規ルールとして追加しました (保存ボタンで確定)';
+					rule.channel_name = `${rule.channel_name}|${p.channelName}`;
 				}
-				cfg = { ...cfg };
-				tab = 'favorites';
-			},
-		);
+				message = `「${rule.name || '(無名)'}」に「${p.channelName}」を追加しました (保存ボタンで確定)`;
+			} else {
+				// 対象が見つからない場合は新規ルールとしてフォールバック。
+				const r = emptyRule();
+				r.name = p.channelName;
+				r.pattern = p.channelName;
+				rules.push(r);
+				message = '対象ルールが見つからなかったため新規ルールとして追加しました (保存ボタンで確定)';
+			}
+			cfg = { ...cfg };
+			tab = 'favorites';
+			if (token) void emit('settings:append-favorite:ack', { token });
+		});
 	});
 
 	onDestroy(() => {
@@ -223,6 +244,11 @@
 	// ── お気に入りルール ────────────────────────────────────────
 	const emptyRule = (): FavoriteRule => ({
 		name: '',
+		pattern: '',
+		match_name: true,
+		match_genre: false,
+		match_desc: false,
+		match_comment: false,
 		channel_name: '',
 		genre: '',
 		desc: '',
@@ -715,18 +741,16 @@
 			{:else if tab === 'favorites'}
 				<p class="hint small muted">
 					各ルールはチャンネル一覧 (YP・PeerCast) に対して上から評価され、最初にマッチした
-					ものが採用されます。フィールドは部分一致 (大文字小文字無視) で、空欄はワイルド
-					カードです。複数フィールドを書くと AND 条件。1 つのフィールド内で
-					<code>|</code> 区切りにすると OR (例: <code>へたれ|inatami|vader</code>)。
+					ものが採用されます。検索パターンは部分一致 (大文字小文字無視) で、
+					<code>|</code> 区切りにすると OR (例: <code>へたれ|inatami|vader</code>)。「対象」で
+					チェックしたフィールドの<strong>どれか</strong>に一致すればマッチします。
 				</p>
 				<table class="favorites">
 					<thead>
 						<tr>
 							<th>名前</th>
-							<th>チャンネル名</th>
-							<th>ジャンル</th>
-							<th>詳細</th>
-							<th>コメント</th>
+							<th>検索パターン</th>
+							<th title="パターンをどのフィールドに当てるか (どれかに一致で OK)">対象</th>
 							<th title="上位固定">⬆</th>
 							<th title="自動録画">⏺</th>
 							<th title="動作: show=表示 / ignore=非表示 / block=完全ブロック">動作</th>
@@ -747,10 +771,38 @@
 								].join('')}
 							>
 								<td><input type="text" bind:value={rule.name} placeholder="メイン" /></td>
-								<td><input type="text" bind:value={rule.channel_name} /></td>
-								<td><input type="text" bind:value={rule.genre} /></td>
-								<td><input type="text" bind:value={rule.desc} /></td>
-								<td><input type="text" bind:value={rule.comment} /></td>
+								<td class="pattern-cell">
+									<input
+										type="text"
+										bind:value={rule.pattern}
+										placeholder="へたれ|inatami|vader"
+										title="部分一致 / | 区切りで OR"
+									/>
+									{#if !rule.pattern?.trim() && (rule.channel_name || rule.genre || rule.desc || rule.comment)}
+										<span
+											class="legacy-note"
+											title={'旧形式 (フィールド別 AND) のルールです: ' +
+												[rule.channel_name, rule.genre, rule.desc, rule.comment]
+													.filter(Boolean)
+													.join(' & ') +
+												'\nパターンを入力すると新形式に切り替わります'}>旧形式</span
+										>
+									{/if}
+								</td>
+								<td class="match-fields">
+									<label title="チャンネル名"
+										><input type="checkbox" bind:checked={rule.match_name} />名</label
+									>
+									<label title="ジャンル"
+										><input type="checkbox" bind:checked={rule.match_genre} />ジ</label
+									>
+									<label title="詳細"
+										><input type="checkbox" bind:checked={rule.match_desc} />詳</label
+									>
+									<label title="コメント"
+										><input type="checkbox" bind:checked={rule.match_comment} />コ</label
+									>
+								</td>
 								<td><input type="checkbox" bind:checked={rule.pin_top} /></td>
 								<td><input type="checkbox" bind:checked={rule.auto_record} /></td>
 								<td>
@@ -1131,6 +1183,32 @@
 		font-size: 0.72rem;
 		color: var(--fg-muted);
 		font-weight: 600;
+	}
+	table.favorites td.pattern-cell {
+		min-width: 14rem;
+	}
+	table.favorites td.pattern-cell .legacy-note {
+		font-size: 0.68rem;
+		color: var(--muted, #888);
+		border: 1px solid var(--border);
+		border-radius: 3px;
+		padding: 0 0.25rem;
+		margin-left: 0.25rem;
+		white-space: nowrap;
+		cursor: help;
+	}
+	table.favorites td.match-fields {
+		white-space: nowrap;
+	}
+	table.favorites td.match-fields label {
+		font-size: 0.72rem;
+		margin-right: 0.35rem;
+		user-select: none;
+		cursor: pointer;
+	}
+	table.favorites td.match-fields input[type='checkbox'] {
+		vertical-align: -0.15rem;
+		margin-right: 0.1rem;
 	}
 	table.favorites input[type='text'] {
 		width: 100%;

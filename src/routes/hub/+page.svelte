@@ -689,14 +689,120 @@
 	function onRowContextMenu(ev: MouseEvent, e: YpEntry) {
 		ev.preventDefault();
 		selectedId = e.id;
+		// Tauri (デスクトップ) では OS ネイティブメニューで出す。HTML の
+		// メニューはウィンドウ内にしか描けず、小さいウィンドウでは物理的に
+		// 収まらない (実機 QA)。ネイティブならウィンドウ外にはみ出せる
+		// (動画メニューの 0ba6499 と同じ方式)。ブラウザ (pst-server) は
+		// HTML のまま、実測サイズでクランプする。
+		if (isTauri()) {
+			void showRowNativeMenu(e);
+			return;
+		}
 		menuTarget = e;
-		// 画面右端 / 下端に近い時に見切れないよう、メニューサイズを
-		// 仮定して位置を補正する。
-		const MENU_W = 260;
-		const MENU_H = 280;
-		menuX = Math.min(ev.clientX, window.innerWidth - MENU_W - 8);
-		menuY = Math.min(ev.clientY, window.innerHeight - MENU_H - 8);
+		menuX = ev.clientX;
+		menuY = ev.clientY;
 		menuOpen = true;
+	}
+
+	// HTML メニュー (ブラウザ用フォールバック) の見切れ補正。開いた直後に
+	// 実サイズを測って右端 / 下端からはみ出す分を押し戻す。
+	let menuEl = $state<HTMLDivElement | null>(null);
+	$effect(() => {
+		if (!menuOpen || !menuEl) return;
+		const r = menuEl.getBoundingClientRect();
+		const maxX = Math.max(0, window.innerWidth - r.width - 8);
+		const maxY = Math.max(0, window.innerHeight - r.height - 8);
+		if (menuX > maxX) menuX = maxX;
+		if (menuY > maxY) menuY = maxY;
+	});
+
+	// OS ネイティブの行コンテキストメニュー (Tauri のみ)。
+	async function showRowNativeMenu(t: YpEntry) {
+		const { Menu, MenuItem, PredefinedMenuItem, Submenu } = await import('@tauri-apps/api/menu');
+		const sep = () => PredefinedMenuItem.new({ item: 'Separator' });
+		const items = [];
+		if (watchingIds.has(t.id)) {
+			items.push(
+				await MenuItem.new({
+					text: '✕ 視聴ウィンドウを閉じる',
+					action: () => void closeRow(t),
+				}),
+			);
+			if (recordingIds.has(t.id)) {
+				items.push(
+					await MenuItem.new({ text: '⏹ 録画停止', action: () => void stopRecordingRow(t) }),
+				);
+			} else {
+				items.push(
+					await MenuItem.new({
+						text: '⏺ 録画開始 (視聴中のまま)',
+						action: () => void startRecordingRow(t),
+					}),
+				);
+			}
+		} else {
+			items.push(
+				await MenuItem.new({
+					text: '▶ 視聴 (別ウィンドウで開く)',
+					action: () => void watchRow(t),
+				}),
+			);
+			items.push(
+				await MenuItem.new({ text: '⏺ 視聴 + 録画開始', action: () => void watchRow(t, true) }),
+			);
+			items.push(
+				await MenuItem.new({
+					text: '⏺ 録画のみ (ウィンドウ無し)',
+					action: () => void recordOnlyRow(t),
+				}),
+			);
+		}
+		items.push(await sep());
+		items.push(
+			await MenuItem.new({
+				text: '📺 BBS としてコンタクト URL を開く',
+				enabled: !!t.contact_url,
+				action: () => void openBbs(t.contact_url),
+			}),
+		);
+		items.push(
+			await MenuItem.new({
+				text: '🌐 コンタクト URL をブラウザで開く',
+				enabled: !!t.contact_url,
+				action: () => openInBrowser(t.contact_url),
+			}),
+		);
+		items.push(await sep());
+		const favItems = await Promise.all(
+			favorites.map((rule, i) =>
+				MenuItem.new({
+					text: rule.name || '(無名ルール)',
+					action: () => void appendToFavorite(rule, i, t.name),
+				}),
+			),
+		);
+		favItems.push(
+			await MenuItem.new({
+				text: '＋ 新規ルールとして追加…',
+				action: () => void addToFavorite(t.name),
+			}),
+		);
+		items.push(await Submenu.new({ text: '★ お気に入りに追加', items: favItems }));
+		const pls = plsUrlFor(t, currentPeerHost, currentPeerPort);
+		const copyItems = await Promise.all([
+			MenuItem.new({ text: 'チャンネル名', action: () => void copy(t.name) }),
+			MenuItem.new({
+				text: 'チャンネル詳細',
+				action: () => void copy(`[${t.genre}] ${t.desc} 「${t.comment}」`),
+			}),
+			MenuItem.new({ text: 'コンタクト URL', action: () => void copy(t.contact_url) }),
+			MenuItem.new({ text: 'プレイリスト URL (pls)', action: () => void copy(pls) }),
+			MenuItem.new({ text: 'channel ID', action: () => void copy(t.id) }),
+			MenuItem.new({ text: '配信元 IP (TIP)', action: () => void copy(t.tip) }),
+		]);
+		items.push(await Submenu.new({ text: '📋 コピー', items: copyItems }));
+		const menu = await Menu.new({ items });
+		await menu.popup();
 	}
 
 	function closeMenu() {
@@ -755,11 +861,30 @@
 		closeMenu();
 	}
 
+	// 設定ウィンドウが新規作成の場合、設定側のリスナー登録 (onMount) より
+	// 先に emit すると捨てられる (実機 QA: 設定が開くだけでルールが追加
+	// されない)。ack が返るまで同じ token で再送し、設定側は token で重複
+	// 適用を防ぐ。
+	async function emitToSettingsWithAck(event: string, payload: Record<string, unknown>) {
+		const token = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+		let acked = false;
+		const un = await listen<{ token?: string }>(`${event}:ack`, (ev) => {
+			if (ev.payload?.token === token) acked = true;
+		});
+		try {
+			for (let i = 0; i < 20 && !acked; i++) {
+				await emit(event, { ...payload, token });
+				await new Promise((r) => setTimeout(r, 250));
+			}
+		} finally {
+			un();
+		}
+	}
+
 	async function addToFavorite(channelName: string) {
 		closeMenu();
 		await openSettings();
-		// 設定ウィンドウが既に開いていても、新規でも、emit は届く。
-		await emit('settings:add-favorite', { channelName });
+		await emitToSettingsWithAck('settings:add-favorite', { channelName });
 	}
 
 	// 既存のお気に入りルールに、このチャンネル名を `既存|チャンネル名` の形で
@@ -768,7 +893,11 @@
 	async function appendToFavorite(rule: FavoriteRule, index: number, channelName: string) {
 		closeMenu();
 		await openSettings();
-		await emit('settings:append-favorite', { index, name: rule.name, channelName });
+		await emitToSettingsWithAck('settings:append-favorite', {
+			index,
+			name: rule.name,
+			channelName,
+		});
 	}
 
 	function plsUrlFor(e: YpEntry, host: string, port: number) {
@@ -1120,6 +1249,7 @@
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<div
 		class="menu"
+		bind:this={menuEl}
 		style:left={menuX + 'px'}
 		style:top={menuY + 'px'}
 		onclick={(ev) => ev.stopPropagation()}
@@ -1154,7 +1284,7 @@
 			<button
 				class="indent"
 				onclick={() => appendToFavorite(rule, i, t.name)}
-				title={`「${rule.channel_name}」に「${t.name}」を追記`}
+				title={`「${rule.pattern || rule.channel_name}」に「${t.name}」を追記`}
 				>{rule.name || '(無名ルール)'}</button
 			>
 		{/each}

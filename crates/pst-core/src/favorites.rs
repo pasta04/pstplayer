@@ -3,8 +3,12 @@
 //! ルールは複数持てて、上から評価される。最初にマッチしたものを採用。
 //! 設定項目:
 //! - `name`: 識別名 (UI 表示用、マッチには使わない)
-//! - `channel_name` / `genre` / `desc` / `comment`: 各フィールドへの
-//!   部分一致パターン。空欄はワイルドカード。複数指定は AND。
+//! - `pattern` + `match_name`/`match_genre`/`match_desc`/`match_comment`:
+//!   1 つの部分一致パターンを、チェックしたフィールドのどれか (OR) に
+//!   当てる (PeCaRecorder の基本検索と同じ考え方)。`|` 区切りで OR。
+//! - `channel_name` / `genre` / `desc` / `comment`: 旧形式 (フィールド別
+//!   パターンの AND)。`pattern` が空のときだけ使われる。config 読み込み
+//!   時に単一フィールドのルールは新形式へ自動移行される (migrate_rules)。
 //! - `pin_top`: チャンネル一覧で上位に固定する
 //! - `auto_record`: 視聴開始時に自動で録画を始める
 //! - `color`: 一覧での背景色 (CSS color 文字列 / 空欄なら標準色)
@@ -19,10 +23,29 @@ pub struct FavoritesConfig {
     pub rules: Vec<FavoriteRule>,
 }
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FavoriteRule {
     #[serde(default)]
     pub name: String,
+    /// マッチパターン (部分一致 / 大文字小文字無視 / `|` 区切り OR)。
+    /// `match_*` でチェックしたフィールドのどれかに一致すればマッチ。
+    /// 空欄なら旧形式 (下の channel_name 等) にフォールバックする。
+    #[serde(default)]
+    pub pattern: String,
+    /// pattern をチャンネル名に当てるか。既定 ON。
+    #[serde(default = "default_true")]
+    pub match_name: bool,
+    #[serde(default)]
+    pub match_genre: bool,
+    #[serde(default)]
+    pub match_desc: bool,
+    #[serde(default)]
+    pub match_comment: bool,
+    /// 旧形式のフィールド別パターン。`pattern` が空のときだけ使われる。
     #[serde(default)]
     pub channel_name: String,
     #[serde(default)]
@@ -121,28 +144,82 @@ impl MatchTarget for crate::peercast::types::ChannelInfo {
     }
 }
 
-/// 1 ルールに対する判定。全フィールド AND。空欄ワイルドカード。
 /// 部分一致 / 大文字小文字無視 / Unicode は素のまま。
-///
 /// パイプ区切りの OR をサポート: `"foo|bar|baz"` は「foo か bar か baz の
 /// どれかを含む」。PeCaRecorder の検索パターンの最頻形式に合わせる。
+fn part(needle: &str, hay: &str) -> bool {
+    let n = needle.trim();
+    if n.is_empty() {
+        return true;
+    }
+    let hay_lc = hay.to_lowercase();
+    n.split('|')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .any(|alt| hay_lc.contains(&alt.to_lowercase()))
+}
+
+/// 1 ルールに対する判定。
+///
+/// - 新形式 (`pattern` 非空): チェックした対象フィールドのどれか (OR) に
+///   pattern が部分一致すればマッチ。対象が 1 つも無ければマッチしない。
+/// - 旧形式 (`pattern` 空): フィールド別パターンの AND。空欄は
+///   ワイルドカード (= 全部空なら何にでもマッチ)。
 pub fn matches<T: MatchTarget + ?Sized>(rule: &FavoriteRule, t: &T) -> bool {
-    fn part(needle: &str, hay: &str) -> bool {
-        let n = needle.trim();
-        if n.is_empty() {
-            return true;
+    let p = rule.pattern.trim();
+    if !p.is_empty() {
+        let mut hays: Vec<&str> = Vec::new();
+        if rule.match_name {
+            hays.push(t.ch_name());
         }
-        let hay_lc = hay.to_lowercase();
-        // `|` 区切りで OR (PeCaRecorder 互換)。
-        n.split('|')
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .any(|alt| hay_lc.contains(&alt.to_lowercase()))
+        if rule.match_genre {
+            hays.push(t.ch_genre());
+        }
+        if rule.match_desc {
+            hays.push(t.ch_desc());
+        }
+        if rule.match_comment {
+            hays.push(t.ch_comment());
+        }
+        return hays.into_iter().any(|hay| part(p, hay));
     }
     part(&rule.channel_name, t.ch_name())
         && part(&rule.genre, t.ch_genre())
         && part(&rule.desc, t.ch_desc())
         && part(&rule.comment, t.ch_comment())
+}
+
+/// 旧形式ルールの自動移行。`pattern` が空で、旧フィールドのうち
+/// **ちょうど 1 つ**だけ使われている場合、それを `pattern` + 対象
+/// フィールドへ移す (意味が完全に保存できるのは単一フィールドのとき
+/// だけ。複数フィールドの AND は旧形式のまま残す)。config 読み込み時に
+/// 呼ばれる。
+pub fn migrate_rules(rules: &mut [FavoriteRule]) {
+    for r in rules {
+        if !r.pattern.trim().is_empty() {
+            continue;
+        }
+        let used = [&r.channel_name, &r.genre, &r.desc, &r.comment];
+        let non_empty = used.iter().filter(|v| !v.trim().is_empty()).count();
+        if non_empty != 1 {
+            continue;
+        }
+        let (pattern, flags) = if !r.channel_name.trim().is_empty() {
+            (r.channel_name.clone(), (true, false, false, false))
+        } else if !r.genre.trim().is_empty() {
+            (r.genre.clone(), (false, true, false, false))
+        } else if !r.desc.trim().is_empty() {
+            (r.desc.clone(), (false, false, true, false))
+        } else {
+            (r.comment.clone(), (false, false, false, true))
+        };
+        r.pattern = pattern;
+        (r.match_name, r.match_genre, r.match_desc, r.match_comment) = flags;
+        r.channel_name.clear();
+        r.genre.clear();
+        r.desc.clear();
+        r.comment.clear();
+    }
 }
 
 /// 先頭から評価して最初にマッチしたルールを返す。
@@ -182,6 +259,66 @@ mod tests {
         assert!(matches(&r, &yp("MOXch", "")));
         assert!(matches(&r, &yp("mox-ch", "")));
         assert!(!matches(&r, &yp("other", "")));
+    }
+
+    #[test]
+    fn pattern_or_across_checked_fields() {
+        let r = FavoriteRule {
+            pattern: "rta".into(),
+            match_name: true,
+            match_genre: true,
+            ..Default::default()
+        };
+        assert!(matches(&r, &yp("MarioRTA", "")));
+        assert!(matches(&r, &yp("", "RTA")));
+        assert!(!matches(&r, &yp("other", "music")));
+    }
+
+    #[test]
+    fn pattern_without_targets_never_matches() {
+        let r = FavoriteRule {
+            pattern: "foo".into(),
+            match_name: false,
+            ..Default::default()
+        };
+        assert!(!matches(&r, &yp("foo", "foo")));
+    }
+
+    #[test]
+    fn legacy_single_field_rule_migrates_to_pattern() {
+        let mut rules = vec![
+            FavoriteRule {
+                channel_name: "foo|bar".into(),
+                ..Default::default()
+            },
+            FavoriteRule {
+                genre: "game".into(),
+                ..Default::default()
+            },
+            // 複数フィールド AND は旧形式のまま残す。
+            FavoriteRule {
+                channel_name: "foo".into(),
+                genre: "game".into(),
+                ..Default::default()
+            },
+        ];
+        migrate_rules(&mut rules);
+        assert_eq!(rules[0].pattern, "foo|bar");
+        assert!(rules[0].match_name);
+        assert!(!rules[0].match_genre);
+        assert!(rules[0].channel_name.is_empty());
+        assert_eq!(rules[1].pattern, "game");
+        assert!(!rules[1].match_name);
+        assert!(rules[1].match_genre);
+        assert!(rules[2].pattern.is_empty());
+        assert_eq!(rules[2].channel_name, "foo");
+    }
+
+    #[test]
+    fn legacy_rule_deserializes_with_match_name_default_true() {
+        let r: FavoriteRule = toml::from_str("channel_name = \"foo\"").unwrap();
+        assert!(r.match_name);
+        assert!(matches(&r, &yp("foo ch", "")));
     }
 
     #[test]

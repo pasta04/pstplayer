@@ -41,7 +41,13 @@ pub fn load() -> AppResult<Config> {
     }
     let raw = fs::read_to_string(&path)
         .map_err(|e| AppError::Decode(format!("read {}: {e}", path.display())))?;
-    toml::from_str(&raw).map_err(|e| AppError::Decode(format!("parse config: {e}")))
+    let mut cfg: Config =
+        toml::from_str(&raw).map_err(|e| AppError::Decode(format!("parse config: {e}")))?;
+    // 旧形式のお気に入りルール (フィールド別パターン) を新形式
+    // (pattern + 対象フィールド) へ自動移行する。保存時に新形式で
+    // 書き出される。
+    crate::favorites::migrate_rules(&mut cfg.favorites.rules);
+    Ok(cfg)
 }
 
 /// Best-effort load: パース失敗時は破損ファイルをタイムスタンプ付き
