@@ -174,11 +174,13 @@ pub async fn playlist(
         return Ok(resp);
     }
     let (parts, body) = resp.into_parts();
-    let bytes = axum::body::to_bytes(body, 8 * 1024 * 1024).await.map_err(|e| ApiError {
-        status: StatusCode::BAD_GATEWAY,
-        code: "decode",
-        message: format!("playlist read failed: {e}"),
-    })?;
+    let bytes = axum::body::to_bytes(body, 8 * 1024 * 1024)
+        .await
+        .map_err(|e| ApiError {
+            status: StatusCode::BAD_GATEWAY,
+            code: "decode",
+            message: format!("playlist read failed: {e}"),
+        })?;
     let text = String::from_utf8_lossy(&bytes);
     let (host, port) = upstream_host_port(&s).await;
     let rewritten = rewrite_playlist_body(&text, &host, port);
@@ -190,11 +192,12 @@ pub async fn playlist(
             }
         }
     }
-    out.body(Body::from(rewritten.into_owned())).map_err(|e| ApiError {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        code: "decode",
-        message: format!("response build failed: {e}"),
-    })
+    out.body(Body::from(rewritten.into_owned()))
+        .map_err(|e| ApiError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            code: "decode",
+            message: format!("response build failed: {e}"),
+        })
 }
 
 /// `GET /hls/{id}/{segment}` → 上流 `/hls/{id}/{segment}` (クエリ透過)
