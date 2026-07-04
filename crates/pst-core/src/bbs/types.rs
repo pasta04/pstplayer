@@ -72,17 +72,26 @@ mod tests {
     #[test]
     fn bbs_types_serialize_camel_case() {
         let post = serde_json::to_value(Post::default()).unwrap();
-        assert!(post.get("threadTitle").is_some(), "Post must serialize threadTitle: {post}");
+        assert!(
+            post.get("threadTitle").is_some(),
+            "Post must serialize threadTitle: {post}"
+        );
         assert!(post.get("thread_title").is_none());
 
         let state = serde_json::to_value(FetchState::default()).unwrap();
         for key in ["lastModified", "lastByte", "lastCount"] {
-            assert!(state.get(key).is_some(), "FetchState must serialize {key}: {state}");
+            assert!(
+                state.get(key).is_some(),
+                "FetchState must serialize {key}: {state}"
+            );
         }
 
         let setting = serde_json::to_value(BoardSetting::default()).unwrap();
         for key in ["maxRes", "defaultName"] {
-            assert!(setting.get(key).is_some(), "BoardSetting must serialize {key}: {setting}");
+            assert!(
+                setting.get(key).is_some(),
+                "BoardSetting must serialize {key}: {setting}"
+            );
         }
     }
 }
