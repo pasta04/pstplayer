@@ -233,6 +233,11 @@ pub fn run() {
         AcquireOutcome::Skip => None,
     };
 
+    // on_window_event の閉じウォッチドッグ用 (viewer = URL 起動のみ)。
+    // ハブは録画中の閉じ確認 (JS onCloseRequested の prevent) があるため
+    // CloseRequested 起点の強制終了を張ってはいけない。
+    let is_viewer = cli_args.url.is_some();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
@@ -310,7 +315,7 @@ pub fn run() {
             }
             Ok(())
         })
-        .on_window_event(|window, event| {
+        .on_window_event(move |window, event| {
             // 視聴ウィンドウを閉じる前に録画を確実にファイナライズする。
             // stream-record を空に設定すると libmpv が出力ファイルを正しく
             // 閉じる (D4)。録画していなければ no-op。メインウィンドウのみ対象。
@@ -322,6 +327,24 @@ pub fn run() {
                         // キャンセルし、閉じ際の再接続の残り火を防ぐ)。
                         let _ = engine.stop_record();
                         let _ = engine.stop();
+                    }
+                    // 終了ウォッチドッグ (viewer のみ)。実機では × / Alt+X で
+                    // ウィンドウ消滅後も Destroyed イベントが届かず (破棄中に
+                    // イベントループが mpv 子ウィンドウ / WebView2 の teardown
+                    // で停止するとみられる)、プロセスが数分残留して
+                    // single-instance lock を握り続けた。viewer は close を
+                    // prevent しないので、CloseRequested = 確実に閉じる、で
+                    // 猶予後に exit する。自然終了が先に済めば no-op。
+                    if is_viewer {
+                        let app = window.app_handle().clone();
+                        std::thread::spawn(move || {
+                            std::thread::sleep(std::time::Duration::from_secs(3));
+                            // IPC close (ハブの全閉じ) と同じ経路。ゾンビ状態
+                            // からでも即終了する実績がある。
+                            app.exit(0);
+                            std::thread::sleep(std::time::Duration::from_secs(5));
+                            std::process::exit(0);
+                        });
                     }
                 }
             }
