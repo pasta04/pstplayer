@@ -188,14 +188,8 @@ impl RecordingState {
         let cid_for_task = channel_id.clone();
         let flag_for_cleanup = stop_flag.clone();
         let handle = tokio::spawn(async move {
-            if let Err(e) = run_recording(
-                pls_url,
-                path_for_task,
-                auth_user,
-                auth_pass,
-                stop_flag_task,
-            )
-            .await
+            if let Err(e) =
+                run_recording(pls_url, path_for_task, auth_user, auth_pass, stop_flag_task).await
             {
                 eprintln!("recording task failed: {e}");
             }
