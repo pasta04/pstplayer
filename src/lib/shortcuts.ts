@@ -348,7 +348,16 @@ export async function setDecorations(on: boolean): Promise<void> {
 	await getCurrentWindow().setDecorations(on);
 }
 
-/** 現在のウィンドウを閉じる (Alt+X の「切断して閉じる」で使用)。 */
+/** 現在のウィンドウを閉じる (Alt+X の「切断して閉じる」で使用)。
+ * close() は capability (core:window:allow-close) が無いと reject して
+ * ウィンドウが閉じずに残る事故が起きた。許可は default.json に追加済み
+ * だが、万一 close() が失敗した場合も destroy() で確実に閉じる。 */
 export async function closeWindow(): Promise<void> {
-	await getCurrentWindow().close();
+	const win = getCurrentWindow();
+	try {
+		await win.close();
+	} catch (e) {
+		console.error('window close failed, falling back to destroy', e);
+		await win.destroy();
+	}
 }
