@@ -325,6 +325,18 @@ pub fn run() {
                     }
                 }
             }
+            // main 破棄 = アプリ終了を明示する。Tauri の「全ウィンドウ破棄で
+            // 自然終了」に任せると、libmpv / WebView2 の終了処理に引きずられて
+            // プロセス終了が数分単位で遅延し、windowless のゾンビが
+            // single-instance lock を IPC 応答つきで握り続けてハブの「視聴中」
+            // カウントが固着した (実機 QA)。IPC close (ハブの全閉じ) と同じ
+            // app.exit(0) なら即終了することを確認済み。settings 等のサブ
+            // ウィンドウは対象外 (main が生きている限りアプリは続行)。
+            if let tauri::WindowEvent::Destroyed = event {
+                if window.label() == "main" {
+                    window.app_handle().exit(0);
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::ping,
