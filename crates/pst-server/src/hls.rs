@@ -192,12 +192,11 @@ pub async fn playlist(
             }
         }
     }
-    out.body(Body::from(rewritten))
-        .map_err(|e| ApiError {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            code: "decode",
-            message: format!("response build failed: {e}"),
-        })
+    out.body(Body::from(rewritten)).map_err(|e| ApiError {
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+        code: "decode",
+        message: format!("response build failed: {e}"),
+    })
 }
 
 /// `GET /hls/{id}/{segment}` → 上流 `/hls/{id}/{segment}` (クエリ透過)
