@@ -329,12 +329,23 @@ pub fn run() {
             // 自然終了」に任せると、libmpv / WebView2 の終了処理に引きずられて
             // プロセス終了が数分単位で遅延し、windowless のゾンビが
             // single-instance lock を IPC 応答つきで握り続けてハブの「視聴中」
-            // カウントが固着した (実機 QA)。IPC close (ハブの全閉じ) と同じ
-            // app.exit(0) なら即終了することを確認済み。settings 等のサブ
-            // ウィンドウは対象外 (main が生きている限りアプリは続行)。
+            // カウントが固着した (実機 QA)。IPC close (ハブの全閉じ) の
+            // app.exit(0) は別スレッドから呼ばれて即終了することを確認済み。
+            // イベントディスパッチ中の同期 exit は破棄処理と競合して効かない
+            // ため同様に別スレッドへ逃がし、クリーンアップが固まった場合の
+            // 保険として一定時間後に process::exit で強制終了する。settings
+            // 等のサブウィンドウは対象外 (main が生きている限り続行)。
             if let tauri::WindowEvent::Destroyed = event {
                 if window.label() == "main" {
-                    window.app_handle().exit(0);
+                    let app = window.app_handle().clone();
+                    std::thread::spawn(move || {
+                        app.exit(0);
+                        // exit(0) がプラグイン / WebView2 のクリーンアップで
+                        // 返ってこない・進まない場合の最終手段。録画は
+                        // CloseRequested 時点で finalize 済みなので安全。
+                        std::thread::sleep(std::time::Duration::from_secs(5));
+                        std::process::exit(0);
+                    });
                 }
             }
         })
