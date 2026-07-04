@@ -7,6 +7,7 @@ pub mod embedded_server;
 pub mod player;
 
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use channel_polling::ChannelPolling;
 use player::engine::PlayerEngine;
@@ -27,6 +28,11 @@ struct PlayerInputPayload {
 /// 取りに行く。既に他プロセスが視聴している場合は focus 要求を送って
 /// `None` を返し (= 上位の `run` は即終了)、自分が取れたら
 /// `Some(LockHandle)` を返す。
+/// viewer の閉じ teardown (mpv 先落とし → destroy) を一度だけ走らせる
+/// ためのフラグ。二度目以降の CloseRequested (× 連打等) は prevent だけ
+/// して抜ける。
+static VIEWER_TEARDOWN: AtomicBool = AtomicBool::new(false);
+
 /// 閉じシーケンスの実機デバッグ用ログ (一時的な計測コード)。exe と同じ
 /// ディレクトリの close-debug.log に追記する。プロセス残留バグの
 /// 原因特定後に削除する。
@@ -114,9 +120,20 @@ fn start_focus_listener<R: Runtime>(mut handle: LockHandle, app: AppHandle<R>) -
                     }
                 },
                 move || {
-                    close_debug_log("ipc close: app.exit(0)");
-                    app_close.exit(0);
-                    close_debug_log("ipc close: app.exit returned");
+                    close_debug_log("ipc close");
+                    // graceful close (mpv 先落とし → destroy) に乗せる。
+                    // 窓が既に無い場合や進まない場合は exit で落とす。
+                    if let Some(w) = app_close.get_webview_window("main") {
+                        let _ = w.close();
+                    } else {
+                        app_close.exit(0);
+                    }
+                    let app2 = app_close.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_secs(8));
+                        close_debug_log("ipc close fallback: app.exit(0)");
+                        app2.exit(0);
+                    });
                 },
                 move || {
                     app_state.try_state::<PlayerEngine>().and_then(|e| e.record_path()).is_some()
@@ -344,44 +361,66 @@ pub fn run() {
             // 視聴ウィンドウを閉じる前に録画を確実にファイナライズする。
             // stream-record を空に設定すると libmpv が出力ファイルを正しく
             // 閉じる (D4)。録画していなければ no-op。メインウィンドウのみ対象。
-            if let tauri::WindowEvent::CloseRequested { .. } = event {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" && is_viewer {
+                    // ── viewer の閉じシーケンス (設計) ──────────────
+                    // libmpv の wid 埋め込みは「mpv を破棄してから wid の
+                    // ウィンドウを壊す」順序が必須 (mpv docs)。逆順だと
+                    // teardown が固まりプロセスが数分残留して single-
+                    // instance lock を握り続けた (実機 QA)。そこで閉じ
+                    // 要求は一旦 prevent し、mpv を先に落としてから
+                    // destroy する。
+                    close_debug_log("close-requested (main)");
+                    api.prevent_close();
+                    if VIEWER_TEARDOWN.swap(true, Ordering::SeqCst) {
+                        return; // teardown 進行中 (× 連打など)
+                    }
+                    let win = window.clone();
+                    std::thread::spawn(move || {
+                        // 見た目は即閉じ (hide)、実破棄は mpv 停止後。
+                        let _ = win.hide();
+                        if let Some(engine) = win.app_handle().try_state::<PlayerEngine>() {
+                            // 録画 finalize + 再生停止 + 再接続抑止。
+                            let _ = engine.stop_record();
+                            let _ = engine.stop();
+                            engine.request_quit();
+                            let ok = engine.wait_shutdown(std::time::Duration::from_secs(5));
+                            close_debug_log(&format!("mpv shutdown observed={ok}"));
+                        }
+                        close_debug_log("destroying window");
+                        let _ = win.destroy();
+                    });
+                    // 保険: teardown やその後の終了がどこかで固まっても
+                    // プロセスを確実に落とす (通常は先に自然終了して no-op)。
+                    let app = window.app_handle().clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_secs(8));
+                        close_debug_log("watchdog: app.exit(0)");
+                        app.exit(0);
+                        close_debug_log("watchdog: app.exit returned");
+                    });
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_secs(12));
+                        close_debug_log("watchdog: process::exit(0)");
+                        std::process::exit(0);
+                    });
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_secs(15));
+                        // process::exit が DLL detach 等でデッドロックした
+                        // 場合の最終手段。abort は detach をスキップして
+                        // 即プロセスを落とす。
+                        close_debug_log("watchdog: abort()");
+                        std::process::abort();
+                    });
+                    return;
+                }
                 if window.label() == "main" {
+                    // ハブ: 録画 finalize のみ。JS 側の「録画中の閉じ確認」
+                    // ダイアログが close を prevent し得るため、強制終了は
+                    // 張らない (確認キャンセルでアプリが落ちてはいけない)。
                     if let Some(engine) = window.app_handle().try_state::<PlayerEngine>() {
-                        // 録画をファイナライズしつつ、保留中の自動再接続も止めてから
-                        // 閉じる (user_stop / generation で reconnect ワーカーを
-                        // キャンセルし、閉じ際の再接続の残り火を防ぐ)。
                         let _ = engine.stop_record();
                         let _ = engine.stop();
-                    }
-                    // 終了ウォッチドッグ (viewer のみ)。実機では × / Alt+X で
-                    // ウィンドウ消滅後も Destroyed イベントが届かず (破棄中に
-                    // イベントループが mpv 子ウィンドウ / WebView2 の teardown
-                    // で停止するとみられる)、プロセスが数分残留して
-                    // single-instance lock を握り続けた。viewer は close を
-                    // prevent しないので、CloseRequested = 確実に閉じる、で
-                    // 猶予後に段階的に強制終了する。自然終了が先なら no-op。
-                    close_debug_log("close-requested (main)");
-                    if is_viewer {
-                        let app = window.app_handle().clone();
-                        std::thread::spawn(move || {
-                            std::thread::sleep(std::time::Duration::from_secs(3));
-                            close_debug_log("watchdog: app.exit(0)");
-                            app.exit(0);
-                            close_debug_log("watchdog: app.exit returned");
-                        });
-                        std::thread::spawn(move || {
-                            std::thread::sleep(std::time::Duration::from_secs(8));
-                            close_debug_log("watchdog: process::exit(0)");
-                            std::process::exit(0);
-                        });
-                        std::thread::spawn(move || {
-                            std::thread::sleep(std::time::Duration::from_secs(11));
-                            // process::exit が DLL detach 等でデッドロックした
-                            // 場合の最終手段。abort は detach をスキップして
-                            // 即プロセスを落とす。
-                            close_debug_log("watchdog: abort()");
-                            std::process::abort();
-                        });
                     }
                 }
             }

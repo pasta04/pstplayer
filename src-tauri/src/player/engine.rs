@@ -9,7 +9,7 @@
 //! 無しでユニットテスト可能。
 
 use std::ptr::NonNull;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -215,6 +215,11 @@ unsafe impl Send for MpvCtx {}
 pub struct PlayerEngine {
     mpv: Arc<Mpv>,
     state: Arc<Mutex<EngineState>>,
+    /// mpv コアの破棄完了 (MPV_EVENT_SHUTDOWN をイベントループが観測)
+    /// を待ち合わせるためのフラグ + 条件変数。wid 埋め込みでは
+    /// 「mpv 終了 → ウィンドウ破棄」の順序が必須なので、閉じシーケンス
+    /// は request_quit → wait_shutdown → destroy の順で使う。
+    shutdown: Arc<(Mutex<bool>, Condvar)>,
 }
 
 impl PlayerEngine {
@@ -234,7 +239,11 @@ impl PlayerEngine {
             Ok(())
         })
         .map_err(map_err)?;
-        Ok(Self { mpv: Arc::new(mpv), state: Arc::new(Mutex::new(EngineState::default())) })
+        Ok(Self {
+            mpv: Arc::new(mpv),
+            state: Arc::new(Mutex::new(EngineState::default())),
+            shutdown: Arc::new((Mutex::new(false), Condvar::new())),
+        })
     }
 
     /// Load `url` and start playback (`replace` the current entry).
@@ -325,10 +334,37 @@ impl PlayerEngine {
         let ctx = MpvCtx(self.mpv.ctx);
         let mpv = Arc::clone(&self.mpv);
         let state = Arc::clone(&self.state);
+        let shutdown = Arc::clone(&self.shutdown);
         thread::Builder::new()
             .name("pst-mpv-events".into())
-            .spawn(move || event_loop(ctx, mpv, state, app))
+            .spawn(move || event_loop(ctx, mpv, state, shutdown, app))
             .expect("spawn mpv event loop");
+    }
+
+    /// mpv コアへ `quit` を送り、破棄シーケンスを開始する。完了は
+    /// [`Self::wait_shutdown`] で待つ。再生・録画は事前に stop 済みで
+    /// あること (stop_record / stop)。
+    pub fn request_quit(&self) {
+        let _ = self.mpv.command("quit", &[]);
+    }
+
+    /// イベントループが MPV_EVENT_SHUTDOWN を観測する (= mpv が VO を
+    /// 破棄して wid ウィンドウから手を引いた) まで待つ。タイムアウト
+    /// したら false を返す。
+    pub fn wait_shutdown(&self, timeout: Duration) -> bool {
+        let (lock, cvar) = &*self.shutdown;
+        let deadline = Instant::now() + timeout;
+        let mut done = lock.lock().expect("shutdown lock");
+        loop {
+            if *done {
+                return true;
+            }
+            let remain = deadline.saturating_duration_since(Instant::now());
+            if remain.is_zero() {
+                return false;
+            }
+            done = cvar.wait_timeout(done, remain).expect("shutdown wait").0;
+        }
     }
 }
 
@@ -342,6 +378,7 @@ fn event_loop<R: Runtime + 'static>(
     ctx: MpvCtx,
     mpv: Arc<Mpv>,
     state: Arc<Mutex<EngineState>>,
+    shutdown: Arc<(Mutex<bool>, Condvar)>,
     app: AppHandle<R>,
 ) {
     loop {
@@ -355,7 +392,14 @@ fn event_loop<R: Runtime + 'static>(
         let event = unsafe { *event_ptr };
         match event.event_id {
             id if id == EVENT_NONE => continue,
-            id if id == EVENT_SHUTDOWN => break,
+            id if id == EVENT_SHUTDOWN => {
+                // 閉じシーケンス (request_quit → wait_shutdown) へ
+                // 「mpv が破棄された」ことを通知してから抜ける。
+                let (lock, cvar) = &*shutdown;
+                *lock.lock().expect("shutdown lock") = true;
+                cvar.notify_all();
+                break;
+            }
             id if id == EVENT_END_FILE => {
                 let end_file = unsafe { *(event.data as *const libmpv2_sys::mpv_event_end_file) };
                 handle_end_file(end_file.reason as u32, &state, &mpv, &app);
