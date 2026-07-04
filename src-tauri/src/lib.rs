@@ -33,27 +33,6 @@ struct PlayerInputPayload {
 /// して抜ける。
 static VIEWER_TEARDOWN: AtomicBool = AtomicBool::new(false);
 
-/// 閉じシーケンスの実機デバッグ用ログ (一時的な計測コード)。exe と同じ
-/// ディレクトリの close-debug.log に追記する。プロセス残留バグの
-/// 原因特定後に削除する。
-fn close_debug_log(msg: &str) {
-    use std::io::Write;
-    let Ok(exe) = std::env::current_exe() else { return };
-    let Some(dir) = exe.parent() else { return };
-    let Ok(mut f) = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(dir.join("close-debug.log"))
-    else {
-        return;
-    };
-    let ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
-    let _ = writeln!(f, "[{ms}] pid={} {msg}", std::process::id());
-}
-
 fn maybe_acquire_lock(cli: &CliArgs) -> AcquireOutcome {
     let Some(url) = cli.url.as_ref() else {
         return AcquireOutcome::Skip;
@@ -120,7 +99,6 @@ fn start_focus_listener<R: Runtime>(mut handle: LockHandle, app: AppHandle<R>) -
                     }
                 },
                 move || {
-                    close_debug_log("ipc close");
                     // graceful close (mpv 先落とし → destroy) に乗せる。
                     // 窓が既に無い場合や進まない場合は exit で落とす。
                     if let Some(w) = app_close.get_webview_window("main") {
@@ -131,7 +109,6 @@ fn start_focus_listener<R: Runtime>(mut handle: LockHandle, app: AppHandle<R>) -
                     let app2 = app_close.clone();
                     std::thread::spawn(move || {
                         std::thread::sleep(std::time::Duration::from_secs(8));
-                        close_debug_log("ipc close fallback: app.exit(0)");
                         app2.exit(0);
                     });
                 },
@@ -370,7 +347,6 @@ pub fn run() {
                     // instance lock を握り続けた (実機 QA)。そこで閉じ
                     // 要求は一旦 prevent し、mpv を先に落としてから
                     // destroy する。
-                    close_debug_log("close-requested (main)");
                     api.prevent_close();
                     if VIEWER_TEARDOWN.swap(true, Ordering::SeqCst) {
                         return; // teardown 進行中 (× 連打など)
@@ -384,10 +360,8 @@ pub fn run() {
                             let _ = engine.stop_record();
                             let _ = engine.stop();
                             engine.request_quit();
-                            let ok = engine.wait_shutdown(std::time::Duration::from_secs(5));
-                            close_debug_log(&format!("mpv shutdown observed={ok}"));
+                            let _ = engine.wait_shutdown(std::time::Duration::from_secs(5));
                         }
-                        close_debug_log("destroying window");
                         let _ = win.destroy();
                     });
                     // 保険: teardown やその後の終了がどこかで固まっても
@@ -395,13 +369,10 @@ pub fn run() {
                     let app = window.app_handle().clone();
                     std::thread::spawn(move || {
                         std::thread::sleep(std::time::Duration::from_secs(8));
-                        close_debug_log("watchdog: app.exit(0)");
                         app.exit(0);
-                        close_debug_log("watchdog: app.exit returned");
                     });
                     std::thread::spawn(move || {
                         std::thread::sleep(std::time::Duration::from_secs(12));
-                        close_debug_log("watchdog: process::exit(0)");
                         std::process::exit(0);
                     });
                     std::thread::spawn(move || {
@@ -409,7 +380,6 @@ pub fn run() {
                         // process::exit が DLL detach 等でデッドロックした
                         // 場合の最終手段。abort は detach をスキップして
                         // 即プロセスを落とす。
-                        close_debug_log("watchdog: abort()");
                         std::process::abort();
                     });
                     return;
@@ -436,7 +406,6 @@ pub fn run() {
             // 等のサブウィンドウは対象外 (main が生きている限り続行)。
             if let tauri::WindowEvent::Destroyed = event {
                 if window.label() == "main" {
-                    close_debug_log("destroyed (main)");
                     let app = window.app_handle().clone();
                     std::thread::spawn(move || {
                         app.exit(0);
