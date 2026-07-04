@@ -155,6 +155,7 @@ pub async fn thread_fetch(Query(q): Query<ThreadQuery>) -> ApiResult<Json<Thread
             last_count: q.last_count.unwrap_or(0),
             last_byte: q.last_byte.unwrap_or(0),
             last_modified: q.last_modified.clone(),
+            full_reload: false,
         })
     } else {
         None

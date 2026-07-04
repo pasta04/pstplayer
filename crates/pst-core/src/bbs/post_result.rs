@@ -44,6 +44,12 @@ pub fn classify_ch2(body: &str) -> PostOutcome {
     if body.contains("<!-- 2ch_X:cookie -->") || body.contains("<!-- 2ch_X:check -->") {
         return PostOutcome::NeedsCookieConfirm;
     }
+    // 2ch_X コメントを出さない互換実装 (0ch 系等) は、書き込み成功時に
+    // 従来の完了画面テキストだけを返す (komokomo.ddns.net で実測: 成功
+    // なのに拒否扱いになっていた)。確認画面にはこの文言は出ない。
+    if body.contains("書きこみました") || body.contains("書き込みました") {
+        return PostOutcome::Success;
+    }
     PostOutcome::Rejected(classify_reject(body))
 }
 
@@ -114,6 +120,14 @@ fn snippet(body: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ch2_success_plain_text_without_marker() {
+        // 2ch_X マーカーを出さない互換実装の成功画面。
+        let body = "<html><head><title>書きこみました。</title></head>\
+             <body>書きこみが終わりました。<br>画面を切り替えるまでしばらくお待ち下さい。</body></html>";
+        assert_eq!(classify_ch2(body), PostOutcome::Success);
+    }
 
     #[test]
     fn ch2_success_marker() {

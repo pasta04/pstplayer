@@ -979,9 +979,13 @@
 			// scrollable area without losing the anchor.
 			const wasAtBottom = isNearBottom(postsEl);
 			let appendedNew = false;
-			if (forceReset || !fetchState) {
+			if (forceReset || !fetchState || newState.fullReload) {
+				// 全体スナップショット (初回 / 手動リロード / サーバが増分を
+				// 返せなかった / dat 再構築) は置換。追記すると全レスが
+				// 二重になり、レス番号キーの {#each} が重複キーで落ちて
+				// 以降の描画更新が止まる (実機 QA: komokomo.ddns.net)。
 				posts = newPosts;
-				if (forceReset) sanitizedCache = new Map();
+				if (forceReset || newState.fullReload) sanitizedCache = new Map();
 			} else if (newPosts.length > 0) {
 				posts = [...posts, ...newPosts];
 				appendedNew = true;
@@ -1567,10 +1571,13 @@
 			switch (e.code) {
 				case 'peercast_unreachable':
 					return `PeerCast に接続できません。設定 → PeerCast のホスト / ポートを確認してください。 (${e.message})`;
+				// message は backend (AppError の Display) が既に
+				// 「書き込みが規制されています: …」等の説明付きで組み立てて
+				// いるので、ここで prefix を重ねない (実機 QA: 「書き込みが
+				// 拒否されました:」が二重に表示されていた)。
 				case 'board_regulated':
-					return `書き込みが規制されています: ${e.message}`;
 				case 'post_rejected':
-					return `書き込みが拒否されました: ${e.message}`;
+					return e.message;
 				case 'thread_gone':
 					return `スレッドが見つかりません (削除 / 過去ログ送り)。 ${e.message}`;
 				case 'invalid_url':

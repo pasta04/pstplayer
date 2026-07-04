@@ -36,6 +36,14 @@ pub struct FetchState {
     pub last_modified: Option<String>,
     pub last_byte: u64,
     pub last_count: u32,
+    /// この応答が「スレ全体のスナップショット」なら true。フロントは
+    /// true なら手元のレス一覧を**置換**、false なら**追記**する。
+    /// 増分取得が使えず全件を返した場合 (サーバが Range 無視 / 416 /
+    /// dat 再構築検知) に、フロントが誤って全レスを二重追記して
+    /// レス番号キーの {#each} が落ちる事故を防ぐ (実機 QA:
+    /// komokomo.ddns.net)。
+    #[serde(default)]
+    pub full_reload: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

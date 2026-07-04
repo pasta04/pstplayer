@@ -97,7 +97,11 @@
 		try {
 			const [newPosts, state] = await fetchThread(bbsUrl, bbsState);
 			bbsState = state;
-			if (newPosts.length) {
+			if (state.fullReload) {
+				// スレ全体のスナップショット (dat 再構築等)。マージすると
+				// 消えたレスが残るため置換する。
+				posts = newPosts;
+			} else if (newPosts.length) {
 				// 差分取得分を number でマージ (既存 + 新規)。
 				const map = new Map(posts.map((p) => [p.number, p]));
 				for (const p of newPosts) map.set(p.number, p);

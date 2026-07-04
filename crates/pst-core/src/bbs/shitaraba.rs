@@ -146,7 +146,9 @@ impl ShitarabaClient {
         }
         let resp = req.send().await?;
         if resp.status() == reqwest::StatusCode::NOT_MODIFIED {
-            return Ok((Vec::new(), prev.cloned().unwrap_or_default()));
+            let mut state = prev.cloned().unwrap_or_default();
+            state.full_reload = false;
+            return Ok((Vec::new(), state));
         }
         if !resp.status().is_success() {
             return Err(AppError::Network(format!(
@@ -168,6 +170,9 @@ impl ShitarabaClient {
             last_modified: lm,
             last_byte: 0,
             last_count,
+            // rawmode は start 指定で「新着のみ」を返すため、prev ありは
+            // 常に増分。prev なし (初回) はスレ全体 = 置換。
+            full_reload: prev.is_none(),
         };
         Ok((posts, state))
     }

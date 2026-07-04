@@ -22,6 +22,25 @@ impl Default for Ch2Client {
     }
 }
 
+/// 増分取得 (Range: bytes={last_byte-1}-) の応答本文を検証する。
+/// 先頭バイトが直前回の終端 (\n) と一致するなら残りが新着、そうで
+/// なければ dat が再構築されている。
+enum OverlapCheck<'a> {
+    /// 継続している。中身は先頭の \n を除いた新着バイト列 (空 = 新着なし)。
+    Continued(&'a [u8]),
+    /// 繋がらない (削除 / 編集で dat が変わった)。全件取り直しが必要。
+    Rebuilt,
+}
+
+fn split_overlap(bytes: &[u8]) -> OverlapCheck<'_> {
+    match bytes.first() {
+        Some(b'\n') => OverlapCheck::Continued(&bytes[1..]),
+        Some(_) => OverlapCheck::Rebuilt,
+        // 0 バイト応答は「新着なし」とみなす (通常は 1 バイト以上返る)。
+        None => OverlapCheck::Continued(bytes),
+    }
+}
+
 impl Ch2Client {
     pub fn new() -> Self {
         Self {
@@ -97,13 +116,24 @@ impl Ch2Client {
             .ok_or_else(|| AppError::InvalidUrl(format!("missing thread key in: {thread_url}")))?;
 
         let url = Self::dat_url(&u.scheme, &u.host, &u.board, key);
+        let prev_count = prev.map(|p| p.last_count).unwrap_or(0);
+        let prev_byte = prev.map(|p| p.last_byte).unwrap_or(0);
+        // 増分は「既知の最終バイト (直前の \n) を 1 バイト含めて」要求し、
+        // 応答の先頭が \n であることを検証する 2ch クライアントの定石を使う。
+        // - 新着なしでも Range が常に満たせるため 206 (1 バイト) になる。
+        //   起点 == サイズ の Range に対し、If-Modified-Since が一致していても
+        //   304 でなく 416 を返す Apache が実在する (komokomo.ddns.net で実測)。
+        //   その 416 → 全件再取得が毎回走ると、フロントに全レスが増分として
+        //   届いてしまう。
+        // - 先頭が \n でなければ dat が再構築された (削除等) と検知できる。
+        let overlap = prev_byte > 0;
         let mut req = self.http.get(&url);
         if let Some(p) = prev {
             if let Some(lm) = &p.last_modified {
                 req = req.header(reqwest::header::IF_MODIFIED_SINCE, lm);
             }
-            if p.last_byte > 0 {
-                req = req.header(reqwest::header::RANGE, format!("bytes={}-", p.last_byte));
+            if overlap {
+                req = req.header(reqwest::header::RANGE, format!("bytes={}-", prev_byte - 1));
             }
         }
         let resp = req.send().await?;
@@ -111,7 +141,9 @@ impl Ch2Client {
 
         // 304 Not Modified ⇒ no update.
         if status == reqwest::StatusCode::NOT_MODIFIED {
-            return Ok((Vec::new(), prev.cloned().unwrap_or_default()));
+            let mut state = prev.cloned().unwrap_or_default();
+            state.full_reload = false;
+            return Ok((Vec::new(), state));
         }
         // 416 Range Not Satisfiable ⇒ thread shrank or was rebuilt; reset.
         if status == reqwest::StatusCode::RANGE_NOT_SATISFIABLE {
@@ -127,41 +159,55 @@ impl Ch2Client {
             .and_then(|v| v.to_str().ok())
             .map(|s| s.to_string());
         let bytes = resp.bytes().await?;
+        let is_partial = status == reqwest::StatusCode::PARTIAL_CONTENT;
+
+        if is_partial && overlap {
+            match split_overlap(&bytes) {
+                OverlapCheck::Rebuilt => {
+                    // 先頭が \n でない = 手元の範囲と繋がらない。全件取り直す。
+                    return Box::pin(self.fetch_thread(thread_url, None)).await;
+                }
+                OverlapCheck::Continued(new_bytes) => {
+                    if new_bytes.is_empty() {
+                        let state = FetchState {
+                            last_modified: lm,
+                            last_byte: prev_byte,
+                            last_count: prev_count,
+                            full_reload: false,
+                        };
+                        return Ok((Vec::new(), state));
+                    }
+                    let added_bytes = new_bytes.len() as u64;
+                    let body = BoardEncoding::ShiftJis.decode(new_bytes)?;
+                    // 増分は 1 から番号が振り直されるので継ぎ足す。
+                    let posts: Vec<Post> = parse_ch2_dat(&body)
+                        .into_iter()
+                        .map(|mut p| {
+                            p.number = p.number.saturating_add(prev_count);
+                            p
+                        })
+                        .collect();
+                    let state = FetchState {
+                        last_modified: lm,
+                        last_byte: prev_byte + added_bytes,
+                        last_count: prev_count + posts.len() as u32,
+                        full_reload: false,
+                    };
+                    return Ok((posts, state));
+                }
+            }
+        }
+
+        // 200 (初回 / サーバが Range 無視) = スレ全体のスナップショット。
+        // full_reload でフロントに「置換」を指示する。
         let added_bytes = bytes.len() as u64;
         let body = BoardEncoding::ShiftJis.decode(&bytes)?;
-
-        let is_partial = status == reqwest::StatusCode::PARTIAL_CONTENT;
-        let prev_count = prev.map(|p| p.last_count).unwrap_or(0);
-        let prev_byte = prev.map(|p| p.last_byte).unwrap_or(0);
-
-        // For incremental fetches we have to re-number from where we left off.
-        let raw_posts = parse_ch2_dat(&body);
-        let posts: Vec<Post> = if is_partial {
-            raw_posts
-                .into_iter()
-                .map(|mut p| {
-                    p.number = p.number.saturating_add(prev_count);
-                    p
-                })
-                .collect()
-        } else {
-            raw_posts
-        };
-
-        let last_count = if is_partial {
-            prev_count + posts.len() as u32
-        } else {
-            posts.len() as u32
-        };
-        let last_byte = if is_partial {
-            prev_byte + added_bytes
-        } else {
-            added_bytes
-        };
+        let posts = parse_ch2_dat(&body);
         let state = FetchState {
             last_modified: lm,
-            last_byte,
-            last_count,
+            last_byte: added_bytes,
+            last_count: posts.len() as u32,
+            full_reload: true,
         };
         Ok((posts, state))
     }
@@ -272,5 +318,32 @@ mod tests {
             Ch2Client::write_url("http", "hibino.ddo.jp"),
             "http://hibino.ddo.jp/test/bbs.cgi"
         );
+    }
+}
+
+#[cfg(test)]
+mod overlap_tests {
+    use super::*;
+
+    #[test]
+    fn continued_with_new_data() {
+        let b = b"\nfoo<>bar\n";
+        match split_overlap(b) {
+            OverlapCheck::Continued(rest) => assert_eq!(rest, b"foo<>bar\n"),
+            OverlapCheck::Rebuilt => panic!("should continue"),
+        }
+    }
+
+    #[test]
+    fn continued_no_new_data() {
+        match split_overlap(b"\n") {
+            OverlapCheck::Continued(rest) => assert!(rest.is_empty()),
+            OverlapCheck::Rebuilt => panic!("should continue"),
+        }
+    }
+
+    #[test]
+    fn rebuilt_when_first_byte_differs() {
+        assert!(matches!(split_overlap(b"abc"), OverlapCheck::Rebuilt));
     }
 }

@@ -396,6 +396,9 @@ export interface FetchState {
 	lastModified: string | null;
 	lastByte: number;
 	lastCount: number;
+	/// true ならこの応答は「スレ全体のスナップショット」。呼び出し側は
+	/// 手元のレス一覧を置換する (追記すると全レスが二重になる)。
+	fullReload?: boolean;
 }
 
 export interface PostRequest {
