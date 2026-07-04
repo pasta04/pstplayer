@@ -323,7 +323,13 @@
 			ypSources = cfg?.yp?.sources ?? [];
 			const newRefresh = cfg?.hub?.refresh_sec ?? 60;
 			const newPoll = cfg?.hub?.watching_poll_sec ?? 5;
-			if (newRefresh !== refreshSec || newPoll !== watchingPollSec) {
+			// 初回は必ず restartTimers() を通すこと。「値が変わったときだけ」
+			// にすると、config が既定値 (60/5) と同じ場合に初期値と一致して
+			// タイマーが一度も起動せず、YP 自動更新も「視聴中」ポーリングも
+			// 死んだままになる (実機 QA: 最終更新が起動時刻のまま固着し、
+			// 閉じた視聴ウィンドウが「視聴中 (1)」に残り続けた)。
+			const timersNotStarted = refreshTimer === null && watchingTimer === null;
+			if (timersNotStarted || newRefresh !== refreshSec || newPoll !== watchingPollSec) {
 				refreshSec = newRefresh;
 				watchingPollSec = newPoll;
 				restartTimers();
