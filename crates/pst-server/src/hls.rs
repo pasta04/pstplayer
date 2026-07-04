@@ -192,7 +192,7 @@ pub async fn playlist(
             }
         }
     }
-    out.body(Body::from(rewritten.into_owned()))
+    out.body(Body::from(rewritten))
         .map_err(|e| ApiError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
             code: "decode",
