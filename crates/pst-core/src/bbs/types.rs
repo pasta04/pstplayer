@@ -13,7 +13,13 @@ pub struct ThreadSummary {
     pub count: u32,
 }
 
+// フロント (api.ts) は camelCase の `threadTitle` を読む。rename_all が無いと
+// snake_case (`thread_title`) のまま IPC/REST に流れ、フロントでは全レスの
+// threadTitle が undefined になる (実機で `p.threadTitle.trim()` が throw し、
+// スレタイ横のレス数がまとめて固着した実績あり。BbsConfig と同様に camelCase
+// へ統一する)。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Post {
     pub number: u32,
     pub name: String,
@@ -25,6 +31,7 @@ pub struct Post {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FetchState {
     pub last_modified: Option<String>,
     pub last_byte: u64,
@@ -43,6 +50,7 @@ pub struct PostRequest {
 /// 設定なし」を表し、呼び出し側はデフォルト (通常 1000) にフォールバック
 /// する。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BoardSetting {
     /// 1 スレッドの最大レス数。したらば `BBS_THREAD_STOP` /
     /// 2ch 互換 `BBS_RES_MAX`。
@@ -51,4 +59,30 @@ pub struct BoardSetting {
     pub default_name: String,
     /// 板タイトル (`BBS_TITLE`)。
     pub title: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// フロント (api.ts の Post / FetchState / BoardSetting interface) は
+    /// camelCase フィールドを読む。serde の出力が snake_case に戻ると
+    /// threadTitle undefined → スレタイ横レス数の固着が再発するため、
+    /// JSON のフィールド名そのものを回帰テストで固定する。
+    #[test]
+    fn bbs_types_serialize_camel_case() {
+        let post = serde_json::to_value(Post::default()).unwrap();
+        assert!(post.get("threadTitle").is_some(), "Post must serialize threadTitle: {post}");
+        assert!(post.get("thread_title").is_none());
+
+        let state = serde_json::to_value(FetchState::default()).unwrap();
+        for key in ["lastModified", "lastByte", "lastCount"] {
+            assert!(state.get(key).is_some(), "FetchState must serialize {key}: {state}");
+        }
+
+        let setting = serde_json::to_value(BoardSetting::default()).unwrap();
+        for key in ["maxRes", "defaultName"] {
+            assert!(setting.get(key).is_some(), "BoardSetting must serialize {key}: {setting}");
+        }
+    }
 }

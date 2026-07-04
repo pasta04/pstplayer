@@ -719,7 +719,11 @@
 	// 出す。1) 取得済みレスのスレタイ (通常 1 レス目)、2) スレ一覧から
 	// 現スレ key で引いたタイトル、の順で探す。どちらも無ければ null。
 	const currentThreadTitle = $derived.by(() => {
-		const fromPost = posts.find((p) => p.threadTitle.trim())?.threadTitle.trim();
+		// threadTitle が欠落したレスが混ざっても throw しないこと (optional
+		// chaining)。本番ビルドではスレタイとレス数が同一 template_effect に
+		// まとめられるため、ここで例外が出るとレス数 (postCount) の表示まで
+		// 巻き添えで固着する。
+		const fromPost = posts.find((p) => p.threadTitle?.trim())?.threadTitle.trim();
 		if (fromPost) return fromPost;
 		const key = currentThreadUrl?.match(/(\d+)\/?$/)?.[1];
 		if (key) {
