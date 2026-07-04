@@ -157,19 +157,31 @@ impl Config {
 
 pub const MAX_RECENT_HOSTS: usize = 8;
 
+// フロント (api.ts の PeerCastConfig) は camelCase を読む。snake_case の
+// ままだと authUser / timeoutSec 等が UI で undefined になり、保存時には
+// serde(default) で毎回リセットされるサイレントバグになる (BbsConfig /
+// bbs types と同種)。旧 config.toml の snake_case キーは alias で読める。
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PeerCastConfig {
     pub host: String,
     pub port: u16,
+    #[serde(default, alias = "auth_user")]
     pub auth_user: Option<String>,
+    #[serde(default, alias = "auth_pass")]
     pub auth_pass: Option<String>,
+    #[serde(default = "default_peercast_timeout_sec", alias = "timeout_sec")]
     pub timeout_sec: u64,
-    #[serde(default)]
+    #[serde(default, alias = "recent_hosts")]
     pub recent_hosts: Vec<String>,
     /// YP `index.txt` の URL。空文字列なら YP 機能を無効化。
     /// 例: `http://yp.example.invalid/index.txt`
-    #[serde(default)]
+    #[serde(default, alias = "yp_url")]
     pub yp_url: String,
+}
+
+fn default_peercast_timeout_sec() -> u64 {
+    10
 }
 
 impl Default for PeerCastConfig {
@@ -421,5 +433,24 @@ mod tests {
         let cfg = Config::default();
         let sources = cfg.effective_yp_sources();
         assert!(sources.is_empty());
+    }
+
+    /// フロント (api.ts の PeerCastConfig) は camelCase を読む。旧
+    /// config.toml の snake_case キーも alias で読めることを固定する。
+    #[test]
+    fn peercast_config_serializes_camel_case_and_reads_legacy_snake() {
+        let json = serde_json::to_value(PeerCastConfig::default()).unwrap();
+        for key in ["authUser", "authPass", "timeoutSec", "recentHosts", "ypUrl"] {
+            assert!(json.get(key).is_some(), "missing {key}: {json}");
+        }
+        assert!(json.get("auth_user").is_none());
+
+        let legacy: PeerCastConfig = toml::from_str(
+            "host = \"h\"\nport = 7144\nauth_user = \"u\"\ntimeout_sec = 3\nyp_url = \"x\"",
+        )
+        .unwrap();
+        assert_eq!(legacy.auth_user.as_deref(), Some("u"));
+        assert_eq!(legacy.timeout_sec, 3);
+        assert_eq!(legacy.yp_url, "x");
     }
 }
