@@ -578,7 +578,7 @@
 			return;
 		}
 		try {
-			await serverRecordStart(pstServerUrl, e.id, e.name ?? '');
+			await serverRecordStart(pstServerUrl, e.id, e.name ?? '', e.tip);
 			setTimeout(() => {
 				void refreshWatching();
 			}, 600);
@@ -596,7 +596,7 @@
 			return;
 		}
 		try {
-			await serverRecordStart(pstServerUrl, e.id, e.name ?? '');
+			await serverRecordStart(pstServerUrl, e.id, e.name ?? '', e.tip);
 			setTimeout(() => {
 				void refreshWatching();
 			}, 400);
@@ -750,15 +750,22 @@
 					action: () => void watchRow(t),
 				}),
 			);
-			items.push(
-				await MenuItem.new({ text: '⏺ 視聴 + 録画開始', action: () => void watchRow(t, true) }),
-			);
-			items.push(
-				await MenuItem.new({
-					text: '⏺ 録画のみ (ウィンドウ無し)',
-					action: () => void recordOnlyRow(t),
-				}),
-			);
+			if (recordingIds.has(t.id)) {
+				// 「録画のみ」中 (視聴ウィンドウ無し) でも停止できること。
+				items.push(
+					await MenuItem.new({ text: '⏹ 録画停止', action: () => void stopRecordingRow(t) }),
+				);
+			} else {
+				items.push(
+					await MenuItem.new({ text: '⏺ 視聴 + 録画開始', action: () => void watchRow(t, true) }),
+				);
+				items.push(
+					await MenuItem.new({
+						text: '⏺ 録画のみ (ウィンドウ無し)',
+						action: () => void recordOnlyRow(t),
+					}),
+				);
+			}
 		}
 		items.push(await sep());
 		items.push(
@@ -1268,11 +1275,16 @@
 			{/if}
 		{:else}
 			<button onclick={() => watchRow(t)} class="primary">▶ 視聴 (別ウィンドウで開く)</button>
-			<button onclick={() => watchRow(t, true)}>⏺ 視聴 + 録画開始</button>
-			<button
-				onclick={() => recordOnlyRow(t)}
-				title="pst-server に録画させる (視聴ウィンドウを開かず、再生も音も無し)">⏺ 録画のみ</button
-			>
+			{#if recordingIds.has(t.id)}
+				<button onclick={() => stopRecordingRow(t)}>⏹ 録画停止</button>
+			{:else}
+				<button onclick={() => watchRow(t, true)}>⏺ 視聴 + 録画開始</button>
+				<button
+					onclick={() => recordOnlyRow(t)}
+					title="pst-server に録画させる (視聴ウィンドウを開かず、再生も音も無し)"
+					>⏺ 録画のみ</button
+				>
+			{/if}
 		{/if}
 		<hr />
 		<button onclick={() => openBbs(t.contact_url)} disabled={!t.contact_url}

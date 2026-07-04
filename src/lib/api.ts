@@ -341,10 +341,13 @@ export async function serverRecordStart(
 	serverUrl: string,
 	id: string,
 	name: string,
+	/// 配信元ヒント (host:port)。未リレーのチャンネルは tip 無しだと
+	/// PeerCast がソースを見つけられず録画開始に失敗する。
+	tip?: string,
 ): Promise<void> {
 	await dual(
-		() => call<unknown>('server_record_start', { serverUrl, id, name }),
-		() => httpPost<unknown>('/api/record/start', { id, name }),
+		() => call<unknown>('server_record_start', { serverUrl, id, name, tip: tip ?? null }),
+		() => httpPost<unknown>('/api/record/start', { id, name, tip: tip ?? null }),
 	);
 }
 

@@ -226,13 +226,16 @@ pub struct RecordStart {
     pub id: String,
     #[serde(default)]
     pub name: String,
+    /// 配信元ヒント (host:port)。未リレーのチャンネルの録画開始に必要。
+    #[serde(default)]
+    pub tip: Option<String>,
 }
 
 pub async fn record_start(
     State(s): State<AppState>,
     Json(b): Json<RecordStart>,
 ) -> ApiResult<Json<crate::recording::RecordingEntry>> {
-    let entry = s.recording.start(&s, b.id, b.name).await?;
+    let entry = s.recording.start(&s, b.id, b.name, b.tip).await?;
     Ok(Json(entry))
 }
 

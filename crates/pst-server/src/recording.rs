@@ -31,8 +31,9 @@ const DEFAULT_MAX_CONCURRENT: u32 = 8;
 /// AppState に Arc で持たせる録画タスク群の状態。
 #[derive(Default)]
 pub struct RecordingState {
-    /// channel_id をキーにした録画タスクの集合。
-    inner: Mutex<HashMap<String, RecordingTask>>,
+    /// channel_id をキーにした録画タスクの集合。タスク自身が終了時に
+    /// 自分のエントリを片付けられるよう Arc で持つ。
+    inner: Arc<Mutex<HashMap<String, RecordingTask>>>,
 }
 
 pub struct RecordingTask {
@@ -89,6 +90,7 @@ impl RecordingState {
         state: &AppState,
         channel_id: String,
         channel_name: String,
+        tip: Option<String>,
     ) -> Result<RecordingEntry, ApiError> {
         // クリティカルセクションを短く保つため、必要な設定だけ clone
         // してから RwLock を解放する。
@@ -168,10 +170,20 @@ impl RecordingState {
             });
         }
 
-        let upstream = format!("http://{peercast_host}:{peercast_port}/stream/{channel_id}.{ext}");
+        let mut upstream =
+            format!("http://{peercast_host}:{peercast_port}/stream/{channel_id}.{ext}");
+        // 未リレーのチャンネルは tip (配信元ヒント) が無いと PeerCast が
+        // ソースを見つけられず接続に失敗する。視聴の pls と同様に付ける
+        // (「録画のみ」は viewer が先にチャンネルを載せてくれないため必須)。
+        if let Some(t) = tip.as_deref().filter(|t| !t.trim().is_empty()) {
+            upstream.push_str(&format!("?tip={t}"));
+        }
         let path_for_task = path.clone();
         let stop_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let stop_flag_task = stop_flag.clone();
+        let inner_for_task = Arc::clone(&self.inner);
+        let cid_for_task = channel_id.clone();
+        let flag_for_cleanup = stop_flag.clone();
         let handle = tokio::spawn(async move {
             if let Err(e) = run_recording(
                 upstream,
@@ -183,6 +195,14 @@ impl RecordingState {
             .await
             {
                 eprintln!("recording task failed: {e}");
+            }
+            // タスク終了時に自分のエントリを片付ける (stop() 経由なら既に
+            // 無い)。接続失敗のまま放置すると「録画中」表示が残り続ける。
+            let mut g = inner_for_task.lock().await;
+            if let Some(t) = g.get(&cid_for_task) {
+                if Arc::ptr_eq(&t.stop_flag, &flag_for_cleanup) {
+                    g.remove(&cid_for_task);
+                }
             }
         });
 

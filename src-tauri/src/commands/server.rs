@@ -20,11 +20,12 @@ pub async fn server_record_start(
     server_url: String,
     id: String,
     name: String,
+    tip: Option<String>,
 ) -> Result<Value, IpcError> {
     let url = endpoint(&server_url, "api/record/start");
     let v = reqwest::Client::new()
         .post(&url)
-        .json(&json!({ "id": id, "name": name }))
+        .json(&json!({ "id": id, "name": name, "tip": tip }))
         .send()
         .await
         .map_err(AppError::from)?

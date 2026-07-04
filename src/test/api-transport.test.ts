@@ -123,7 +123,7 @@ test('serverRecordStart は POST /api/record/start に {id,name} を送る', asy
 	stubFetch(() => ok({ channel_id: 'a', channel_name: 'n', path: '/p' }));
 	await serverRecordStart('http://ignored-in-browser', 'a', 'n');
 	expect(calls[0].url).toBe('/api/record/start');
-	expect(JSON.parse(String(calls[0].init?.body))).toEqual({ id: 'a', name: 'n' });
+	expect(JSON.parse(String(calls[0].init?.body))).toEqual({ id: 'a', name: 'n', tip: null });
 });
 
 test('serverRecordList は GET /api/record/list の recordings を返す', async () => {

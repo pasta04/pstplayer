@@ -109,7 +109,9 @@ async fn run(state: AppState) {
                     };
                     match state
                         .recording
-                        .start(&state, ch.channel_id.clone(), name.clone())
+                        // 自動録画の対象はローカル PeerCast が既にリレー中の
+                        // チャンネルなので tip は不要。
+                        .start(&state, ch.channel_id.clone(), name.clone(), None)
                         .await
                     {
                         Ok(entry) => {
