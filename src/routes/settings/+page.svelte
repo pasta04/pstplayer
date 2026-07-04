@@ -427,7 +427,7 @@
 				<code class="path">{configPath}</code>
 				<p class="hint small">直接編集も可能です。</p>
 				{#if cfg.window}
-					<label>
+					<label class="check">
 						<input type="checkbox" bind:checked={cfg.window.minimize_to_tray} />
 						最小化時にタスクトレイへ格納する (既定: タスクバー)
 					</label>
@@ -1211,14 +1211,20 @@
 		gap: 0 0.6rem;
 	}
 	table.favorites td.match-fields label {
+		/* 共通の label ルール (grid 8rem 1fr) を打ち消す。チェックボックスと
+		   項目名がグリッド列に分離して見えていた。 */
+		display: inline-flex;
+		grid-template-columns: none;
+		align-items: center;
+		gap: 0.25rem;
 		font-size: 0.72rem;
 		white-space: nowrap;
 		user-select: none;
 		cursor: pointer;
 	}
 	table.favorites td.match-fields input[type='checkbox'] {
-		vertical-align: -0.15rem;
-		margin-right: 0.1rem;
+		width: auto;
+		margin: 0;
 	}
 	table.favorites .color-sample {
 		display: inline-block;

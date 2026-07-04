@@ -45,5 +45,15 @@ export function initTheme(): () => void {
 		if (getTheme() === 'system') applyTheme('system');
 	};
 	mq.addEventListener?.('change', onChange);
-	return () => mq.removeEventListener?.('change', onChange);
+	// 別ウィンドウ (設定) でテーマが変更されたら追従する。localStorage は
+	// 同一オリジンの全ウィンドウで共有され、他ウィンドウの変更は
+	// storage イベントで届く。
+	const onStorage = (e: StorageEvent) => {
+		if (e.key === STORAGE_KEY) applyTheme(getTheme());
+	};
+	window.addEventListener('storage', onStorage);
+	return () => {
+		mq.removeEventListener?.('change', onChange);
+		window.removeEventListener('storage', onStorage);
+	};
 }

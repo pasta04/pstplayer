@@ -7,6 +7,7 @@
 	// pstplayer-hub-settings.md を参照。
 
 	import { onDestroy, onMount } from 'svelte';
+	import { initTheme } from '$lib/theme';
 	import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import {
@@ -218,6 +219,7 @@
 	let minimizeToTray = false;
 
 	onMount(() => {
+		const unbindTheme = initTheme();
 		void refresh();
 		void refreshWatching();
 		// 設定ダイアログで保存があったら再 fetch (YP / お気に入りが変わる
@@ -280,6 +282,7 @@
 				});
 		}
 		return () => {
+			unbindTheme();
 			if (refreshTimer) clearInterval(refreshTimer);
 			if (watchingTimer) clearInterval(watchingTimer);
 		};
@@ -1325,8 +1328,8 @@
 		flex-direction: column;
 		height: 100vh;
 		overflow: hidden;
-		background: #fff;
-		color: #1a1a1a;
+		background: var(--bg);
+		color: var(--fg);
 		font-size: 12px;
 		font-family:
 			'Yu Gothic UI',
@@ -1341,21 +1344,22 @@
 		align-items: center;
 		gap: 0.4rem;
 		padding: 0.35rem 0.6rem;
-		background: #f4f4f4;
-		border-bottom: 1px solid #d0d0d0;
+		background: var(--bg-elev);
+		border-bottom: 1px solid var(--border);
 	}
 
 	.toolbar button {
 		padding: 0.2rem 0.7rem;
 		font: inherit;
-		background: #fff;
-		border: 1px solid #b0b0b0;
+		background: var(--bg-input);
+		color: inherit;
+		border: 1px solid var(--border-strong);
 		border-radius: 3px;
 		cursor: pointer;
 	}
 
 	.toolbar button:hover {
-		background: #f0f7ff;
+		background: color-mix(in srgb, var(--accent) 12%, var(--bg-input));
 	}
 
 	.toolbar button:disabled {
@@ -1367,17 +1371,18 @@
 		flex: 1;
 		padding: 0.2rem 0.5rem;
 		font: inherit;
-		border: 1px solid #b0b0b0;
+		border: 1px solid var(--border-strong);
 		border-radius: 3px;
-		background: #fff;
+		background: var(--bg-input);
+		color: inherit;
 	}
 
 	.stat {
-		color: #666;
+		color: var(--fg-muted);
 	}
 
 	.updated {
-		color: #888;
+		color: var(--fg-muted);
 		font-size: 11px;
 	}
 
@@ -1385,8 +1390,8 @@
 		display: flex;
 		gap: 1px;
 		padding: 0 0.4rem;
-		background: #ececec;
-		border-bottom: 1px solid #d0d0d0;
+		background: var(--bg);
+		border-bottom: 1px solid var(--border);
 		overflow-x: auto;
 		scrollbar-width: thin;
 		white-space: nowrap;
@@ -1397,33 +1402,33 @@
 		white-space: nowrap;
 		padding: 0.3rem 0.9rem;
 		font: inherit;
-		background: #ececec;
+		background: transparent;
 		border: none;
 		border-bottom: 2px solid transparent;
 		cursor: pointer;
-		color: #444;
+		color: var(--fg-dim);
 	}
 
 	.tabs button.active {
-		background: #fff;
-		color: #000;
+		background: var(--bg-elev);
+		color: var(--fg);
 		font-weight: 600;
-		border-bottom-color: #46a3ff;
+		border-bottom-color: var(--accent);
 	}
 
 	.error {
 		padding: 0.4rem 0.6rem;
-		background: #fff0f0;
-		color: #c0392b;
-		border-bottom: 1px solid #f0c4c4;
+		background: color-mix(in srgb, var(--err) 14%, var(--bg));
+		color: var(--err);
+		border-bottom: 1px solid color-mix(in srgb, var(--err) 35%, var(--bg));
 	}
 
 	.warn {
 		padding: 0.3rem 0.6rem;
-		background: #fff8e0;
-		color: #7a5d00;
+		background: color-mix(in srgb, var(--accent-external) 12%, var(--bg));
+		color: var(--accent-external);
 		font-size: 11px;
-		border-bottom: 1px solid #f0e0a0;
+		border-bottom: 1px solid color-mix(in srgb, var(--accent-external) 35%, var(--bg));
 	}
 
 	.warn summary {
@@ -1441,7 +1446,7 @@
 	}
 
 	.warn small {
-		color: #8a6a00;
+		color: var(--accent-external);
 	}
 
 	.table-wrap {
@@ -1462,12 +1467,12 @@
 	}
 
 	thead th {
-		background: #e6e6e6;
+		background: var(--bg-elev);
 		text-align: left;
 		font-weight: 600;
 		padding: 0.25rem 0.5rem;
-		border-bottom: 1px solid #c0c0c0;
-		border-right: 1px solid #d8d8d8;
+		border-bottom: 1px solid var(--border-strong);
+		border-right: 1px solid var(--border);
 		position: sticky;
 		top: 0;
 		/* z-index を付けないと、スクロール中に tbody のセル (チャンネル名等)
@@ -1480,13 +1485,13 @@
 	}
 
 	thead th:hover {
-		background: #e0e8f0;
+		background: color-mix(in srgb, var(--accent) 10%, var(--bg-elev));
 	}
 
 	tbody td {
 		padding: 0.18rem 0.5rem;
-		border-bottom: 1px solid #ededed;
-		border-right: 1px solid #f3f3f3;
+		border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, var(--bg));
+		border-right: 1px solid color-mix(in srgb, var(--border) 40%, var(--bg));
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -1501,9 +1506,9 @@
 	}
 
 	tbody tr.selected {
-		outline: 2px solid #7faaff;
-		background: #cce0ff !important;
-		color: #000 !important;
+		outline: 2px solid var(--accent);
+		background: color-mix(in srgb, var(--accent) 28%, var(--bg)) !important;
+		color: var(--fg) !important;
 	}
 
 	tbody tr.pinned {
@@ -1532,11 +1537,11 @@
 	}
 
 	.col-contact {
-		color: #0a4cad;
+		color: var(--accent-link);
 	}
 
 	.col-filter {
-		color: #555;
+		color: var(--fg-muted);
 	}
 
 	/* カラム幅変更用ハンドル。ヘッダー右端に重ねる。 */
@@ -1551,7 +1556,7 @@
 		z-index: 4;
 	}
 	.col-resizer:hover {
-		background: #9fb8e0;
+		background: var(--accent);
 	}
 
 	.star {
@@ -1560,13 +1565,13 @@
 	}
 
 	.watching-badge {
-		color: #2c7;
+		color: var(--accent-name);
 		margin-left: 0.3rem;
 		font-weight: 600;
 	}
 
 	.recording-badge {
-		color: #c0392b;
+		color: var(--err);
 		margin-left: 0.3rem;
 		font-weight: 600;
 		animation: pulse 1.6s ease-in-out infinite;
@@ -1584,36 +1589,37 @@
 
 	.empty {
 		text-align: center;
-		color: #888;
+		color: var(--fg-muted);
 		padding: 1rem;
 	}
 
 	.empty .empty-cta {
 		margin-top: 0.5rem;
 		padding: 0.3rem 0.8rem;
-		background: var(--bg-elev, #fff);
-		border: 1px solid #bbb;
+		background: var(--bg-input);
+		color: inherit;
+		border: 1px solid var(--border-strong);
 		border-radius: 3px;
 		cursor: pointer;
 		font: inherit;
 	}
 
 	.empty .empty-cta:hover {
-		background: #f0f7ff;
+		background: color-mix(in srgb, var(--accent) 12%, var(--bg-input));
 	}
 
 	.statusbar {
 		display: flex;
 		gap: 0.5rem;
 		padding: 0.3rem 0.6rem;
-		background: #f0f0f0;
-		border-top: 1px solid #d0d0d0;
+		background: var(--bg-elev);
+		border-top: 1px solid var(--border);
 		font-size: 11px;
-		color: #444;
+		color: var(--fg-dim);
 	}
 
 	.statusbar .sep {
-		color: #aaa;
+		color: var(--fg-muted);
 	}
 
 	.statusbar .filler {
@@ -1621,11 +1627,11 @@
 	}
 
 	.statusbar .muted {
-		color: #888;
+		color: var(--fg-muted);
 	}
 
 	.statusbar .loading-indicator {
-		color: #0a4cad;
+		color: var(--accent);
 		animation: spin 1s linear infinite;
 		display: inline-block;
 	}
@@ -1641,8 +1647,8 @@
 
 	.menu {
 		position: fixed;
-		background: #fff;
-		border: 1px solid #777;
+		background: var(--bg-elev);
+		border: 1px solid var(--border-strong);
 		border-radius: 3px;
 		min-width: 240px;
 		/* お気に入りが多いとメニューが長くなるのでスクロール可能にする。 */
@@ -1663,11 +1669,11 @@
 		border: none;
 		font: inherit;
 		cursor: pointer;
-		color: #1a1a1a;
+		color: var(--fg);
 	}
 
 	.menu button:hover {
-		background: #e0eaff;
+		background: color-mix(in srgb, var(--accent) 15%, var(--bg-elev));
 	}
 
 	.menu button.primary {
@@ -1680,14 +1686,14 @@
 
 	.menu hr {
 		border: none;
-		border-top: 1px solid #ddd;
+		border-top: 1px solid var(--border);
 		margin: 4px 0;
 	}
 
 	.submenu-label {
 		padding: 0.2rem 0.7rem;
-		color: #555;
+		color: var(--fg-muted);
 		font-size: 11px;
-		background: #f8f8f8;
+		background: var(--bg);
 	}
 </style>

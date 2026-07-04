@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { initTheme } from '$lib/theme';
 	import { onMount } from 'svelte';
 	import { emit } from '@tauri-apps/api/event';
 	import { CommandError, listThreads, type SubjectEntry } from '$lib/api';
@@ -9,6 +10,7 @@
 	let error = $state<string | null>(null);
 
 	onMount(async () => {
+		initTheme();
 		const params = new URLSearchParams(window.location.search);
 		boardUrl = params.get('board') ?? '';
 		if (boardUrl) await refresh();

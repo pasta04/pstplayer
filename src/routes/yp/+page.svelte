@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { initTheme } from '$lib/theme';
 	import { onDestroy, onMount } from 'svelte';
 	import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 	import {
@@ -36,6 +37,7 @@
 	}
 
 	onMount(async () => {
+		initTheme();
 		await reloadPrefs();
 		await refresh();
 		// 設定保存でお気に入り (色等) が変わったら即反映。同一プロセス窓へは
