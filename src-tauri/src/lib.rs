@@ -27,6 +27,27 @@ struct PlayerInputPayload {
 /// 取りに行く。既に他プロセスが視聴している場合は focus 要求を送って
 /// `None` を返し (= 上位の `run` は即終了)、自分が取れたら
 /// `Some(LockHandle)` を返す。
+/// 閉じシーケンスの実機デバッグ用ログ (一時的な計測コード)。exe と同じ
+/// ディレクトリの close-debug.log に追記する。プロセス残留バグの
+/// 原因特定後に削除する。
+fn close_debug_log(msg: &str) {
+    use std::io::Write;
+    let Ok(exe) = std::env::current_exe() else { return };
+    let Some(dir) = exe.parent() else { return };
+    let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dir.join("close-debug.log"))
+    else {
+        return;
+    };
+    let ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let _ = writeln!(f, "[{ms}] pid={} {msg}", std::process::id());
+}
+
 fn maybe_acquire_lock(cli: &CliArgs) -> AcquireOutcome {
     let Some(url) = cli.url.as_ref() else {
         return AcquireOutcome::Skip;
@@ -92,7 +113,11 @@ fn start_focus_listener<R: Runtime>(mut handle: LockHandle, app: AppHandle<R>) -
                         let _ = win.set_focus();
                     }
                 },
-                move || app_close.exit(0),
+                move || {
+                    close_debug_log("ipc close: app.exit(0)");
+                    app_close.exit(0);
+                    close_debug_log("ipc close: app.exit returned");
+                },
                 move || {
                     app_state.try_state::<PlayerEngine>().and_then(|e| e.record_path()).is_some()
                 },
@@ -334,16 +359,28 @@ pub fn run() {
                     // で停止するとみられる)、プロセスが数分残留して
                     // single-instance lock を握り続けた。viewer は close を
                     // prevent しないので、CloseRequested = 確実に閉じる、で
-                    // 猶予後に exit する。自然終了が先に済めば no-op。
+                    // 猶予後に段階的に強制終了する。自然終了が先なら no-op。
+                    close_debug_log("close-requested (main)");
                     if is_viewer {
                         let app = window.app_handle().clone();
                         std::thread::spawn(move || {
                             std::thread::sleep(std::time::Duration::from_secs(3));
-                            // IPC close (ハブの全閉じ) と同じ経路。ゾンビ状態
-                            // からでも即終了する実績がある。
+                            close_debug_log("watchdog: app.exit(0)");
                             app.exit(0);
-                            std::thread::sleep(std::time::Duration::from_secs(5));
+                            close_debug_log("watchdog: app.exit returned");
+                        });
+                        std::thread::spawn(move || {
+                            std::thread::sleep(std::time::Duration::from_secs(8));
+                            close_debug_log("watchdog: process::exit(0)");
                             std::process::exit(0);
+                        });
+                        std::thread::spawn(move || {
+                            std::thread::sleep(std::time::Duration::from_secs(11));
+                            // process::exit が DLL detach 等でデッドロックした
+                            // 場合の最終手段。abort は detach をスキップして
+                            // 即プロセスを落とす。
+                            close_debug_log("watchdog: abort()");
+                            std::process::abort();
                         });
                     }
                 }
@@ -360,6 +397,7 @@ pub fn run() {
             // 等のサブウィンドウは対象外 (main が生きている限り続行)。
             if let tauri::WindowEvent::Destroyed = event {
                 if window.label() == "main" {
+                    close_debug_log("destroyed (main)");
                     let app = window.app_handle().clone();
                     std::thread::spawn(move || {
                         app.exit(0);
