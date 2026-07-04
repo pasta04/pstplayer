@@ -740,24 +740,6 @@ export async function configFilePath(): Promise<string> {
 	return call<string>('config_file_path');
 }
 
-export interface HistoryEntry {
-	url: string;
-	channelName: string;
-	lastOpenedAt: number;
-}
-
-export async function pushHistory(url: string, channelName: string): Promise<void> {
-	return call<void>('push_history', { url, channelName });
-}
-
-export async function getHistory(): Promise<HistoryEntry[]> {
-	return call<HistoryEntry[]>('get_history');
-}
-
-export async function clearHistory(): Promise<void> {
-	return call<void>('clear_history');
-}
-
 export async function saveWindowGeometry(
 	x: number,
 	y: number,

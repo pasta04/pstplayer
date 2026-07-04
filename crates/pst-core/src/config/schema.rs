@@ -16,8 +16,6 @@ pub struct Config {
     pub window: WindowConfig,
     #[serde(default)]
     pub display: DisplayConfig,
-    #[serde(default)]
-    pub history: HistoryConfig,
     /// ユーザーがカスタマイズしたホットキー (action_id → 文字列形式
     /// e.g. `Ctrl+Shift+R`)。未指定の action はフロント側のデフォルト
     /// が使われる。空文字列を入れると「割当無し」として無効化。
@@ -157,22 +155,6 @@ impl Config {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct HistoryConfig {
-    /// Recently opened channel URLs (newest first). Capped at MAX_HISTORY.
-    #[serde(default)]
-    pub recent: Vec<HistoryEntry>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct HistoryEntry {
-    pub url: String,
-    pub channel_name: String,
-    /// UNIX seconds when last opened.
-    pub last_opened_at: u64,
-}
-
-pub const MAX_HISTORY: usize = 30;
 pub const MAX_RECENT_HOSTS: usize = 8;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -3,17 +3,14 @@
 	import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event';
 	import {
 		CommandError,
-		clearHistory,
 		configFilePath,
 		getConfig,
-		getHistory,
 		pushRecentHost,
 		recordingTargetDir,
 		setConfig,
 		snapshotTargetDir,
 		type Config,
 		type FavoriteRule,
-		type HistoryEntry,
 		type HubClickAction,
 		type YpSource,
 	} from '$lib/api';
@@ -27,9 +24,9 @@
 	} from '$lib/shortcuts';
 
 	let cfg = $state<Config | null>(null);
-	let tab = $state<
-		'general' | 'peercast' | 'yp' | 'bbs' | 'player' | 'favorites' | 'hotkeys' | 'history'
-	>('general');
+	let tab = $state<'general' | 'peercast' | 'yp' | 'bbs' | 'player' | 'favorites' | 'hotkeys'>(
+		'general',
+	);
 	let saving = $state(false);
 
 	// ── ホットキー編集状態 ──────────────────────────────────────
@@ -90,7 +87,6 @@
 	let message = $state<string | null>(null);
 	let configPath = $state<string>('');
 	let theme = $state<Theme>('system');
-	let history = $state<HistoryEntry[]>([]);
 	let snapshotPreview = $state<string>('');
 	let recordingPreview = $state<string>('');
 
@@ -106,7 +102,6 @@
 		try {
 			cfg = await getConfig();
 			configPath = await configFilePath();
-			history = await getHistory();
 			snapshotPreview = await snapshotTargetDir();
 			recordingPreview = await recordingTargetDir();
 		} catch (e) {
@@ -195,17 +190,6 @@
 		} catch {
 			/* ignore */
 		}
-	}
-
-	async function onClearHistory() {
-		if (!confirm('視聴履歴をすべて削除します。よろしいですか?')) return;
-		await clearHistory();
-		history = [];
-	}
-
-	function fmtDate(unix: number): string {
-		if (!unix) return '';
-		return new Date(unix * 1000).toLocaleString();
 	}
 
 	function onThemeChange(e: Event) {
@@ -409,7 +393,6 @@
 			<button class:active={tab === 'hotkeys'} onclick={() => (tab = 'hotkeys')}>
 				ショートカット
 			</button>
-			<button class:active={tab === 'history'} onclick={() => (tab = 'history')}>履歴</button>
 		</nav>
 
 		<section class="tab">
@@ -895,28 +878,6 @@
 						{/each}
 					</tbody>
 				</table>
-			{:else if tab === 'history'}
-				<div class="hist-head">
-					<span class="hint">最近開いたチャンネル ({history.length})</span>
-					<button class="danger" onclick={onClearHistory} disabled={history.length === 0}>
-						すべて削除
-					</button>
-				</div>
-				{#if history.length === 0}
-					<p class="muted small">履歴はまだありません。</p>
-				{:else}
-					<ul class="hist-list">
-						{#each history as h}
-							<li class="hist-item">
-								<div class="hist-name">{h.channelName || '(no name)'}</div>
-								<div class="hist-meta">
-									<span class="hist-date">{fmtDate(h.lastOpenedAt)}</span>
-								</div>
-								<code class="hist-url">{h.url}</code>
-							</li>
-						{/each}
-					</ul>
-				{/if}
 			{/if}
 		</section>
 
@@ -1086,60 +1047,6 @@
 		border-radius: 3px;
 		display: inline-block;
 		word-break: break-all;
-	}
-
-	.hist-head {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-	}
-	.hist-head .hint {
-		flex: 1;
-	}
-	.hist-head .danger {
-		background: var(--bg-elev);
-		color: var(--err);
-		border: 1px solid var(--border-strong);
-		border-radius: 3px;
-		padding: 0.25rem 0.6rem;
-		cursor: pointer;
-		font-size: 0.8rem;
-		font-family: inherit;
-	}
-	.hist-head .danger:disabled {
-		opacity: 0.5;
-		cursor: default;
-	}
-	.hist-list {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-		display: flex;
-		flex-direction: column;
-		gap: 0.3rem;
-	}
-	.hist-item {
-		background: var(--bg-input);
-		border: 1px solid var(--border);
-		border-radius: 3px;
-		padding: 0.4rem 0.6rem;
-		font-size: 0.82rem;
-	}
-	.hist-name {
-		font-weight: 600;
-	}
-	.hist-meta {
-		color: var(--fg-muted);
-		font-size: 0.72rem;
-		margin-top: 0.15rem;
-	}
-	.hist-url {
-		display: block;
-		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-		font-size: 0.72rem;
-		color: var(--fg-dim);
-		word-break: break-all;
-		margin-top: 0.2rem;
 	}
 
 	.recent-hosts {

@@ -13,7 +13,6 @@
 		fetchThread,
 		getCliArgs,
 		getConfig,
-		getHistory,
 		listThreads,
 		playerAttach,
 		playerSetVideoRect,
@@ -25,7 +24,6 @@
 		playerStatus,
 		playerStop,
 		postToThread,
-		pushHistory,
 		resolveStreamUrl,
 		sanitizeHtml,
 		setConfig,
@@ -36,7 +34,6 @@
 		type ChannelInfo,
 		type ChannelStatus,
 		type FetchState,
-		type HistoryEntry,
 		type PeerCastEndpoint,
 		type Post,
 		type SubjectEntry,
@@ -200,7 +197,6 @@
 	// レス一覧 (.posts) の右クリックメニュー (C5)。動画メニュー (ctxMenu) と独立。
 	let postsMenu = $state<{ x: number; y: number } | null>(null);
 	// 視聴履歴 (右クリックメニューのサブメニュー用に config から都度取得)。
-	let history = $state<HistoryEntry[]>([]);
 	// チャンネル詳細モーダル (リレー / 接続情報の全フィールドを見るため)。
 	let showChannelDetails = $state(false);
 
@@ -786,7 +782,6 @@
 				await reloadInfoAndBbs();
 				startPolling();
 				// Record after channelInfo fetch so we have a name.
-				pushHistory(url, channelInfo?.name || '').catch(() => undefined);
 			}
 		} catch (e) {
 			lastError = errorMessage(e);
@@ -1168,12 +1163,6 @@
 	async function showVideoContextMenu() {
 		const { Menu, MenuItem, CheckMenuItem, PredefinedMenuItem, Submenu } =
 			await import('@tauri-apps/api/menu');
-		// 履歴 / 録画状態を最新化してからメニューを組む (チェック / ラベルに反映)。
-		try {
-			history = await getHistory();
-		} catch {
-			/* 直前の値を使う */
-		}
 		const sizeItems = await Promise.all(
 			SIZE_PERCENTS.map((pct, i) =>
 				MenuItem.new({ text: `${pct}%`, action: () => applySizePreset(i + 1) }),
@@ -1183,13 +1172,6 @@
 			ASPECT_PRESETS.map((ap, i) =>
 				MenuItem.new({ text: ap.label, action: () => applyAspectPreset(i + 1) }),
 			),
-		);
-		const historyItems = await Promise.all(
-			history
-				.slice(0, 12)
-				.map((h) =>
-					MenuItem.new({ text: h.channelName || h.url, action: () => openFromHistory(h) }),
-				),
 		);
 		const items = await Promise.all([
 			MenuItem.new({ text: '↻ 再接続 (Bump)', enabled: !!channelId, action: () => onBump() }),
@@ -1222,7 +1204,6 @@
 			PredefinedMenuItem.new({ item: 'Separator' }),
 			Submenu.new({ text: '📐 サイズ', items: sizeItems }),
 			Submenu.new({ text: '📺 アスペクト比', items: aspectItems }),
-			Submenu.new({ text: '🕒 視聴履歴', enabled: history.length > 0, items: historyItems }),
 			PredefinedMenuItem.new({ item: 'Separator' }),
 			MenuItem.new({ text: '📷 スナップショット (F2)', action: () => doSnapshot() }),
 			MenuItem.new({ text: '⚙ 設定...', action: () => onOpenSettings() }),
@@ -1235,12 +1216,6 @@
 		]);
 		const menu = await Menu.new({ items });
 		await menu.popup();
-	}
-
-	async function openFromHistory(entry: HistoryEntry) {
-		closeCtxMenu();
-		pasteUrl = entry.url;
-		await onPaste();
 	}
 
 	function onPlayerWheel(e: WheelEvent) {
@@ -1945,20 +1920,6 @@
 							>
 						{/each}
 					</div>
-				</div>
-				<div class="ctx-sub-host">
-					<button class="ctx-item ctx-has-sub" type="button" disabled={history.length === 0}>
-						🕒 視聴履歴 <span class="ctx-arrow">▶</span>
-					</button>
-					{#if history.length > 0}
-						<div class="ctx-submenu ctx-submenu-wide">
-							{#each history.slice(0, 12) as h (h.url)}
-								<button class="ctx-item" onclick={() => openFromHistory(h)} title={h.url}>
-									{h.channelName || h.url}
-								</button>
-							{/each}
-						</div>
-					{/if}
 				</div>
 				<div class="ctx-sep"></div>
 				<button
@@ -2960,10 +2921,6 @@
 		padding: 0.25rem 0;
 		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 		z-index: 1;
-	}
-	.ctx-submenu-wide {
-		min-width: 260px;
-		max-width: 360px;
 	}
 	.ctx-submenu .ctx-item {
 		white-space: nowrap;
