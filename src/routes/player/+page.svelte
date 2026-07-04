@@ -18,6 +18,7 @@
 
 	let video = $state<HTMLVideoElement | undefined>();
 	let channelId = $state<string | null>(null);
+	let tip: string | null = null;
 	let videoStatus = $state('読み込み中…');
 	let hls: { destroy(): void } | null = null;
 
@@ -35,7 +36,9 @@
 	let posting = $state(false);
 
 	onMount(() => {
-		channelId = new URLSearchParams(window.location.search).get('id');
+		const params = new URLSearchParams(window.location.search);
+		channelId = params.get('id');
+		tip = params.get('tip');
 		if (!channelId) {
 			videoStatus = 'エラー: ?id=<channel_id> が指定されていません';
 			return;
@@ -52,7 +55,10 @@
 	async function startVideo(id: string) {
 		const el = video;
 		if (!el) return;
-		const src = `/hls/${encodeURIComponent(id)}/index.m3u8`;
+		// playlist は /hls/{id} (ベアパス)。実機 PeerCastStation は
+		// /hls/{id}/index.m3u8 を 404/503 にする。未リレー join 用に
+		// tip をクエリで引き継ぐ (プロキシが上流へ透過する)。
+		const src = `/hls/${encodeURIComponent(id)}` + (tip ? `?tip=${encodeURIComponent(tip)}` : '');
 		// Safari / iOS はネイティブ HLS 再生。
 		if (el.canPlayType('application/vnd.apple.mpegurl')) {
 			el.src = src;

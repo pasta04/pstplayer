@@ -1,16 +1,21 @@
 //! PeerCastStation の HLS 出力を中継するプロキシ。
 //!
-//! PeerCastStation は配信プレイヤー設定で HLS を選択でき、その場合
-//! `/hls/{channel_id}/index.m3u8` のような URL で playlist と TS
-//! セグメントを返す (バージョンによってパスが異なるため、`/hls/*` の
-//! 任意パスを上流に転送する形にしておく)。
+//! 実機の PeerCastStation で確認した挙動 (2026-07 実測):
+//!   * playlist は `GET /hls/{id}` (ベアパス)。`/hls/{id}/index.m3u8` は
+//!     404/503 になる。
+//!   * 未リレーのチャンネルは `?tip=host:port` を付けないと 503
+//!     (join できない)。
+//!   * playlist は `?session=...` へのリダイレクト + m3u8 内の URI も
+//!     クエリ付き自己参照になるため、クエリは常に上流へ透過する。
+//!   * m3u8 内に上流の絶対 URL が含まれる場合はブラウザから直接
+//!     上流へ行ってしまう (CORS で死ぬ) ため、本サーバのパスへ
+//!     書き換えて返す。
 //!
 //! 本サーバは:
-//!   `GET /hls/{id}.m3u8`          → 上流 `/hls/{id}/index.m3u8`
-//!   `GET /hls/{id}/{segment}.ts`  → 上流 `/hls/{id}/{segment}.ts`
-//!
-//! いずれもレスポンスを stream で透過。Range / If-Modified-Since は
-//! axum が握ってくれる範囲だけ転送 (TS セグメントは通常 Range なし)。
+//!   `GET /hls/{id}[?tip=|?session=...]` → 上流 `/hls/{id}` (クエリ透過、
+//!     m3u8 は URL 書き換えして返す)
+//!   `GET /hls/{id}/{segment}[?...]`     → 上流 `/hls/{id}/{segment}`
+//!     (クエリ透過・stream 透過)
 
 use axum::body::Body;
 use axum::extract::{Path, State};
@@ -25,16 +30,27 @@ use reqwest::header::{
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
-/// 上流 PeerCastStation の HLS playlist URL を組み立てる。
-async fn upstream_playlist_url(state: &AppState, channel_id: &str) -> String {
+/// 上流 PeerCastStation の HLS playlist URL (ベアパス + クエリ透過)。
+async fn upstream_playlist_url(state: &AppState, channel_id: &str, query: Option<&str>) -> String {
     let (host, port) = upstream_host_port(state).await;
-    format!("http://{host}:{port}/hls/{channel_id}/index.m3u8")
+    match query.filter(|q| !q.is_empty()) {
+        Some(q) => format!("http://{host}:{port}/hls/{channel_id}?{q}"),
+        None => format!("http://{host}:{port}/hls/{channel_id}"),
+    }
 }
 
-/// 上流 HLS の TS セグメント URL を組み立てる。
-async fn upstream_segment_url(state: &AppState, channel_id: &str, segment: &str) -> String {
+/// 上流 HLS の TS セグメント URL (クエリ透過)。
+async fn upstream_segment_url(
+    state: &AppState,
+    channel_id: &str,
+    segment: &str,
+    query: Option<&str>,
+) -> String {
     let (host, port) = upstream_host_port(state).await;
-    format!("http://{host}:{port}/hls/{channel_id}/{segment}")
+    match query.filter(|q| !q.is_empty()) {
+        Some(q) => format!("http://{host}:{port}/hls/{channel_id}/{segment}?{q}"),
+        None => format!("http://{host}:{port}/hls/{channel_id}/{segment}"),
+    }
 }
 
 /// パストラバーサル等を防ぐため、id / segment に許容しない文字が
@@ -121,10 +137,19 @@ async fn proxy_get(url: String, headers: HeaderMap, state: &AppState) -> ApiResu
     })
 }
 
-/// `GET /hls/{id}.m3u8` → 上流 `/hls/{id}/index.m3u8`
+/// 上流の絶対 URL (`http://host:port/...`) を本サーバのパスへ書き換える。
+/// m3u8 の中身にだけ適用する (ブラウザが上流へ直接行くと CORS で死ぬ)。
+fn rewrite_playlist_body(body: &str, host: &str, port: u16) -> String {
+    let origin = format!("http://{host}:{port}");
+    body.replace(&origin, "")
+}
+
+/// `GET /hls/{id}` → 上流 `/hls/{id}` (クエリ透過)。m3u8 は本文を読み、
+/// 上流絶対 URL を本サーバのパスへ書き換えて返す。
 pub async fn playlist(
     State(s): State<AppState>,
     Path(id): Path<String>,
+    axum::extract::RawQuery(query): axum::extract::RawQuery,
     headers: HeaderMap,
 ) -> ApiResult<Response> {
     // `.m3u8` 拡張子付きで来た場合に剥がす (`open()` 側で固定で付けている)。
@@ -136,14 +161,47 @@ pub async fn playlist(
             message: format!("不正な channel_id: {id}"),
         });
     }
-    let url = upstream_playlist_url(&s, &id).await;
-    proxy_get(url, headers, &s).await
+    let url = upstream_playlist_url(&s, &id, query.as_deref()).await;
+    let resp = proxy_get(url, headers, &s).await?;
+    // m3u8 (テキスト) のときだけ本文を読み切って URL を書き換える。
+    let is_m3u8 = resp
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.contains("mpegurl") || v.contains("m3u8") || v.starts_with("text/"))
+        .unwrap_or(true);
+    if !resp.status().is_success() || !is_m3u8 {
+        return Ok(resp);
+    }
+    let (parts, body) = resp.into_parts();
+    let bytes = axum::body::to_bytes(body, 8 * 1024 * 1024).await.map_err(|e| ApiError {
+        status: StatusCode::BAD_GATEWAY,
+        code: "decode",
+        message: format!("playlist read failed: {e}"),
+    })?;
+    let text = String::from_utf8_lossy(&bytes);
+    let (host, port) = upstream_host_port(&s).await;
+    let rewritten = rewrite_playlist_body(&text, &host, port);
+    let mut out = Response::builder().status(parts.status);
+    if let Some(h) = out.headers_mut() {
+        for name in [CONTENT_TYPE, CACHE_CONTROL, LAST_MODIFIED] {
+            if let Some(v) = parts.headers.get(&name) {
+                h.insert(name, v.clone());
+            }
+        }
+    }
+    out.body(Body::from(rewritten.into_owned())).map_err(|e| ApiError {
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+        code: "decode",
+        message: format!("response build failed: {e}"),
+    })
 }
 
-/// `GET /hls/{id}/{segment}` → 上流 `/hls/{id}/{segment}` (透過)
+/// `GET /hls/{id}/{segment}` → 上流 `/hls/{id}/{segment}` (クエリ透過)
 pub async fn segment(
     State(s): State<AppState>,
     Path((id, segment)): Path<(String, String)>,
+    axum::extract::RawQuery(query): axum::extract::RawQuery,
     headers: HeaderMap,
 ) -> ApiResult<Response> {
     if !is_safe_path_component(&id) {
@@ -160,13 +218,20 @@ pub async fn segment(
             message: format!("不正な segment 名: {segment}"),
         });
     }
-    let url = upstream_segment_url(&s, &id, &segment).await;
+    let url = upstream_segment_url(&s, &id, &segment, query.as_deref()).await;
     proxy_get(url, headers, &s).await
 }
 
 #[cfg(test)]
 mod tests {
-    use super::is_safe_path_component;
+    use super::{is_safe_path_component, rewrite_playlist_body};
+
+    #[test]
+    fn rewrites_absolute_upstream_urls_to_local_paths() {
+        let body = "#EXTM3U\nhttp://192.168.0.5:7144/hls/abc?session=X\nseg-1.ts\n";
+        let out = rewrite_playlist_body(body, "192.168.0.5", 7144);
+        assert_eq!(out, "#EXTM3U\n/hls/abc?session=X\nseg-1.ts\n");
+    }
 
     #[test]
     fn accepts_normal_ids_and_segments() {

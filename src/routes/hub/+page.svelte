@@ -523,7 +523,10 @@
 				await spawnViewer(e.id, { tip: e.tip });
 			} else {
 				// ブラウザ: HLS 視聴ページを別タブで開く (/player?id=...)。
-				window.open(`/player?id=${encodeURIComponent(e.id)}`, '_blank', 'noopener');
+				// 未リレーのチャンネルは tip が無いと上流 PeerCast が join
+				// できない (実測 503) ため、YP の tip を引き継ぐ。
+				const tip = e.tip ? `&tip=${encodeURIComponent(e.tip)}` : '';
+				window.open(`/player?id=${encodeURIComponent(e.id)}${tip}`, '_blank', 'noopener');
 			}
 			if (record) {
 				await serverRecordStart(pstServerUrl, e.id, e.name ?? '');
