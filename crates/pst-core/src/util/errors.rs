@@ -37,6 +37,23 @@ pub enum AppError {
     NotImplemented(&'static str),
 }
 
+impl AppError {
+    /// BBS 通信のエラー向け補正。`From<reqwest::Error>` は接続失敗を
+    /// PeerCast 本体向けの案内 (`PeerCastUnreachable`) に変換するが、
+    /// BBS サーバへの接続失敗に同じ案内を出すと誤解を招く (実機 QA:
+    /// komokomo の一時的な応答不良が「PeerCast に接続できません。
+    /// 設定 → ホスト / ポートを確認」と表示され続けた)。
+    #[must_use]
+    pub fn for_bbs(self) -> AppError {
+        match self {
+            AppError::PeerCastUnreachable(m) => {
+                AppError::Network(format!("BBS サーバに接続できません: {m}"))
+            }
+            other => other,
+        }
+    }
+}
+
 impl From<reqwest::Error> for AppError {
     fn from(e: reqwest::Error) -> Self {
         // 接続そのものが拒否された / DNS 失敗 / タイムアウト等は

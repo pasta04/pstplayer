@@ -52,6 +52,9 @@
 	let pasteUrl = $state('');
 	let busy = $state(false);
 	let lastError = $state<string | null>(null);
+	// 直近の lastError が BBS 自動更新の失敗によるものか。自動更新が
+	// 成功したら消す (一時的な応答不良のエラーが出続けないように)。
+	let lastErrorFromBbsFetch = false;
 	// libmpv 描画用子ウィンドウを重ねる対象の DOM 要素。streamUrl がある
 	// 時だけ存在する。位置 / サイズの変化を ResizeObserver で監視して
 	// バックエンドの子ウィンドウに反映する (player_set_video_rect)。
@@ -1014,6 +1017,11 @@
 				}
 			}
 			fetchState = newState;
+			// 取得成功: 以前の自動更新失敗エラーが残っていれば消す。
+			if (lastErrorFromBbsFetch) {
+				lastErrorFromBbsFetch = false;
+				lastError = null;
+			}
 			if (forceReset) {
 				// 配信表示 / スレ切替の初回は、最新レス (最下部) を表示した
 				// 状態にする。多数レスでもレイアウト確定後に確実に最下部へ。
@@ -1040,6 +1048,7 @@
 		} catch (e) {
 			const msg = errorMessage(e);
 			lastError = msg;
+			lastErrorFromBbsFetch = true;
 			if (isThreadGoneError(msg)) {
 				threadDead = true;
 			}
@@ -1602,6 +1611,10 @@
 					return e.message;
 				case 'thread_gone':
 					return `スレッドが見つかりません (削除 / 過去ログ送り)。 ${e.message}`;
+				case 'network':
+					// BBS サーバの一時的な応答不良など。message 側に対象の
+					// 説明 (「BBS サーバに接続できません: …」等) が入る。
+					return `通信エラー: ${e.message}`;
 				case 'invalid_url':
 					return `URL が不正です: ${e.message}`;
 				default:

@@ -16,10 +16,14 @@ fn classify(url: &str) -> Result<BoardKind, IpcError> {
 #[tauri::command]
 pub async fn list_threads(board_url: String) -> Result<Vec<SubjectEntry>, IpcError> {
     match classify(&board_url)? {
-        BoardKind::Shitaraba => {
-            ShitarabaClient::new().list_threads(&board_url).await.map_err(Into::into)
-        }
-        BoardKind::Ch2Compat => Ch2Client::new().list_threads(&board_url).await.map_err(Into::into),
+        BoardKind::Shitaraba => ShitarabaClient::new()
+            .list_threads(&board_url)
+            .await
+            .map_err(|e| IpcError::from(e.for_bbs())),
+        BoardKind::Ch2Compat => Ch2Client::new()
+            .list_threads(&board_url)
+            .await
+            .map_err(|e| IpcError::from(e.for_bbs())),
     }
 }
 
@@ -32,20 +36,25 @@ pub async fn fetch_thread(
         BoardKind::Shitaraba => ShitarabaClient::new()
             .fetch_thread(&thread_url, prev.as_ref())
             .await
-            .map_err(Into::into),
-        BoardKind::Ch2Compat => {
-            Ch2Client::new().fetch_thread(&thread_url, prev.as_ref()).await.map_err(Into::into)
-        }
+            .map_err(|e| IpcError::from(e.for_bbs())),
+        BoardKind::Ch2Compat => Ch2Client::new()
+            .fetch_thread(&thread_url, prev.as_ref())
+            .await
+            .map_err(|e| IpcError::from(e.for_bbs())),
     }
 }
 
 #[tauri::command]
 pub async fn post_to_thread(thread_url: String, req: PostRequest) -> Result<(), IpcError> {
     match classify(&thread_url)? {
-        BoardKind::Shitaraba => {
-            ShitarabaClient::new().post(&thread_url, &req).await.map_err(Into::into)
-        }
-        BoardKind::Ch2Compat => Ch2Client::new().post(&thread_url, &req).await.map_err(Into::into),
+        BoardKind::Shitaraba => ShitarabaClient::new()
+            .post(&thread_url, &req)
+            .await
+            .map_err(|e| IpcError::from(e.for_bbs())),
+        BoardKind::Ch2Compat => Ch2Client::new()
+            .post(&thread_url, &req)
+            .await
+            .map_err(|e| IpcError::from(e.for_bbs())),
     }
 }
 
@@ -59,10 +68,14 @@ pub fn classify_board(url: String) -> Result<BoardKind, IpcError> {
 #[tauri::command]
 pub async fn fetch_board_setting(url: String) -> Result<BoardSetting, IpcError> {
     match classify(&url)? {
-        BoardKind::Shitaraba => {
-            ShitarabaClient::new().fetch_setting(&url).await.map_err(Into::into)
-        }
-        BoardKind::Ch2Compat => Ch2Client::new().fetch_setting(&url).await.map_err(Into::into),
+        BoardKind::Shitaraba => ShitarabaClient::new()
+            .fetch_setting(&url)
+            .await
+            .map_err(|e| IpcError::from(e.for_bbs())),
+        BoardKind::Ch2Compat => Ch2Client::new()
+            .fetch_setting(&url)
+            .await
+            .map_err(|e| IpcError::from(e.for_bbs())),
     }
 }
 

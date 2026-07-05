@@ -7,6 +7,7 @@ use pst_core::bbs::{
     types::{BoardKind, PostRequest},
 };
 use pst_core::peercast::{client, types::ChannelRecord, yp, yp::YpEntry};
+use pst_core::util::errors::AppError;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{ApiError, ApiResult};
@@ -115,12 +116,14 @@ pub async fn board_threads(Query(q): Query<BoardQuery>) -> ApiResult<Json<Thread
         Some(BoardKind::Shitaraba) => {
             pst_core::bbs::shitaraba::ShitarabaClient::new()
                 .list_threads(&q.url)
-                .await?
+                .await
+                .map_err(AppError::for_bbs)?
         }
         Some(BoardKind::Ch2Compat) => {
             pst_core::bbs::ch2::Ch2Client::new()
                 .list_threads(&q.url)
-                .await?
+                .await
+                .map_err(AppError::for_bbs)?
         }
         None => {
             return Err(ApiError {
@@ -164,12 +167,14 @@ pub async fn thread_fetch(Query(q): Query<ThreadQuery>) -> ApiResult<Json<Thread
         Some(BoardKind::Shitaraba) => {
             pst_core::bbs::shitaraba::ShitarabaClient::new()
                 .fetch_thread(&q.url, prev.as_ref())
-                .await?
+                .await
+                .map_err(AppError::for_bbs)?
         }
         Some(BoardKind::Ch2Compat) => {
             pst_core::bbs::ch2::Ch2Client::new()
                 .fetch_thread(&q.url, prev.as_ref())
-                .await?
+                .await
+                .map_err(AppError::for_bbs)?
         }
         None => {
             return Err(ApiError {
@@ -201,12 +206,14 @@ pub async fn thread_post(Json(b): Json<PostBody>) -> ApiResult<Json<Empty>> {
         Some(BoardKind::Shitaraba) => {
             pst_core::bbs::shitaraba::ShitarabaClient::new()
                 .post(&b.url, &req)
-                .await?
+                .await
+                .map_err(AppError::for_bbs)?
         }
         Some(BoardKind::Ch2Compat) => {
             pst_core::bbs::ch2::Ch2Client::new()
                 .post(&b.url, &req)
-                .await?
+                .await
+                .map_err(AppError::for_bbs)?
         }
         None => {
             return Err(ApiError {
@@ -334,12 +341,14 @@ pub async fn board_setting(
         Some(BoardKind::Shitaraba) => {
             pst_core::bbs::shitaraba::ShitarabaClient::new()
                 .fetch_setting(&q.url)
-                .await?
+                .await
+                .map_err(AppError::for_bbs)?
         }
         Some(BoardKind::Ch2Compat) => {
             pst_core::bbs::ch2::Ch2Client::new()
                 .fetch_setting(&q.url)
-                .await?
+                .await
+                .map_err(AppError::for_bbs)?
         }
         None => {
             return Err(ApiError {
