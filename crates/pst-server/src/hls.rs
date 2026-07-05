@@ -148,7 +148,11 @@ fn playlist_client() -> &'static reqwest::Client {
     CLIENT.get_or_init(|| {
         reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
-            .timeout(std::time::Duration::from_secs(15))
+            // PCS の media playlist はセグメントが出来るまで long-poll する。
+            // チャンネル join 直後は最初のセグメントまで 20-30 秒かかることが
+            // あり、短いタイムアウトで切ると hls.js がリトライ上限で fatal
+            // になって再生が止まる (実機 QA)。join を跨げる長さにする。
+            .timeout(std::time::Duration::from_secs(40))
             .build()
             .expect("failed to build playlist HTTP client")
     })
@@ -237,8 +241,15 @@ pub async fn playlist(
         if let Some(v) = content_type {
             h.insert(CONTENT_TYPE, v);
         }
-        if let Some(v) = cache_control {
-            h.insert(CACHE_CONTROL, v);
+        match cache_control {
+            Some(v) => {
+                h.insert(CACHE_CONTROL, v);
+            }
+            None => {
+                // ライブ playlist をブラウザにキャッシュさせない (リロード時に
+                // 古い playlist が返ると復帰が乱れる)。
+                h.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+            }
         }
     }
     out.body(body).map_err(|e| ApiError {

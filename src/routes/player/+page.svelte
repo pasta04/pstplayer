@@ -25,7 +25,11 @@
 	let channelId = $state<string | null>(null);
 	let tip: string | null = null;
 	let videoStatus = $state('読み込み中…');
-	let hls: { destroy(): void } | null = null;
+	let hls: { destroy(): void; startLoad(): void; recoverMediaError(): void } | null = null;
+	// 再生停滞ウォッチドッグ (再生中なのに currentTime が進まない状態を検知)。
+	let stallTimer: ReturnType<typeof setInterval> | null = null;
+	let lastTime = -1;
+	let stallTicks = 0;
 
 	let channelInfo = $state<ChannelInfo | null>(null);
 	let bbsUrl = $state('');
@@ -69,6 +73,7 @@
 	onDestroy(() => {
 		hls?.destroy();
 		if (pollTimer) clearInterval(pollTimer);
+		if (stallTimer) clearInterval(stallTimer);
 	});
 
 	async function startVideo(id: string) {
@@ -86,10 +91,28 @@
 			const Hls = (await import('hls.js')).default;
 			if (Hls.isSupported()) {
 				const h = new Hls({ enableWorker: true, lowLatencyMode: true });
+				// チャンネル join 直後は playlist の応答に時間がかかったり
+				// エラーになることがある。fatal エラーで hls.js がロードを
+				// 止めたままにならないよう、自動リカバリする (実機 QA:
+				// リロード後にバッファ分だけ再生して止まる)。
+				h.on(Hls.Events.ERROR, (_ev: unknown, data: { fatal: boolean; type: string }) => {
+					if (!data.fatal) return;
+					if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+						setTimeout(() => hls && h.startLoad(), 2000);
+					} else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+						h.recoverMediaError();
+					} else {
+						// その他の fatal は作り直す。
+						h.destroy();
+						hls = null;
+						setTimeout(() => void startVideo(id), 3000);
+					}
+				});
 				h.loadSource(src);
 				h.attachMedia(el);
 				hls = h;
 				videoStatus = '';
+				startStallWatchdog(el);
 				return;
 			}
 		} catch {
@@ -175,6 +198,36 @@
 		} finally {
 			advancingBbs = false;
 		}
+	}
+
+	/// 再生中に currentTime が数秒進まなければ hls.js のロードを蹴り直す
+	/// (ネットワーク瞬断や join 待ちで止まったままになる保険)。
+	function startStallWatchdog(el: HTMLVideoElement) {
+		if (stallTimer) clearInterval(stallTimer);
+		lastTime = -1;
+		stallTicks = 0;
+		stallTimer = setInterval(() => {
+			if (!hls || el.paused) {
+				stallTicks = 0;
+				lastTime = el.currentTime;
+				return;
+			}
+			if (el.currentTime === lastTime) {
+				stallTicks += 1;
+				if (stallTicks >= 3) {
+					// 6 秒進んでいない → ロード再開を蹴る。
+					stallTicks = 0;
+					try {
+						hls.startLoad();
+					} catch {
+						/* destroy 済み等は無視 */
+					}
+				}
+			} else {
+				stallTicks = 0;
+			}
+			lastTime = el.currentTime;
+		}, 2000);
 	}
 
 	/// レス一覧の末尾付近を見ているか (= 新着で追従してよいか)。
