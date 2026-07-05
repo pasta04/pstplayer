@@ -20,7 +20,10 @@ pub fn build_board_url(url: &str) -> AppResult<String> {
         BoardKind::Shitaraba => {
             let u = parse_shitaraba(url)
                 .ok_or_else(|| AppError::InvalidUrl(format!("not a shitaraba URL: {url}")))?;
-            Ok(format!("https://jbbs.shitaraba.net/{}/{}/", u.category, u.board_id))
+            Ok(format!(
+                "https://jbbs.shitaraba.net/{}/{}/",
+                u.category, u.board_id
+            ))
         }
         BoardKind::Ch2Compat => {
             let u = parse_ch2(url)
