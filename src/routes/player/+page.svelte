@@ -31,6 +31,8 @@
 		recoverMediaError(): void;
 		swapAudioCodec(): void;
 	} | null = null;
+	// mpegts.js (FLV 直結) プレイヤー。MSE が使える環境ではこちらを優先。
+	let flvPlayer: { destroy(): void } | null = null;
 	// 再生停滞ウォッチドッグ (再生中なのに currentTime が進まない状態を検知)。
 	let stallTimer: ReturnType<typeof setInterval> | null = null;
 	let lastTime = -1;
@@ -78,14 +80,90 @@
 	});
 
 	onDestroy(() => {
+		flvPlayer?.destroy();
 		hls?.destroy();
 		if (pollTimer) clearInterval(pollTimer);
 		if (stallTimer) clearInterval(stallTimer);
 	});
 
+	/// FLV 直結再生 (mpegts.js)。成功したら true。
+	async function startFlv(id: string, el: HTMLVideoElement): Promise<boolean> {
+		try {
+			const mpegts = (await import('mpegts.js')).default;
+			if (!mpegts.isSupported()) return false;
+			const feat = mpegts.getFeatureList();
+			if (!feat.mseLivePlayback) return false;
+			const url =
+				`/stream/${encodeURIComponent(id)}.flv` + (tip ? `?tip=${encodeURIComponent(tip)}` : '');
+			videoStatus = '接続中…';
+			const player = mpegts.createPlayer(
+				{ type: 'flv', isLive: true, url },
+				{
+					// ライブ端追跡: 遅延が 3 秒を超えたら追いかける。
+					enableStashBuffer: false,
+					liveBufferLatencyChasing: true,
+					liveBufferLatencyMaxLatency: 3.0,
+					liveBufferLatencyMinRemain: 0.5,
+					autoCleanupSourceBuffer: true,
+				},
+			);
+			player.on(mpegts.Events.ERROR, () => {
+				// ネットワーク切断・デコード不能等。作り直しで再接続する
+				// (上限は videoRestarts で共通管理)。
+				scheduleVideoRebuild(id, 2000);
+			});
+			player.attachMediaElement(el);
+			player.load();
+			el.addEventListener(
+				'canplay',
+				() => {
+					if (!el.paused) return;
+					el.play().catch(() => {
+						el.muted = true;
+						el.play().catch(() => undefined);
+					});
+				},
+				{ once: true },
+			);
+			flvPlayer = player;
+			videoStatus = '';
+			startStallWatchdog(el);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	/// 現行プレイヤーを破棄して startVideo をやり直す (再接続)。
+	function scheduleVideoRebuild(id: string, delayMs: number) {
+		try {
+			flvPlayer?.destroy();
+		} catch {
+			/* ignore */
+		}
+		flvPlayer = null;
+		try {
+			hls?.destroy();
+		} catch {
+			/* ignore */
+		}
+		hls = null;
+		videoRestarts += 1;
+		if (videoRestarts > 5) {
+			videoStatus = '再生できません (ストリームを再生できませんでした)';
+			return;
+		}
+		setTimeout(() => void startVideo(id), delayMs);
+	}
+
 	async function startVideo(id: string) {
 		const el = video;
 		if (!el) return;
+		// リアルタイム性を重視し、MSE が使える環境では FLV 直結
+		// (mpegts.js) を最優先する。HLS は約8秒セグメント×同期3本ぶん
+		// (~25秒) 構造的に遅延するため、フォールバック専用
+		// (iPhone Safari 等の MSE 無し環境)。
+		if (await startFlv(id, el)) return;
 		// playlist は /hls/{id} (ベアパス)。実機 PeerCastStation は
 		// /hls/{id}/index.m3u8 を 404/503 にする。未リレー join 用に
 		// tip をクエリで引き継ぐ (プロキシが上流へ透過する)。
@@ -304,22 +382,11 @@
 		const startedAt = Date.now();
 		const rebuild = () => {
 			const id = channelId;
-			if (!id || !hls) return;
-			try {
-				hls.destroy();
-			} catch {
-				/* ignore */
-			}
-			hls = null;
-			videoRestarts += 1;
-			if (videoRestarts > 5) {
-				videoStatus = '再生できません (ストリームを再生できませんでした)';
-				return;
-			}
-			void startVideo(id);
+			if (!id || (!hls && !flvPlayer)) return;
+			scheduleVideoRebuild(id, 0);
 		};
 		stallTimer = setInterval(() => {
-			if (!hls || el.paused) {
+			if ((!hls && !flvPlayer) || el.paused) {
 				stallTicks = 0;
 				lastTime = el.currentTime;
 				return;

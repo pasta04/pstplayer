@@ -14,6 +14,7 @@ pub mod hls;
 pub mod recording;
 pub mod serve;
 pub mod state;
+pub mod stream_proxy;
 
 use std::path::PathBuf;
 
@@ -71,6 +72,7 @@ pub fn build_router(state: AppState, web_dir: Option<PathBuf>) -> Router {
         .route("/api/thread/post", routing::post(handlers::thread_post))
         // HLS proxy (上流 PeerCastStation の /hls/{id} を透過)
         .route("/hls/:id", routing::get(hls::playlist))
+        .route("/stream/:id", routing::get(stream_proxy::flv))
         .route("/hls/:id/:segment", routing::get(hls::segment))
         // Recording (既定 OFF、config の [recording] enabled = true 必要)。
         // 同時録画は `[recording] max_concurrent` (既定 8) まで。
