@@ -269,6 +269,7 @@
 		lastTime = -1;
 		stallTicks = 0;
 		let backJumps: number[] = [];
+		const startedAt = Date.now();
 		const rebuild = () => {
 			const id = channelId;
 			if (!id || !hls) return;
@@ -311,12 +312,15 @@
 			} else {
 				stallTicks = 0;
 				// hls.js の stall 復旧による後方シーク (ユーザー操作でない
-				// 3 秒超の巻き戻り) がループの兆候。60 秒に 2 回で作り直す。
+				// 3 秒超の巻き戻り) がループの兆候。初回 join の整合レースは
+				// 起動直後に出るため、起動 90 秒以内は 1 回で即作り直す。
+				// 以降はユーザーの巻き戻し操作と区別するため 60 秒に 2 回で
+				// 作り直す。
 				if (t < lastTime - 3 && lastTime > 0) {
 					const now = Date.now();
 					backJumps = backJumps.filter((x) => now - x < 60000);
 					backJumps.push(now);
-					if (backJumps.length >= 2) {
+					if (backJumps.length >= 2 || now - startedAt < 90000) {
 						backJumps = [];
 						rebuild();
 						return;
