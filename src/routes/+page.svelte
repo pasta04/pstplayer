@@ -1167,6 +1167,34 @@
 		writeTextarea?.focus();
 	}
 
+	// IME の変換ウィンドウがウィンドウ左上 (0,0) に描画されることが
+	// ときどきある問題の対策 (実機 QA、根本原因は未特定。mpv 子ウィンドウ
+	// とのネイティブフォーカス往復後の初回入力で発生しやすい)。
+	// 「一度投稿すると直る」= 投稿フローの blur→focus() で IME が
+	// textarea の caret 位置を再認識するため。同じ再アンカーをフォーカス
+	// 取得のたびに一度だけ行う。
+	let imeRefocusGuard = false;
+	function onWriteFocus() {
+		if (imeRefocusGuard) return;
+		const el = writeTextarea;
+		if (!el) return;
+		imeRefocusGuard = true;
+		const selStart = el.selectionStart;
+		const selEnd = el.selectionEnd;
+		el.blur();
+		requestAnimationFrame(() => {
+			el.focus();
+			try {
+				el.setSelectionRange(selStart, selEnd);
+			} catch {
+				/* ignore */
+			}
+			setTimeout(() => {
+				imeRefocusGuard = false;
+			}, 0);
+		});
+	}
+
 	// 動画領域をクリックしたらウィンドウを前面化 + フォーカスする (#15)。
 	// 動画上のクリックは embed.rs が player:click として転送 (Windows)、
 	// または DOM の onclick から届く (その他)。
@@ -1865,6 +1893,7 @@
 				: '書き込み欄'}
 			bind:value={writeBody}
 			onkeydown={onWriteKey}
+			onfocus={onWriteFocus}
 			disabled={!currentThreadUrl || writeSending}
 			rows={Math.max(1, writeBody.split('\n').length)}
 		></textarea>
