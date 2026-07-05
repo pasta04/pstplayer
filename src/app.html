@@ -49,6 +49,17 @@
 				--bar-status: #000;
 				--bar-write: #000;
 			}
+			/* iOS Safari は input / select / textarea の font-size が
+			   16px 未満だとフォーカス時に自動ズームする。スマホ幅では
+			   全ページの入力要素を一律 16px 以上にする (コンポーネント
+			   スコープの指定より優先させるため !important)。 */
+			@media (max-width: 700px) {
+				input,
+				select,
+				textarea {
+					font-size: 16px !important;
+				}
+			}
 		</style>
 		%sveltekit.head%
 	</head>
