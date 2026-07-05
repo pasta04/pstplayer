@@ -113,18 +113,14 @@ pub struct ThreadsResp {
 pub async fn board_threads(Query(q): Query<BoardQuery>) -> ApiResult<Json<ThreadsResp>> {
     let kind = classify(&q.url);
     let threads = match kind {
-        Some(BoardKind::Shitaraba) => {
-            pst_core::bbs::shitaraba::ShitarabaClient::new()
-                .list_threads(&q.url)
-                .await
-                .map_err(AppError::for_bbs)?
-        }
-        Some(BoardKind::Ch2Compat) => {
-            pst_core::bbs::ch2::Ch2Client::new()
-                .list_threads(&q.url)
-                .await
-                .map_err(AppError::for_bbs)?
-        }
+        Some(BoardKind::Shitaraba) => pst_core::bbs::shitaraba::ShitarabaClient::new()
+            .list_threads(&q.url)
+            .await
+            .map_err(AppError::for_bbs)?,
+        Some(BoardKind::Ch2Compat) => pst_core::bbs::ch2::Ch2Client::new()
+            .list_threads(&q.url)
+            .await
+            .map_err(AppError::for_bbs)?,
         None => {
             return Err(ApiError {
                 status: axum::http::StatusCode::BAD_REQUEST,
@@ -164,18 +160,14 @@ pub async fn thread_fetch(Query(q): Query<ThreadQuery>) -> ApiResult<Json<Thread
         None
     };
     let (posts, state) = match kind {
-        Some(BoardKind::Shitaraba) => {
-            pst_core::bbs::shitaraba::ShitarabaClient::new()
-                .fetch_thread(&q.url, prev.as_ref())
-                .await
-                .map_err(AppError::for_bbs)?
-        }
-        Some(BoardKind::Ch2Compat) => {
-            pst_core::bbs::ch2::Ch2Client::new()
-                .fetch_thread(&q.url, prev.as_ref())
-                .await
-                .map_err(AppError::for_bbs)?
-        }
+        Some(BoardKind::Shitaraba) => pst_core::bbs::shitaraba::ShitarabaClient::new()
+            .fetch_thread(&q.url, prev.as_ref())
+            .await
+            .map_err(AppError::for_bbs)?,
+        Some(BoardKind::Ch2Compat) => pst_core::bbs::ch2::Ch2Client::new()
+            .fetch_thread(&q.url, prev.as_ref())
+            .await
+            .map_err(AppError::for_bbs)?,
         None => {
             return Err(ApiError {
                 status: axum::http::StatusCode::BAD_REQUEST,
@@ -203,18 +195,14 @@ pub async fn thread_post(Json(b): Json<PostBody>) -> ApiResult<Json<Empty>> {
         body: b.body,
     };
     match kind {
-        Some(BoardKind::Shitaraba) => {
-            pst_core::bbs::shitaraba::ShitarabaClient::new()
-                .post(&b.url, &req)
-                .await
-                .map_err(AppError::for_bbs)?
-        }
-        Some(BoardKind::Ch2Compat) => {
-            pst_core::bbs::ch2::Ch2Client::new()
-                .post(&b.url, &req)
-                .await
-                .map_err(AppError::for_bbs)?
-        }
+        Some(BoardKind::Shitaraba) => pst_core::bbs::shitaraba::ShitarabaClient::new()
+            .post(&b.url, &req)
+            .await
+            .map_err(AppError::for_bbs)?,
+        Some(BoardKind::Ch2Compat) => pst_core::bbs::ch2::Ch2Client::new()
+            .post(&b.url, &req)
+            .await
+            .map_err(AppError::for_bbs)?,
         None => {
             return Err(ApiError {
                 status: axum::http::StatusCode::BAD_REQUEST,
@@ -338,18 +326,14 @@ pub async fn board_setting(
     axum::extract::Query(q): axum::extract::Query<BoardQuery>,
 ) -> ApiResult<Json<pst_core::bbs::types::BoardSetting>> {
     let setting = match classify(&q.url) {
-        Some(BoardKind::Shitaraba) => {
-            pst_core::bbs::shitaraba::ShitarabaClient::new()
-                .fetch_setting(&q.url)
-                .await
-                .map_err(AppError::for_bbs)?
-        }
-        Some(BoardKind::Ch2Compat) => {
-            pst_core::bbs::ch2::Ch2Client::new()
-                .fetch_setting(&q.url)
-                .await
-                .map_err(AppError::for_bbs)?
-        }
+        Some(BoardKind::Shitaraba) => pst_core::bbs::shitaraba::ShitarabaClient::new()
+            .fetch_setting(&q.url)
+            .await
+            .map_err(AppError::for_bbs)?,
+        Some(BoardKind::Ch2Compat) => pst_core::bbs::ch2::Ch2Client::new()
+            .fetch_setting(&q.url)
+            .await
+            .map_err(AppError::for_bbs)?,
         None => {
             return Err(ApiError {
                 status: axum::http::StatusCode::BAD_REQUEST,

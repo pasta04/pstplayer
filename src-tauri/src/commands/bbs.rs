@@ -20,10 +20,9 @@ pub async fn list_threads(board_url: String) -> Result<Vec<SubjectEntry>, IpcErr
             .list_threads(&board_url)
             .await
             .map_err(|e| IpcError::from(e.for_bbs())),
-        BoardKind::Ch2Compat => Ch2Client::new()
-            .list_threads(&board_url)
-            .await
-            .map_err(|e| IpcError::from(e.for_bbs())),
+        BoardKind::Ch2Compat => {
+            Ch2Client::new().list_threads(&board_url).await.map_err(|e| IpcError::from(e.for_bbs()))
+        }
     }
 }
 
@@ -51,10 +50,9 @@ pub async fn post_to_thread(thread_url: String, req: PostRequest) -> Result<(), 
             .post(&thread_url, &req)
             .await
             .map_err(|e| IpcError::from(e.for_bbs())),
-        BoardKind::Ch2Compat => Ch2Client::new()
-            .post(&thread_url, &req)
-            .await
-            .map_err(|e| IpcError::from(e.for_bbs())),
+        BoardKind::Ch2Compat => {
+            Ch2Client::new().post(&thread_url, &req).await.map_err(|e| IpcError::from(e.for_bbs()))
+        }
     }
 }
 
@@ -72,10 +70,9 @@ pub async fn fetch_board_setting(url: String) -> Result<BoardSetting, IpcError> 
             .fetch_setting(&url)
             .await
             .map_err(|e| IpcError::from(e.for_bbs())),
-        BoardKind::Ch2Compat => Ch2Client::new()
-            .fetch_setting(&url)
-            .await
-            .map_err(|e| IpcError::from(e.for_bbs())),
+        BoardKind::Ch2Compat => {
+            Ch2Client::new().fetch_setting(&url).await.map_err(|e| IpcError::from(e.for_bbs()))
+        }
     }
 }
 
