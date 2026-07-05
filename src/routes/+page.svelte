@@ -1173,29 +1173,27 @@
 	// 「一度投稿すると直る」= 投稿フローの blur→focus() で IME が
 	// textarea の caret 位置を再認識するため。同じ再アンカーをフォーカス
 	// 取得のたびに一度だけ行う。
-	// ウィンドウが非アクティブになったら書き込み欄のフォーカスを外す。
-	// 複数の視聴ウィンドウ間で textarea どうしのフォーカスを往復すると、
-	// フォーカスを保持したまま復帰した textarea の IME アンカーが壊れて
-	// 変換ウィンドウが左上に出る (実機 QA: ステータスバー等を一度
-	// クリックすると直る = 別要素を経由した「新規フォーカス」なら正常)。
-	// 非アクティブ時に blur しておけば、復帰後の入力は常に新規
-	// フォーカスになる。
-	function onWindowBlur() {
-		if (document.activeElement === writeTextarea) {
-			writeTextarea?.blur();
-		}
-	}
-
+	// IME 再アンカー: WebView がネイティブフォーカスを得る過程で
+	// textarea にフォーカスが入る (多窓間の直接クリック移動・mpv 子
+	// ウィンドウからの復帰・フォーカス保持のままの再アクティブ化) と、
+	// IME の変換ウィンドウが左上 (0,0) に出ることがある (実機 QA)。
+	// ステータスバー等を一度クリックすると直る = アクティブ状態での
+	// 新規フォーカスなら正常なので、blur → 少し待って focus し直す。
+	// 単なる非アクティブ化では起こらないため、blur 側では何もしない。
 	let imeRefocusGuard = false;
-	function onWriteFocus() {
+	let imeReanchorAt = 0;
+	function reanchorWrite() {
 		if (imeRefocusGuard) return;
 		const el = writeTextarea;
-		if (!el) return;
+		if (!el || document.activeElement !== el) return;
+		const now = Date.now();
+		if (now - imeReanchorAt < 500) return;
+		imeReanchorAt = now;
 		imeRefocusGuard = true;
 		const selStart = el.selectionStart;
 		const selEnd = el.selectionEnd;
 		el.blur();
-		requestAnimationFrame(() => {
+		setTimeout(() => {
 			el.focus();
 			try {
 				el.setSelectionRange(selStart, selEnd);
@@ -1205,7 +1203,15 @@
 			setTimeout(() => {
 				imeRefocusGuard = false;
 			}, 0);
-		});
+		}, 80);
+	}
+	function onWindowFocus() {
+		// フォーカス保持のまま再アクティブ化されたケース (textarea の
+		// focus イベントは発火しない) を拾う。
+		reanchorWrite();
+	}
+	function onWriteFocus() {
+		reanchorWrite();
 	}
 
 	// 動画領域をクリックしたらウィンドウを前面化 + フォーカスする (#15)。
@@ -1666,7 +1672,7 @@
 	}
 </script>
 
-<svelte:window onblur={onWindowBlur} />
+<svelte:window onfocus={onWindowFocus} />
 
 <svelte:head>
 	<title>PSTPlayer</title>
