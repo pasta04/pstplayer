@@ -234,9 +234,7 @@ fn setup_webview_isolation(is_viewer: bool) {
     let Ok(base) = std::env::var("LOCALAPPDATA") else {
         return;
     };
-    let root = std::path::Path::new(&base)
-        .join("io.github.pasta04.pstplayer")
-        .join("wv");
+    let root = std::path::Path::new(&base).join("io.github.pasta04.pstplayer").join("wv");
     if is_viewer {
         let dir = root.join(format!("p{}", std::process::id()));
         if std::fs::create_dir_all(&dir).is_ok() {
