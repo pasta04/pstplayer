@@ -59,8 +59,19 @@
 	let posting = $state(false);
 	// レス一覧のスクロール制御 (最下部追従)。
 	let postsEl = $state<HTMLDivElement | undefined>();
+	// スマホ幅 (縦積みレイアウト) か。スマホではレス入力欄を映像直下に
+	// 置き、レスは降順 (新着が上) で表示する。テキストボックスへの
+	// フォーカスで画面上部へスクロールされても映像が見えるようにする
+	// ため (実機 QA: iOS Safari)。
+	let isNarrow = $state(false);
+	const postsView = $derived(isNarrow ? [...posts].reverse() : posts);
 
 	onMount(() => {
+		const mq = window.matchMedia('(max-width: 700px)');
+		isNarrow = mq.matches;
+		mq.addEventListener('change', (ev) => {
+			isNarrow = ev.matches;
+		});
 		const params = new URLSearchParams(window.location.search);
 		channelId = params.get('id');
 		tip = params.get('tip');
@@ -459,8 +470,9 @@
 				changed = true;
 			}
 			bbsError = null;
-			if (changed && stick) {
+			if (changed && stick && !isNarrow) {
 				// デスクトップと同じく最下部 (最新レス) を表示した状態にする。
+				// スマホは降順表示 (新着が先頭) なのでスクロールしない。
 				await tick();
 				if (postsEl) postsEl.scrollTop = postsEl.scrollHeight;
 			}
@@ -516,7 +528,7 @@
 		{/if}
 
 		<div class="posts" bind:this={postsEl}>
-			{#each posts as p (p.number)}
+			{#each postsView as p (p.number)}
 				<article class="post">
 					<div class="meta">
 						<span class="num">{p.number}</span>
@@ -717,6 +729,20 @@
 		}
 		.posts {
 			min-height: 0;
+		}
+		/* 入力欄を映像直下へ (スレタイ → 入力欄 → レス降順)。iOS は
+		   フォーカス時に入力欄へスクロールするため、入力欄が上にあるほど
+		   映像が見えたまま書き込める。 */
+		.post-form {
+			order: -2;
+			border-top: none;
+			border-bottom: 1px solid #d0d0d0;
+		}
+		.bbs-head {
+			order: -3;
+		}
+		.bbs-error {
+			order: -1;
 		}
 	}
 	:global(.body a.anchor) {
