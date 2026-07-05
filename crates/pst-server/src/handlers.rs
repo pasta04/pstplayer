@@ -312,6 +312,31 @@ pub struct ConfigPathResp {
     pub path: String,
 }
 
+#[derive(Deserialize)]
+pub struct ThreadUrlQuery {
+    pub url: String,
+    pub key: String,
+}
+
+#[derive(Serialize)]
+pub struct ThreadUrlResp {
+    pub url: String,
+}
+
+/// 板 URL + key → canonical なスレッド URL (Tauri command `thread_url_of`
+/// の REST 版。ブラウザの視聴ページが「コンタクト = 板 URL」のとき最新
+/// スレを開くのに使う)。
+pub async fn thread_url_of(
+    axum::extract::Query(q): axum::extract::Query<ThreadUrlQuery>,
+) -> ApiResult<Json<ThreadUrlResp>> {
+    let url = pst_core::bbs::url::build_thread_url(&q.url, &q.key).map_err(|e| ApiError {
+        status: axum::http::StatusCode::BAD_REQUEST,
+        code: "invalid_url",
+        message: e.to_string(),
+    })?;
+    Ok(Json(ThreadUrlResp { url }))
+}
+
 // ── Redirects ──────────────────────────────────────────────────
 
 /// `/` はハブ (YP 一覧) へ。ブラウザでユーザーが最初に見たいのは YP。

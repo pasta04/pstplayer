@@ -9,7 +9,9 @@
 	import {
 		fetchChannelInfo,
 		fetchThread,
+		listThreads,
 		postToThread,
+		threadUrlOf,
 		type ChannelInfo,
 		type FetchState,
 		type Post,
@@ -59,12 +61,10 @@
 		// /hls/{id}/index.m3u8 を 404/503 にする。未リレー join 用に
 		// tip をクエリで引き継ぐ (プロキシが上流へ透過する)。
 		const src = `/hls/${encodeURIComponent(id)}` + (tip ? `?tip=${encodeURIComponent(tip)}` : '');
-		// Safari / iOS はネイティブ HLS 再生。
-		if (el.canPlayType('application/vnd.apple.mpegurl')) {
-			el.src = src;
-			videoStatus = '';
-			return;
-		}
+		// MSE がある環境では hls.js を最優先する。canPlayType は Windows の
+		// Chrome でも 'maybe' を返すことがあり (実機 QA)、それを信じて
+		// ネイティブ再生に振ると無反応のまま止まる。ネイティブ HLS は
+		// hls.js が使えない環境 (iOS Safari 等) のフォールバック。
 		try {
 			const Hls = (await import('hls.js')).default;
 			if (Hls.isSupported()) {
@@ -73,11 +73,16 @@
 				h.attachMedia(el);
 				hls = h;
 				videoStatus = '';
-			} else {
-				videoStatus = 'このブラウザは HLS 再生に対応していません';
+				return;
 			}
-		} catch (e) {
-			videoStatus = 'HLS の読み込みに失敗しました: ' + (e instanceof Error ? e.message : String(e));
+		} catch {
+			/* hls.js が読めない場合はネイティブへフォールバック */
+		}
+		if (el.canPlayType('application/vnd.apple.mpegurl')) {
+			el.src = src;
+			videoStatus = '';
+		} else {
+			videoStatus = 'このブラウザは HLS 再生に対応していません';
 		}
 	}
 
@@ -93,10 +98,28 @@
 			bbsError = 'この配信にはコンタクト URL (BBS) がありません';
 			return;
 		}
+		// コンタクトが板 URL のときは最新スレへ解決する (デスクトップ
+		// viewer の #17 と同等。板 URL のまま /api/thread に投げると 400)。
+		bbsUrl = await resolveThreadUrl(bbsUrl);
 		await reloadBbs();
 		pollTimer = setInterval(() => {
 			void reloadBbs();
 		}, 10000);
+	}
+
+	/// コンタクト URL が板トップなら最新スレの URL に解決する。スレ URL
+	/// (板一覧が取れない) ならそのまま返す。
+	async function resolveThreadUrl(contact: string): Promise<string> {
+		try {
+			const threads = await listThreads(contact);
+			if (threads.length > 0) {
+				const newest = threads.reduce((a, b) => (Number(b.key) > Number(a.key) ? b : a));
+				if (newest.key) return await threadUrlOf(contact, newest.key);
+			}
+		} catch {
+			/* 板として解釈できない = スレ URL とみなしてそのまま使う */
+		}
+		return contact;
 	}
 
 	async function reloadBbs() {

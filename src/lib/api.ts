@@ -438,7 +438,15 @@ export async function boardUrlOf(url: string): Promise<string> {
 /// 板 URL + スレッド key から、板の流儀に合った canonical なスレッド
 /// URL を組み立てる (2ch 互換の `/test/read.cgi/` 等を吸収)。
 export async function threadUrlOf(boardUrl: string, key: string): Promise<string> {
-	return call<string>('thread_url_of', { boardUrl, key });
+	return dual(
+		() => call<string>('thread_url_of', { boardUrl, key }),
+		async () =>
+			(
+				await httpGet<{ url: string }>(
+					`/api/board/thread-url?url=${encodeURIComponent(boardUrl)}&key=${encodeURIComponent(key)}`,
+				)
+			).url,
+	);
 }
 
 export async function listThreads(boardUrl: string): Promise<SubjectEntry[]> {

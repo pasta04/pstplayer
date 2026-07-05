@@ -94,26 +94,7 @@ pub fn board_url_of(url: String) -> Result<String, IpcError> {
 /// ため、板種別ごとにバックエンドで構築する。
 #[tauri::command]
 pub fn thread_url_of(board_url: String, key: String) -> Result<String, IpcError> {
-    use pst_core::bbs::url::{parse_ch2, parse_shitaraba};
-    // key は数字のみ許可 (URL/パス注入対策)。
-    if key.is_empty() || !key.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(AppError::InvalidUrl(format!("invalid thread key: {key}")).into());
-    }
-    match classify(&board_url)? {
-        BoardKind::Shitaraba => {
-            let u = parse_shitaraba(&board_url)
-                .ok_or_else(|| AppError::InvalidUrl(format!("not a shitaraba URL: {board_url}")))?;
-            Ok(format!(
-                "https://jbbs.shitaraba.net/bbs/read.cgi/{}/{}/{}/",
-                u.category, u.board_id, key
-            ))
-        }
-        BoardKind::Ch2Compat => {
-            let u = parse_ch2(&board_url)
-                .ok_or_else(|| AppError::InvalidUrl(format!("not a 2ch URL: {board_url}")))?;
-            Ok(format!("{}://{}/test/read.cgi/{}/{}/", u.scheme, u.host, u.board, key))
-        }
-    }
+    pst_core::bbs::url::build_thread_url(&board_url, &key).map_err(Into::into)
 }
 
 #[tauri::command]

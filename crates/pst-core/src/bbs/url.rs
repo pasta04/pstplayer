@@ -7,6 +7,38 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
 
+use super::router::classify;
+use super::types::BoardKind;
+use crate::util::errors::{AppError, AppResult};
+
+/// 板 URL (or スレ URL) とスレッド key から、その板の流儀に合った
+/// canonical なスレッド URL を組み立てる。`${base}/${key}/` を素朴に
+/// 繋ぐと 2ch 互換 (`/test/read.cgi/` が必要) で壊れるため、板種別ごと
+/// に構築する。Tauri command と pst-server の REST の双方から使う。
+pub fn build_thread_url(board_url: &str, key: &str) -> AppResult<String> {
+    // key は数字のみ許可 (URL/パス注入対策)。
+    if key.is_empty() || !key.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(AppError::InvalidUrl(format!("invalid thread key: {key}")));
+    }
+    let kind = classify(board_url)
+        .ok_or_else(|| AppError::InvalidUrl(format!("not a BBS URL: {board_url}")))?;
+    match kind {
+        BoardKind::Shitaraba => {
+            let u = parse_shitaraba(board_url)
+                .ok_or_else(|| AppError::InvalidUrl(format!("not a shitaraba URL: {board_url}")))?;
+            Ok(format!(
+                "https://jbbs.shitaraba.net/bbs/read.cgi/{}/{}/{}/",
+                u.category, u.board_id, key
+            ))
+        }
+        BoardKind::Ch2Compat => {
+            let u = parse_ch2(board_url)
+                .ok_or_else(|| AppError::InvalidUrl(format!("not a 2ch URL: {board_url}")))?;
+            Ok(format!("{}://{}/test/read.cgi/{}/{}/", u.scheme, u.host, u.board, key))
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShitarabaUrl {
     pub category: String,

@@ -61,6 +61,10 @@ pub fn build_router(state: AppState, web_dir: Option<PathBuf>) -> Router {
         .route("/api/yp/all", routing::get(handlers::yp_all))
         // BBS
         .route("/api/board", routing::get(handlers::board_threads))
+        .route(
+            "/api/board/thread-url",
+            routing::get(handlers::thread_url_of),
+        )
         .route("/api/thread", routing::get(handlers::thread_fetch))
         .route("/api/thread/post", routing::post(handlers::thread_post))
         // HLS proxy (上流 PeerCastStation の /hls/{id} を透過)

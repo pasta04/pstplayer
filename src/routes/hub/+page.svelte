@@ -223,12 +223,15 @@
 		void refresh();
 		void refreshWatching();
 		// 設定ダイアログで保存があったら再 fetch (YP / お気に入りが変わる
-		// 可能性があるので)。間隔も再計算する。
-		void listen('config:saved', () => {
-			void refresh();
-		}).then((u) => {
-			configSavedUnlisten = u;
-		});
+		// 可能性があるので)。間隔も再計算する。Tauri イベントはブラウザには
+		// 無い (呼ぶと transformCallback 例外で onMount が死ぬ。実機 QA)。
+		if (isTauri()) {
+			void listen('config:saved', () => {
+				void refresh();
+			}).then((u) => {
+				configSavedUnlisten = u;
+			});
+		}
 		// 録画中にメインウィンドウを閉じようとしたら確認する (実機 QA 要望)。
 		// 録画は内蔵 / 外部 pst-server で進行するので、停止してファイルを正しく
 		// クローズしてから終了する。ブラウザ (非 Tauri) では無効。
