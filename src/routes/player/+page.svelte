@@ -87,12 +87,17 @@
 	}
 
 	async function startBbs(id: string) {
-		try {
-			// endpoint は browser では REST 側が無視する (path の channel id を使う)。
-			channelInfo = await fetchChannelInfo({ host: '', port: 0 }, id);
-			bbsUrl = channelInfo?.url ?? '';
-		} catch {
-			/* channel info が取れなくても視聴は継続 */
+		// チャンネル join 直後は上流 PeerCast がまだ情報を持っておらず
+		// 取得に失敗する (実機 QA)。しばらくリトライしてから諦める。
+		for (let i = 0; i < 10 && !bbsUrl; i++) {
+			try {
+				// endpoint は browser では REST 側が無視する (path の channel id を使う)。
+				channelInfo = await fetchChannelInfo({ host: '', port: 0 }, id);
+				bbsUrl = channelInfo?.url ?? '';
+			} catch {
+				/* join 待ち。リトライする */
+			}
+			if (!bbsUrl) await new Promise((r) => setTimeout(r, 3000));
 		}
 		if (!bbsUrl) {
 			bbsError = 'この配信にはコンタクト URL (BBS) がありません';

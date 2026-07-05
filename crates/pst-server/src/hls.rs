@@ -24,7 +24,7 @@ use axum::response::Response;
 use pst_core::util::http::STREAM_CLIENT;
 use reqwest::header::{
     HeaderName, HeaderValue, CACHE_CONTROL, CONTENT_LENGTH, CONTENT_TYPE, IF_MODIFIED_SINCE,
-    LAST_MODIFIED, RANGE,
+    LAST_MODIFIED, LOCATION, RANGE,
 };
 
 use crate::error::{ApiError, ApiResult};
@@ -137,6 +137,23 @@ async fn proxy_get(url: String, headers: HeaderMap, state: &AppState) -> ApiResu
     })
 }
 
+/// playlist 取得用クライアント。リダイレクトを**追わない** (PCS は
+/// `?session=` 付き URL へ誘導し、以降の再取得はその session で継続する
+/// 必要がある。プロキシ内部で追ってしまうと hls.js が毎回ベース URL を
+/// 叩いて session が作り直され、セグメントが確定しないまま空回りする:
+/// 実機 QA)。リダイレクトは Location をローカルパスに書き換えて
+/// クライアントへ返す。
+fn playlist_client() -> &'static reqwest::Client {
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .timeout(std::time::Duration::from_secs(15))
+            .build()
+            .expect("failed to build playlist HTTP client")
+    })
+}
+
 /// 上流の絶対 URL (`http://host:port/...`) を本サーバのパスへ書き換える。
 /// m3u8 の中身にだけ適用する (ブラウザが上流へ直接行くと CORS で死ぬ)。
 fn rewrite_playlist_body(body: &str, host: &str, port: u16) -> String {
@@ -162,37 +179,69 @@ pub async fn playlist(
         });
     }
     let url = upstream_playlist_url(&s, &id, query.as_deref()).await;
-    let resp = proxy_get(url, headers, &s).await?;
-    // m3u8 (テキスト) のときだけ本文を読み切って URL を書き換える。
-    let is_m3u8 = resp
-        .headers()
-        .get(CONTENT_TYPE)
+    let _ = headers; // playlist は条件付き GET を上流に流さない (常に最新を返す)
+    let (auth_user, auth_pass) = upstream_auth(&s).await;
+    let mut req = playlist_client().get(&url);
+    if let (Some(u), Some(p)) = (auth_user.as_deref(), auth_pass.as_deref()) {
+        if !u.is_empty() {
+            req = req.basic_auth(u, Some(p));
+        }
+    }
+    let resp = req.send().await.map_err(|e| ApiError {
+        status: StatusCode::BAD_GATEWAY,
+        code: "peercast_unreachable",
+        message: format!("HLS 上流に接続できません: {e}"),
+    })?;
+    let (host, port) = upstream_host_port(&s).await;
+    let origin = format!("http://{host}:{port}");
+    if resp.status().is_redirection() {
+        // ?session= 付き URL への誘導。ローカルパスに書き換えて返し、
+        // 以降のクライアントの再取得を session 継続にする。
+        let loc = resp
+            .headers()
+            .get(LOCATION)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .replace(&origin, "");
+        return Response::builder()
+            .status(StatusCode::FOUND)
+            .header(axum::http::header::LOCATION, loc)
+            .body(Body::empty())
+            .map_err(|e| ApiError {
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+                code: "decode",
+                message: format!("redirect build failed: {e}"),
+            });
+    }
+    let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+    let content_type = resp.headers().get(CONTENT_TYPE).cloned();
+    let cache_control = resp.headers().get(CACHE_CONTROL).cloned();
+    let is_m3u8 = content_type
+        .as_ref()
         .and_then(|v| v.to_str().ok())
         .map(|v| v.contains("mpegurl") || v.contains("m3u8") || v.starts_with("text/"))
         .unwrap_or(true);
-    if !resp.status().is_success() || !is_m3u8 {
-        return Ok(resp);
-    }
-    let (parts, body) = resp.into_parts();
-    let bytes = axum::body::to_bytes(body, 8 * 1024 * 1024)
-        .await
-        .map_err(|e| ApiError {
-            status: StatusCode::BAD_GATEWAY,
-            code: "decode",
-            message: format!("playlist read failed: {e}"),
-        })?;
-    let text = String::from_utf8_lossy(&bytes);
-    let (host, port) = upstream_host_port(&s).await;
-    let rewritten = rewrite_playlist_body(&text, &host, port);
-    let mut out = Response::builder().status(parts.status);
+    let bytes = resp.bytes().await.map_err(|e| ApiError {
+        status: StatusCode::BAD_GATEWAY,
+        code: "decode",
+        message: format!("playlist read failed: {e}"),
+    })?;
+    let body = if status.is_success() && is_m3u8 {
+        let text = String::from_utf8_lossy(&bytes);
+        Body::from(rewrite_playlist_body(&text, &host, port))
+    } else {
+        Body::from(bytes)
+    };
+    let mut out = Response::builder().status(status);
     if let Some(h) = out.headers_mut() {
-        for name in [CONTENT_TYPE, CACHE_CONTROL, LAST_MODIFIED] {
-            if let Some(v) = parts.headers.get(&name) {
-                h.insert(name, v.clone());
-            }
+        if let Some(v) = content_type {
+            h.insert(CONTENT_TYPE, v);
+        }
+        if let Some(v) = cache_control {
+            h.insert(CACHE_CONTROL, v);
         }
     }
-    out.body(Body::from(rewritten)).map_err(|e| ApiError {
+    out.body(body).map_err(|e| ApiError {
         status: StatusCode::INTERNAL_SERVER_ERROR,
         code: "decode",
         message: format!("response build failed: {e}"),
