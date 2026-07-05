@@ -1616,10 +1616,31 @@
 		background: #56617a;
 		color: #fff;
 	}
-	/* スマホ幅ではデスクトップ向け操作ボタンを隠す。 */
+	/* スマホ幅ではデスクトップ向け操作ボタンを隠し、タップしやすい
+	   サイズ感にする。input の font-size は 16px 未満だと iOS Safari が
+	   フォーカス時に自動ズームするため 16px 以上にする。 */
 	@media (max-width: 700px) {
 		.hide-mobile {
 			display: none;
+		}
+		main {
+			font-size: 15px;
+		}
+		.filter {
+			font-size: 16px;
+		}
+		td,
+		th {
+			padding: 8px 6px;
+		}
+		.play-btn {
+			font-size: 15px;
+			padding: 8px 12px;
+			margin-right: 8px;
+		}
+		.toolbar button {
+			font-size: 14px;
+			padding: 8px 10px;
 		}
 	}
 	.star {

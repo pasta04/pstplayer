@@ -718,7 +718,6 @@
 			height: 100dvh;
 		}
 		.video-pane {
-			flex: 0 0 40vh;
 			min-height: 0;
 		}
 		.bbs-pane {
@@ -737,6 +736,18 @@
 			order: -2;
 			border-top: none;
 			border-bottom: 1px solid #d0d0d0;
+		}
+		/* iOS Safari は入力欄の font-size が 16px 未満だとフォーカス時に
+		   自動ズームする。 */
+		.post-form textarea {
+			font-size: 16px;
+		}
+		/* 映像は 16:9 の高さにフィットさせ、上下の黒帯を出さない
+		   (固定 40vh だとアスペクト比が合わず letterbox になる)。 */
+		.video-pane {
+			flex: 0 0 auto;
+			aspect-ratio: 16 / 9;
+			max-height: 45vh;
 		}
 		.bbs-head {
 			order: -3;
