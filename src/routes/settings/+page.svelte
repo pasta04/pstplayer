@@ -229,6 +229,11 @@
 				};
 				raw.yp = cfg.yp;
 				raw.favorites = cfg.favorites;
+				raw.bbs = {
+					...((raw.bbs as Record<string, unknown> | null) ?? {}),
+					default_name: cfg.bbs.defaultName,
+					default_mail: cfg.bbs.defaultMail,
+				};
 				await putServerConfigRaw(raw);
 				message = '保存しました (pst-server の設定ファイルに反映)。';
 				return;
@@ -415,8 +420,8 @@
 			<button class:active={tab === 'general'} onclick={() => (tab = 'general')}>一般</button>
 			<button class:active={tab === 'peercast'} onclick={() => (tab = 'peercast')}>PeerCast</button>
 			<button class:active={tab === 'yp'} onclick={() => (tab = 'yp')}>YP</button>
+			<button class:active={tab === 'bbs'} onclick={() => (tab = 'bbs')}>BBS</button>
 			{#if !browserMode}
-				<button class:active={tab === 'bbs'} onclick={() => (tab = 'bbs')}>BBS</button>
 				<button class:active={tab === 'player'} onclick={() => (tab = 'player')}>プレイヤー</button>
 			{/if}
 			<button class:active={tab === 'favorites'} onclick={() => (tab = 'favorites')}>
@@ -656,43 +661,51 @@
 					デフォルトメール
 					<input type="text" bind:value={cfg.bbs.defaultMail} placeholder="sage" />
 				</label>
-				<label>
-					自動更新間隔 (秒)
-					<input type="number" min="1" max="120" bind:value={cfg.bbs.autoRefreshSec} />
-				</label>
-				<label>
-					表示モード
-					<select bind:value={cfg.bbs.displayMode}>
-						<option value="plain">プレーン (タグはエスケープ)</option>
-						<option value="html">HTML (ammonia で whitelist サニタイズ)</option>
-					</select>
-				</label>
-				<p class="hint small muted">
-					HTML モードは &lt;b&gt; &lt;i&gt; &lt;font color&gt; などの装飾を反映します。 script / img
-					/ on*属性などは除去されます。
-				</p>
-				<label>
-					書き込み欄の送信キー
-					<select bind:value={cfg.bbs.submitKey}>
-						<option value="ctrl_enter">Ctrl/Cmd+Enter で送信 (Enter は改行)</option>
-						<option value="shift_enter">Shift+Enter で送信 (Enter は改行)</option>
-					</select>
-				</label>
-				<label class="check">
-					<input type="checkbox" bind:checked={cfg.bbs.autoscroll} />
-					新着レス到着時に末尾へ自動スクロール (手動スクロール中は一時停止)
-				</label>
-				{#if cfg.bbs.autoscroll}
+				{#if browserMode}
+					<p class="hint small muted">
+						ブラウザ視聴の書き込み欄には名前 / メール入力欄が無く、上記の既定値が
+						そのまま使われます。
+					</p>
+				{/if}
+				{#if !browserMode}
 					<label>
-						自動スクロール速度 (px/秒・大きいほど速い)
-						<input
-							type="number"
-							min="100"
-							max="3000"
-							step="50"
-							bind:value={cfg.bbs.autoscrollSpeed}
-						/>
+						自動更新間隔 (秒)
+						<input type="number" min="1" max="120" bind:value={cfg.bbs.autoRefreshSec} />
 					</label>
+					<label>
+						表示モード
+						<select bind:value={cfg.bbs.displayMode}>
+							<option value="plain">プレーン (タグはエスケープ)</option>
+							<option value="html">HTML (ammonia で whitelist サニタイズ)</option>
+						</select>
+					</label>
+					<p class="hint small muted">
+						HTML モードは &lt;b&gt; &lt;i&gt; &lt;font color&gt; などの装飾を反映します。 script /
+						img / on*属性などは除去されます。
+					</p>
+					<label>
+						書き込み欄の送信キー
+						<select bind:value={cfg.bbs.submitKey}>
+							<option value="ctrl_enter">Ctrl/Cmd+Enter で送信 (Enter は改行)</option>
+							<option value="shift_enter">Shift+Enter で送信 (Enter は改行)</option>
+						</select>
+					</label>
+					<label class="check">
+						<input type="checkbox" bind:checked={cfg.bbs.autoscroll} />
+						新着レス到着時に末尾へ自動スクロール (手動スクロール中は一時停止)
+					</label>
+					{#if cfg.bbs.autoscroll}
+						<label>
+							自動スクロール速度 (px/秒・大きいほど速い)
+							<input
+								type="number"
+								min="100"
+								max="3000"
+								step="50"
+								bind:value={cfg.bbs.autoscrollSpeed}
+							/>
+						</label>
+					{/if}
 				{/if}
 			{:else if tab === 'player'}
 				<label>

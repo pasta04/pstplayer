@@ -699,6 +699,7 @@ interface ServerConfigResponse {
 	peercast?: { host?: string; port?: number; auth_user?: string | null; auth_pass?: string | null };
 	favorites?: FavoritesCfg;
 	yp?: YpCfg;
+	bbs?: { default_name?: string; default_mail?: string };
 }
 
 /** pst-server のサーバ用 config を、ブラウザのハブが期待する Config 形へ
@@ -718,8 +719,8 @@ function browserConfig(s: ServerConfigResponse): Config {
 			ypUrl: '',
 		},
 		bbs: {
-			defaultName: '',
-			defaultMail: '',
+			defaultName: s.bbs?.default_name ?? '',
+			defaultMail: s.bbs?.default_mail ?? 'sage',
 			autoRefreshSec: 5,
 			displayMode: 'plain',
 			submitKey: 'ctrl_enter',

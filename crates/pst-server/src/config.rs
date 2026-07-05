@@ -22,12 +22,40 @@ pub struct Config {
     pub recording: RecordingConfig,
     #[serde(default)]
     pub favorites: pst_core::favorites::FavoritesConfig,
+    /// ブラウザ視聴ページの書き込み欄の既定値 (フォームは非表示運用)。
+    #[serde(default)]
+    pub bbs: BbsDefaults,
     /// 登録 YP の一覧。サーバ側で `index.txt` を集約して
     /// `GET /api/yp/all` で配信するために使う (pst-server が
     /// 「YP 一覧表示」を担うため)。デスクトップ版 config の `[yp]` と
     /// 同じスキーマ。
     #[serde(default)]
     pub yp: pst_core::config::schema::YpConfig,
+}
+
+/// ブラウザ視聴ページの書き込み欄の既定値。名前 / メール欄は UI に
+/// 出さず、この既定値をそのまま送信に使う (変更は /settings から)。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BbsDefaults {
+    /// 名前欄の既定 (既定: 空 = 板の名無し)。
+    #[serde(default)]
+    pub default_name: String,
+    /// メール欄の既定 (既定: "sage")。
+    #[serde(default = "default_mail_sage")]
+    pub default_mail: String,
+}
+
+impl Default for BbsDefaults {
+    fn default() -> Self {
+        Self {
+            default_name: String::new(),
+            default_mail: "sage".into(),
+        }
+    }
+}
+
+fn default_mail_sage() -> String {
+    "sage".into()
 }
 
 /// 録画機能の設定。SD カード保護方針に従い既定 OFF。`enabled = true`

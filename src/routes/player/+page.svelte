@@ -5,12 +5,13 @@
 	// /api/thread/post) で読み書きする。レス本文は format.ts の renderBodyHtml
 	// (クライアント側で全エスケープ + アンカー/URL リンク化) で安全に描画する
 	// ので、Rust 側のサニタイズ (HTML 表示モード専用) は使わない。
-	import { onDestroy, onMount } from 'svelte';
+	import { onDestroy, onMount, tick } from 'svelte';
 	import {
 		boardUrlOf,
 		fetchBoardSetting,
 		fetchChannelInfo,
 		fetchThread,
+		getConfig,
 		postToThread,
 		type ChannelInfo,
 		type FetchState,
@@ -37,11 +38,14 @@
 	let playerMaxRes = 0;
 	let advancingBbs = false;
 
-	// 書き込みフォーム。
-	let postName = $state('');
-	let postMail = $state('');
+	// 書き込みフォーム。名前 / メール欄は UI に出さず、設定の既定値
+	// (既定: 名前 = 空, メール = sage) をそのまま使う。
+	let postName = '';
+	let postMail = 'sage';
 	let postBody = $state('');
 	let posting = $state(false);
+	// レス一覧のスクロール制御 (最下部追従)。
+	let postsEl = $state<HTMLDivElement | undefined>();
 
 	onMount(() => {
 		const params = new URLSearchParams(window.location.search);
@@ -51,6 +55,13 @@
 			videoStatus = 'エラー: ?id=<channel_id> が指定されていません';
 			return;
 		}
+		// 書き込み既定値 (pst-server の [bbs]) を読む。失敗時は既定のまま。
+		getConfig()
+			.then((cfg) => {
+				postName = cfg?.bbs?.defaultName ?? '';
+				postMail = cfg?.bbs?.defaultMail ?? 'sage';
+			})
+			.catch(() => undefined);
 		void startVideo(channelId);
 		void startBbs(channelId);
 	});
@@ -166,21 +177,38 @@
 		}
 	}
 
+	/// レス一覧の末尾付近を見ているか (= 新着で追従してよいか)。
+	function nearBottom(): boolean {
+		if (!postsEl) return true;
+		return postsEl.scrollHeight - postsEl.scrollTop - postsEl.clientHeight < 80;
+	}
+
 	async function reloadBbs() {
 		try {
+			// 初回、または末尾付近を見ているときだけ追従スクロールする
+			// (過去レスを遡って読んでいる最中は動かさない)。
+			const stick = posts.length === 0 || nearBottom();
 			const [newPosts, state] = await fetchThread(bbsUrl, bbsState);
 			bbsState = state;
+			let changed = false;
 			if (state.fullReload) {
 				// スレ全体のスナップショット (dat 再構築等)。マージすると
 				// 消えたレスが残るため置換する。
 				posts = newPosts;
+				changed = true;
 			} else if (newPosts.length) {
 				// 差分取得分を number でマージ (既存 + 新規)。
 				const map = new Map(posts.map((p) => [p.number, p]));
 				for (const p of newPosts) map.set(p.number, p);
 				posts = [...map.values()].sort((a, b) => a.number - b.number);
+				changed = true;
 			}
 			bbsError = null;
+			if (changed && stick) {
+				// デスクトップと同じく最下部 (最新レス) を表示した状態にする。
+				await tick();
+				if (postsEl) postsEl.scrollTop = postsEl.scrollHeight;
+			}
 		} catch (e) {
 			bbsError = 'BBS の取得に失敗しました: ' + (e instanceof Error ? e.message : String(e));
 		}
@@ -232,7 +260,7 @@
 			<div class="bbs-error">⚠ {bbsError}</div>
 		{/if}
 
-		<div class="posts">
+		<div class="posts" bind:this={postsEl}>
 			{#each posts as p (p.number)}
 				<article class="post">
 					<div class="meta">
@@ -259,10 +287,6 @@
 					void submitPost();
 				}}
 			>
-				<div class="row">
-					<input bind:value={postName} placeholder="名前" aria-label="名前" />
-					<input bind:value={postMail} placeholder="メール (sage 等)" aria-label="メール" />
-				</div>
 				<textarea
 					bind:value={postBody}
 					onkeydown={onBodyKeydown}
@@ -395,11 +419,6 @@
 		flex-direction: column;
 		gap: 0.3rem;
 	}
-	.post-form .row {
-		display: flex;
-		gap: 0.3rem;
-	}
-	.post-form input,
 	.post-form textarea {
 		font: inherit;
 		padding: 0.25rem 0.4rem;
