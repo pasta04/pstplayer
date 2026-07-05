@@ -53,6 +53,10 @@ pub fn map_config(
             public_url: String::new(),
         },
         log: pst_server::config::LogConfig::default(),
+        bbs: pst_server::config::BbsDefaults {
+            default_name: desktop.bbs.default_name.clone(),
+            default_mail: desktop.bbs.default_mail.clone(),
+        },
         recording: pst_server::config::RecordingConfig {
             enabled: true,
             dir: resolved.dir.to_string_lossy().into_owned(),
