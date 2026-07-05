@@ -97,7 +97,20 @@
 		try {
 			const Hls = (await import('hls.js')).default;
 			if (Hls.isSupported()) {
-				const h = new Hls({ enableWorker: true, lowLatencyMode: true });
+				// PeerCastStation の HLS は約8秒セグメント×5本 (窓 ~42秒) と
+				// 小さい。既定の liveSyncDurationCount=3 (エッジ-25秒) だと
+				// 窓の後端近くを再生し続け、autoplay ブロックや停滞で少し
+				// 遅れただけで再生位置の足元からセグメントがローテーション
+				// アウトし、停止→ギャップジャンプを繰り返す (実機 QA:
+				// リロード後に止まる→時間が飛んで再開)。エッジ寄り
+				// (2本 ≒ 17秒) に同期し、4本 (≒33秒) より遅れたら hls.js に
+				// 自動で前方シークさせる。
+				const h = new Hls({
+					enableWorker: true,
+					lowLatencyMode: true,
+					liveSyncDurationCount: 2,
+					liveMaxLatencyDurationCount: 4,
+				});
 				// チャンネル join 直後は playlist の応答に時間がかかったり
 				// エラーになることがある。fatal エラーで hls.js がロードを
 				// 止めたままにならないよう、自動リカバリする (実機 QA:
@@ -144,6 +157,16 @@
 					}
 					// その他の fatal / 復旧しない MEDIA_ERROR は作り直す。
 					rebuild();
+				});
+				// リロード直後などユーザー操作なしのロードでは音声付き
+				// autoplay がブロックされ、一時停止のまま放置されている間に
+				// ライブ窓が先へ進んでしまう。ブロックされたらミュートで
+				// 再生を開始する (音はコントロールで戻せる)。
+				h.on(Hls.Events.MANIFEST_PARSED, () => {
+					el.play().catch(() => {
+						el.muted = true;
+						el.play().catch(() => undefined);
+					});
 				});
 				h.loadSource(src);
 				h.attachMedia(el);
@@ -252,9 +275,17 @@
 			if (el.currentTime === lastTime) {
 				stallTicks += 1;
 				if (stallTicks >= 3) {
-					// 6 秒進んでいない → ロード再開を蹴る。
+					// 6 秒進んでいない → 前方にバッファ済み区間があれば
+					// そこへ飛び (ギャップ跨ぎ)、ロード再開を蹴る。
 					stallTicks = 0;
 					try {
+						for (let i = 0; i < el.buffered.length; i++) {
+							const s = el.buffered.start(i);
+							if (s > el.currentTime + 0.5) {
+								el.currentTime = s + 0.1;
+								break;
+							}
+						}
 						hls.startLoad();
 					} catch {
 						/* destroy 済み等は無視 */
