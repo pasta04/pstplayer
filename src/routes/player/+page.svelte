@@ -97,6 +97,30 @@
 		try {
 			const Hls = (await import('hls.js')).default;
 			if (Hls.isSupported()) {
+				// join 前にセッション URL を解決し、プレイリストが育つ
+				// (セグメント3本 ≒ 25秒) まで待つ。リロード直後は上流の
+				// セグメンターがリセットされ、セグメント1本のプレイリスト
+				// を掴まされて 8 秒ごとに枯渇→詰まりを繰り返す (実機 QA:
+				// リロード後 seq=75→タイムアウト→seq=2/n=1 を観測)。
+				videoStatus = '接続中…';
+				let playUrl = src;
+				try {
+					const r0 = await fetch(src);
+					if (r0.ok) {
+						playUrl = r0.url || src;
+						let text = await r0.text();
+						for (let i = 0; i < 10; i++) {
+							const n = (text.match(/#EXTINF/g) || []).length;
+							if (n >= 3) break;
+							await new Promise((res) => setTimeout(res, 2000));
+							const r = await fetch(playUrl);
+							if (!r.ok) break;
+							text = await r.text();
+						}
+					}
+				} catch {
+					/* 事前確認に失敗しても従来どおり src で再生を試みる */
+				}
 				// PeerCastStation の HLS は約8秒セグメント×5本 (窓 ~42秒)。
 				// 同期位置は 3 本 (≒25秒遅延)。2 本だとクッションが薄く、
 				// 作り直し直後にセグメント到着間隔 (~8秒) ごとに詰まる。
@@ -173,7 +197,7 @@
 					},
 					{ once: true },
 				);
-				h.loadSource(src);
+				h.loadSource(playUrl);
 				h.attachMedia(el);
 				hls = h;
 				videoStatus = '';
