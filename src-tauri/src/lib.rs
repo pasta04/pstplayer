@@ -220,6 +220,53 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// Windows 専用: WebView2 の UDF 分離とその後始末。
+///
+/// * viewer プロセス: `%LOCALAPPDATA%/io.github.pasta04.pstplayer/wv/p{pid}`
+///   を作り、`WEBVIEW2_USER_DATA_FOLDER` で自プロセスの WebView2 を独立した
+///   ブラウザプロセスにする (env はホスト指定の UDF より優先される公式の
+///   オーバーライド)。
+/// * ハブプロセス: 過去の viewer が残した UDF を掃除する。使用中の
+///   ディレクトリは rename が失敗するため誤削除しない (rename に成功した
+///   ものだけ削除。失敗の痕跡 `gc-*` も次回掃除する)。
+#[cfg(windows)]
+fn setup_webview_isolation(is_viewer: bool) {
+    let Ok(base) = std::env::var("LOCALAPPDATA") else {
+        return;
+    };
+    let root = std::path::Path::new(&base)
+        .join("io.github.pasta04.pstplayer")
+        .join("wv");
+    if is_viewer {
+        let dir = root.join(format!("p{}", std::process::id()));
+        if std::fs::create_dir_all(&dir).is_ok() {
+            std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", &dir);
+        }
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(&root) else {
+        return;
+    };
+    for e in entries.flatten() {
+        let p = e.path();
+        if !p.is_dir() {
+            continue;
+        }
+        let name = e.file_name().to_string_lossy().into_owned();
+        if name.starts_with("gc-") {
+            let _ = std::fs::remove_dir_all(&p);
+            continue;
+        }
+        if !name.starts_with('p') {
+            continue;
+        }
+        let probe = root.join(format!("gc-{name}"));
+        if std::fs::rename(&p, &probe).is_ok() {
+            let _ = std::fs::remove_dir_all(&probe);
+        }
+    }
+}
+
 pub fn run() {
     // Windows: WebView2 (Chromium) は前面に居ないウィンドウのタイマー /
     // レンダラを throttling し、occlusion 判定で renderer を凍結することが
@@ -256,6 +303,16 @@ pub fn run() {
     // ハブは録画中の閉じ確認 (JS onCloseRequested の prevent) があるため
     // CloseRequested 起点の強制終了を張ってはいけない。
     let is_viewer = cli_args.url.is_some();
+
+    // Windows: 視聴プロセスは WebView2 のユーザーデータフォルダ (UDF) を
+    // プロセスごとに分離する。既定の共有 UDF だと pstplayer の全ウィンドウ
+    // (別プロセスでも) が同一の WebView2 ブラウザプロセスに同居し、
+    // ウィンドウ間で編集要素 → 編集要素へ直接フォーカスを移すと移動先の
+    // caret 位置が IME に報告されず、変換ウィンドウが左上 (0,0) に描画
+    // される (実機 QA: 他アプリとの往復では発生しない)。ブラウザプロセス
+    // を分けることで IME コンテキストの混線を断つ。
+    #[cfg(windows)]
+    setup_webview_isolation(is_viewer);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
