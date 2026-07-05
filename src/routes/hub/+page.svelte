@@ -1019,15 +1019,19 @@
 <main onclick={() => closeMenu()}>
 	<header class="toolbar">
 		<button onclick={refresh} disabled={loading}>{loading ? '更新中…' : '↻ 更新'}</button>
-		<button onclick={watchUrl} title="URL を直接入力して視聴する">🔗 URL から開く</button>
+		<button class="hide-mobile" onclick={watchUrl} title="URL を直接入力して視聴する"
+			>🔗 URL から開く</button
+		>
 		<button onclick={openSettingsUi}>⚙ 設定</button>
 		<button
+			class="hide-mobile"
 			onclick={openPstServer}
 			title="pst-server の Web UI (Web グリッド / モバイル UI) をブラウザで開く"
 		>
 			🌐 pst-server
 		</button>
 		<button
+			class="hide-mobile"
 			onclick={closeAll}
 			disabled={watchingIds.size === 0}
 			title="開いている全視聴ウィンドウを閉じる"
@@ -1209,6 +1213,16 @@
 						oncontextmenu={(ev) => onRowContextMenu(ev, e)}
 					>
 						<td class="col-name">
+							<button
+								class="play-btn"
+								title="このチャンネルを再生"
+								aria-label="再生"
+								onclick={(ev) => {
+									ev.stopPropagation();
+									void watchRow(e);
+								}}
+								ondblclick={(ev) => ev.stopPropagation()}>▶</button
+							>
 							{#if rule}<span class="star">★</span>{/if}{e.name}{#if watchingIds.has(e.id)}
 								<span class="watching-badge" title="このチャンネルは視聴ウィンドウで開いています"
 									>▶</span
@@ -1586,6 +1600,28 @@
 		background: var(--accent);
 	}
 
+	.play-btn {
+		border: 1px solid #56617a;
+		background: transparent;
+		color: inherit;
+		border-radius: 3px;
+		font-size: 10px;
+		line-height: 1;
+		padding: 2px 5px;
+		margin-right: 4px;
+		cursor: pointer;
+		vertical-align: middle;
+	}
+	.play-btn:hover {
+		background: #56617a;
+		color: #fff;
+	}
+	/* スマホ幅ではデスクトップ向け操作ボタンを隠す。 */
+	@media (max-width: 700px) {
+		.hide-mobile {
+			display: none;
+		}
+	}
 	.star {
 		color: #ff8a3d;
 		margin-right: 0.2rem;

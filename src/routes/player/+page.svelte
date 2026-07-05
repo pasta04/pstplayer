@@ -507,7 +507,7 @@
 
 	<section class="bbs-pane">
 		<header class="bbs-head">
-			<span class="ch-name">{channelInfo?.name || channelId || ''}</span>
+			<span class="ch-name">{posts[0]?.threadTitle || channelInfo?.name || channelId || ''}</span>
 			<span class="ch-count">({posts.length})</span>
 		</header>
 
@@ -696,18 +696,27 @@
 		opacity: 0.5;
 		cursor: not-allowed;
 	}
-	/* 狭い画面 (モバイル) は縦積み。 */
+	/* 狭い画面 (モバイル) は縦積み。
+	   flex 子は既定 min-height:auto で内容ぶん膨らむため、min-height:0 を
+	   指定しないと .posts が内部スクロールにならず、書き込みフォームも
+	   画面外へ押し出される (実機 QA: iOS Safari / 幅を狭めた Chrome)。 */
 	@media (max-width: 700px) {
 		main {
 			flex-direction: column;
+			height: 100dvh;
 		}
 		.video-pane {
 			flex: 0 0 40vh;
+			min-height: 0;
 		}
 		.bbs-pane {
 			flex: 1;
+			min-height: 0;
 			border-left: none;
 			border-top: 1px solid #ccc;
+		}
+		.posts {
+			min-height: 0;
 		}
 	}
 	:global(.body a.anchor) {
