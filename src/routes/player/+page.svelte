@@ -97,16 +97,18 @@
 		try {
 			const Hls = (await import('hls.js')).default;
 			if (Hls.isSupported()) {
-				// PeerCastStation の HLS は約8秒セグメント×5本 (窓 ~42秒) と
-				// 小さいため、エッジ寄り (2本 ≒ 17秒遅延) に同期する。
-				// liveMaxLatencyDurationCount による自動シークは、進行中
-				// セッションへの途中参加 (リロード) 時に hls.js のタイム
-				// ライン整合が壊れた状態で 0 秒付近へ飛ばしてしまい、
-				// 「同じシーンのループ」を誘発したため使わない (実機 QA)。
+				// PeerCastStation の HLS は約8秒セグメント×5本 (窓 ~42秒)。
+				// 同期位置は 3 本 (≒25秒遅延)。2 本だとクッションが薄く、
+				// 作り直し直後にセグメント到着間隔 (~8秒) ごとに詰まる。
+				// 3 本でも窓の後端 (ローテーションアウト) までは ~17秒の
+				// マージンがある。liveMaxLatencyDurationCount による自動
+				// シークは、途中参加時に整合が壊れた状態で 0 秒付近へ
+				// 飛ばして「同じシーンのループ」を誘発するため使わない
+				// (実機 QA)。
 				const h = new Hls({
 					enableWorker: true,
 					lowLatencyMode: true,
-					liveSyncDurationCount: 2,
+					liveSyncDurationCount: 3,
 				});
 				// チャンネル join 直後は playlist の応答に時間がかかったり
 				// エラーになることがある。fatal エラーで hls.js がロードを
@@ -155,16 +157,22 @@
 					// その他の fatal / 復旧しない MEDIA_ERROR は作り直す。
 					rebuild();
 				});
-				// リロード直後などユーザー操作なしのロードでは音声付き
-				// autoplay がブロックされ、一時停止のまま放置されている間に
-				// ライブ窓が先へ進んでしまう。ブロックされたらミュートで
-				// 再生を開始する (音はコントロールで戻せる)。
-				h.on(Hls.Events.MANIFEST_PARSED, () => {
-					el.play().catch(() => {
-						el.muted = true;
-						el.play().catch(() => undefined);
-					});
-				});
+				// 再生開始はデータが揃ってから (canplay)。データの無い位置で
+				// 先に play すると waiting→シーク→waiting と何度も詰まって
+				// 見える (実機 QA: 作り直し直後)。また、リロード直後などは
+				// 音声付き autoplay がブロックされるので、その場合は
+				// ミュートで再生を開始する (音はコントロールで戻せる)。
+				el.addEventListener(
+					'canplay',
+					() => {
+						if (!el.paused) return;
+						el.play().catch(() => {
+							el.muted = true;
+							el.play().catch(() => undefined);
+						});
+					},
+					{ once: true },
+				);
 				h.loadSource(src);
 				h.attachMedia(el);
 				hls = h;
