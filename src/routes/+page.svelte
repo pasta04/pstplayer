@@ -39,6 +39,7 @@
 		type SubjectEntry,
 	} from '$lib/api';
 	import { normalizeThreadUrl, threadKeyFromContact } from '$lib/bbs-url';
+	import { selectLiveThread } from '$lib/thread-select';
 	import { formatUptime, linkifySanitized, renderBodyHtml, renderIdHtml } from '$lib/format';
 	import { openSettings, openYpList } from '$lib/windows';
 	import { closeWindow, installShortcuts, setAlwaysOnTop, setDecorations } from '$lib/shortcuts';
@@ -308,6 +309,9 @@
 			key: string;
 			title: string;
 		}>('thread:selected', async (e) => {
+			// スレ一覧 / URL 入力からの手動選択。満レスでも自動移動しない。
+			autoSelectedThread = false;
+			fullAdvanceRetry = false;
 			// 板 URL + key から板の流儀に合ったスレ URL をバックエンドで
 			// 構築する (`${base}/${key}/` の素朴連結は 2ch 互換で壊れる)。
 			try {
@@ -834,6 +838,7 @@
 
 			if (key) {
 				// コンタクトがスレッドを直接指している → そのスレを開く。
+				autoSelectedThread = true;
 				currentThreadUrl = loadUrl;
 				await loadCurrentThread(true);
 				// コンタクトのスレが既に満レスなら、初期表示として最新スレへ
@@ -863,6 +868,13 @@
 	/// されるので、多重実行を `openingBoard` で防ぎ、各 invoke は withTimeout
 	/// でハングを防いで finally でフラグを必ず解放する。
 	let openingBoard = false;
+	/// 現スレが自動選択 (コンタクト / 板からの選出 / 満レス移動) されたもの
+	/// なら true。手動選択 (スレ一覧 / URL 入力) は false になり、満レスでも
+	/// 自動移動しない (過去ログを読みたいケースのため)。
+	let autoSelectedThread = false;
+	/// 満レス検知後の再試行中フラグ。true の間は advanceToNewestThread の
+	/// 冒頭待機 (数秒) を省く (毎ポーリング周期で新スレ探索を繰り返す)。
+	let fullAdvanceRetry = false;
 	async function openNewestThread() {
 		if (openingBoard) return;
 		const board = currentBoardUrl;
@@ -879,9 +891,17 @@
 				posts = [];
 				return;
 			}
-			const newest = list.reduce((a, b) => (Number(b.key) > Number(a.key) ? b : a));
-			if (!newest.key) return;
-			currentThreadUrl = await withTimeout(threadUrlOf(board, newest.key), 8_000, 'threadUrlOf');
+			// 板の並び上位から、満レスでないスレを実取得で確認しながら選ぶ
+			// (一覧のレス数は実際と食い違うことがある)。
+			const max = boardMaxRes > 0 ? boardMaxRes : THREAD_FULL_FALLBACK;
+			const live = await withTimeout(
+				selectLiveThread(board, max, [], { threads: list }),
+				30_000,
+				'selectLiveThread',
+			);
+			if (!live) return;
+			autoSelectedThread = true;
+			currentThreadUrl = live.url;
 			fetchState = null;
 			posts = [];
 			await loadCurrentThread(true);
@@ -908,12 +928,17 @@
 			const list = await listThreads(currentBoardUrl);
 			if (list.length === 0) return;
 			threadList = list;
-			// 作成時刻 (= 数値 key) が最大のスレ = 最新スレ。
-			const newest = list.reduce((a, b) => (Number(b.key) > Number(a.key) ? b : a));
+			// 板の並び上位から、満レスでない (実取得で確認した) スレを選ぶ。
+			// 現スレは除外。まだ次スレが無ければ何もしない (呼び出し側の
+			// ポーリングが見つかるまで再試行する)。
+			const max = boardMaxRes > 0 ? boardMaxRes : THREAD_FULL_FALLBACK;
 			const curKey = currentThreadUrl.match(/(\d+)\/?$/)?.[1] ?? '';
-			if (!newest.key || newest.key === curKey) return;
-			const url = await threadUrlOf(currentBoardUrl, newest.key);
-			currentThreadUrl = url;
+			const live = await selectLiveThread(currentBoardUrl, max, curKey ? [curKey] : [], {
+				threads: list,
+			});
+			if (!live) return;
+			autoSelectedThread = true;
+			currentThreadUrl = live.url;
 			fetchState = null;
 			posts = [];
 			await loadCurrentThread(true);
@@ -1037,13 +1062,17 @@
 			if (currentThreadUrl && !threadLoading) {
 				// 起動時の輻輳等で 0 件のまま固着していたら、増分ではなく
 				// 全件再取得 (forceReset) で回復を試みる。通常時は増分取得。
-				const before = posts.length;
 				await loadCurrentThread(posts.length === 0 && !threadDead);
-				// 新着レスで現スレが上限到達したときだけ最新スレへ自動移動する。
-				// (手動で満レスのスレを開いただけでは before==after で発火しない)
+				// 自動選択されたスレが満レス (実レス数 >= 上限) になったら
+				// 新スレを探索する。初回は数秒待ち (次スレがまだ立っていない
+				// ことがある)、見つかるまで毎周期再試行する。手動選択の
+				// スレでは移動しない (過去ログを読みたいケース)。
 				const max = boardMaxRes > 0 ? boardMaxRes : THREAD_FULL_FALLBACK;
-				if (before > 0 && posts.length > before && posts.length >= max) {
-					await advanceToNewestThread();
+				if (autoSelectedThread && posts.length >= max) {
+					await advanceToNewestThread(fullAdvanceRetry);
+					fullAdvanceRetry = true;
+				} else {
+					fullAdvanceRetry = false;
 				}
 			} else if (!currentThreadUrl && currentBoardUrl && !threadLoading) {
 				// 板 URL は判明しているのにスレ未選択 = 起動時に

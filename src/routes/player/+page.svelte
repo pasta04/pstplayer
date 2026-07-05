@@ -11,14 +11,13 @@
 		fetchBoardSetting,
 		fetchChannelInfo,
 		fetchThread,
-		listThreads,
 		postToThread,
-		threadUrlOf,
 		type ChannelInfo,
 		type FetchState,
 		type Post,
 	} from '$lib/api';
 	import { normalizeThreadUrl, threadKeyFromContact } from '$lib/bbs-url';
+	import { selectLiveThread, THREAD_FULL_FALLBACK } from '$lib/thread-select';
 	import { renderBodyHtml, renderIdHtml } from '$lib/format';
 
 	let video = $state<HTMLVideoElement | undefined>();
@@ -33,6 +32,10 @@
 	let bbsState: FetchState | null = null;
 	let bbsError = $state<string | null>(null);
 	let pollTimer: ReturnType<typeof setInterval> | null = null;
+	// 満レス移動用: 板トップ URL と最大レス数のキャッシュ + 多重実行ガード。
+	let playerBoardUrl: string | null = null;
+	let playerMaxRes = 0;
+	let advancingBbs = false;
 
 	// 書き込みフォーム。
 	let postName = $state('');
@@ -108,50 +111,58 @@
 		}
 		// コンタクト URL を正規化する。スレ URL は末尾範囲 (/l50 等) を
 		// 畳む (そのまま API に渡すと classify が拒否する: 実機 QA)。
-		// 板 URL は最新スレへ解決する (デスクトップ viewer の #17 と同等)。
+		// 板 URL は「並び上位で満レスでないスレ」を選出する。
 		const key = threadKeyFromContact(bbsUrl);
-		bbsUrl = key ? normalizeThreadUrl(bbsUrl, key) : await resolveNewestThread(bbsUrl);
+		if (key) {
+			bbsUrl = normalizeThreadUrl(bbsUrl, key);
+		} else {
+			try {
+				playerBoardUrl = bbsUrl;
+				const s = await fetchBoardSetting(bbsUrl).catch(() => null);
+				playerMaxRes = s && s.maxRes > 0 ? s.maxRes : THREAD_FULL_FALLBACK;
+				const live = await selectLiveThread(bbsUrl, playerMaxRes);
+				if (live) bbsUrl = live.url;
+			} catch {
+				/* 選出できなければ板 URL のまま (reloadBbs がエラー表示する) */
+			}
+		}
 		await reloadBbs();
-		// コンタクトのスレが既に満レスなら最新スレへリダイレクト
-		// (実機 QA 要望)。
+		// コンタクトのスレが既に満レスなら別スレへ (初期表示リダイレクト)。
 		await advanceIfFull();
 		pollTimer = setInterval(() => {
-			void reloadBbs();
+			void (async () => {
+				await reloadBbs();
+				// 自動更新で満レスになったら、新スレが見つかるまで毎周期
+				// 探索する (ブラウザ視聴に手動選択は無いので常に自動扱い)。
+				await advanceIfFull();
+			})();
 		}, 10000);
 	}
 
-	/// 板 URL から最新スレ (数値 key 最大) の URL に解決する。解決でき
-	/// なければそのまま返す。
-	async function resolveNewestThread(boardUrl: string): Promise<string> {
-		try {
-			const threads = await listThreads(boardUrl);
-			if (threads.length > 0) {
-				const newest = threads.reduce((a, b) => (Number(b.key) > Number(a.key) ? b : a));
-				if (newest.key) return await threadUrlOf(boardUrl, newest.key);
-			}
-		} catch {
-			/* 解決できなければそのまま使う */
-		}
-		return boardUrl;
-	}
-
-	/// 現スレが満レス (板設定の最大レス数以上) なら最新スレへ移動する。
+	/// 現スレが満レス (実レス数 >= 板の最大レス数) なら、板の並び上位から
+	/// 満レスでないスレを選んで移動する。見つからなければ何もしない
+	/// (ポーリングが次周期に再試行する)。
 	async function advanceIfFull() {
+		if (advancingBbs || !bbsUrl) return;
+		advancingBbs = true;
 		try {
-			const setting = await fetchBoardSetting(bbsUrl).catch(() => null);
-			const max = setting && setting.maxRes > 0 ? setting.maxRes : 1000;
-			if (posts.length < max) return;
-			const board = await boardUrlOf(bbsUrl);
-			const next = await resolveNewestThread(board);
+			if (!playerMaxRes) {
+				const s = await fetchBoardSetting(bbsUrl).catch(() => null);
+				playerMaxRes = s && s.maxRes > 0 ? s.maxRes : THREAD_FULL_FALLBACK;
+			}
+			if (posts.length < playerMaxRes) return;
+			if (!playerBoardUrl) playerBoardUrl = await boardUrlOf(bbsUrl);
 			const curKey = threadKeyFromContact(bbsUrl);
-			const nextKey = threadKeyFromContact(next);
-			if (!nextKey || nextKey === curKey) return;
-			bbsUrl = next;
+			const live = await selectLiveThread(playerBoardUrl, playerMaxRes, curKey ? [curKey] : []);
+			if (!live || live.key === curKey) return;
+			bbsUrl = live.url;
 			bbsState = null;
 			posts = [];
 			await reloadBbs();
 		} catch {
 			/* 判定に失敗しても現スレ表示を維持 */
+		} finally {
+			advancingBbs = false;
 		}
 	}
 
