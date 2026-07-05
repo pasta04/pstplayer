@@ -312,6 +312,46 @@ pub struct ConfigPathResp {
     pub path: String,
 }
 
+/// 任意の (スレ or 板) URL → 板トップ URL (Tauri command `board_url_of`
+/// の REST 版)。
+pub async fn board_url_of(
+    axum::extract::Query(q): axum::extract::Query<BoardQuery>,
+) -> ApiResult<Json<ThreadUrlResp>> {
+    let url = pst_core::bbs::url::build_board_url(&q.url).map_err(|e| ApiError {
+        status: axum::http::StatusCode::BAD_REQUEST,
+        code: "invalid_url",
+        message: e.to_string(),
+    })?;
+    Ok(Json(ThreadUrlResp { url }))
+}
+
+/// 板の SETTING (最大レス数等)。満レス判定 (最新スレへのリダイレクト)
+/// に使う (Tauri command `fetch_board_setting` の REST 版)。
+pub async fn board_setting(
+    axum::extract::Query(q): axum::extract::Query<BoardQuery>,
+) -> ApiResult<Json<pst_core::bbs::types::BoardSetting>> {
+    let setting = match classify(&q.url) {
+        Some(BoardKind::Shitaraba) => {
+            pst_core::bbs::shitaraba::ShitarabaClient::new()
+                .fetch_setting(&q.url)
+                .await?
+        }
+        Some(BoardKind::Ch2Compat) => {
+            pst_core::bbs::ch2::Ch2Client::new()
+                .fetch_setting(&q.url)
+                .await?
+        }
+        None => {
+            return Err(ApiError {
+                status: axum::http::StatusCode::BAD_REQUEST,
+                code: "invalid_url",
+                message: format!("not a supported BBS URL: {}", q.url),
+            })
+        }
+    };
+    Ok(Json(setting))
+}
+
 #[derive(Deserialize)]
 pub struct ThreadUrlQuery {
     pub url: String,

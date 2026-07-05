@@ -7,6 +7,8 @@
 	// ので、Rust 側のサニタイズ (HTML 表示モード専用) は使わない。
 	import { onDestroy, onMount } from 'svelte';
 	import {
+		boardUrlOf,
+		fetchBoardSetting,
 		fetchChannelInfo,
 		fetchThread,
 		listThreads,
@@ -16,6 +18,7 @@
 		type FetchState,
 		type Post,
 	} from '$lib/api';
+	import { normalizeThreadUrl, threadKeyFromContact } from '$lib/bbs-url';
 	import { renderBodyHtml, renderIdHtml } from '$lib/format';
 
 	let video = $state<HTMLVideoElement | undefined>();
@@ -103,28 +106,53 @@
 			bbsError = 'この配信にはコンタクト URL (BBS) がありません';
 			return;
 		}
-		// コンタクトが板 URL のときは最新スレへ解決する (デスクトップ
-		// viewer の #17 と同等。板 URL のまま /api/thread に投げると 400)。
-		bbsUrl = await resolveThreadUrl(bbsUrl);
+		// コンタクト URL を正規化する。スレ URL は末尾範囲 (/l50 等) を
+		// 畳む (そのまま API に渡すと classify が拒否する: 実機 QA)。
+		// 板 URL は最新スレへ解決する (デスクトップ viewer の #17 と同等)。
+		const key = threadKeyFromContact(bbsUrl);
+		bbsUrl = key ? normalizeThreadUrl(bbsUrl, key) : await resolveNewestThread(bbsUrl);
 		await reloadBbs();
+		// コンタクトのスレが既に満レスなら最新スレへリダイレクト
+		// (実機 QA 要望)。
+		await advanceIfFull();
 		pollTimer = setInterval(() => {
 			void reloadBbs();
 		}, 10000);
 	}
 
-	/// コンタクト URL が板トップなら最新スレの URL に解決する。スレ URL
-	/// (板一覧が取れない) ならそのまま返す。
-	async function resolveThreadUrl(contact: string): Promise<string> {
+	/// 板 URL から最新スレ (数値 key 最大) の URL に解決する。解決でき
+	/// なければそのまま返す。
+	async function resolveNewestThread(boardUrl: string): Promise<string> {
 		try {
-			const threads = await listThreads(contact);
+			const threads = await listThreads(boardUrl);
 			if (threads.length > 0) {
 				const newest = threads.reduce((a, b) => (Number(b.key) > Number(a.key) ? b : a));
-				if (newest.key) return await threadUrlOf(contact, newest.key);
+				if (newest.key) return await threadUrlOf(boardUrl, newest.key);
 			}
 		} catch {
-			/* 板として解釈できない = スレ URL とみなしてそのまま使う */
+			/* 解決できなければそのまま使う */
 		}
-		return contact;
+		return boardUrl;
+	}
+
+	/// 現スレが満レス (板設定の最大レス数以上) なら最新スレへ移動する。
+	async function advanceIfFull() {
+		try {
+			const setting = await fetchBoardSetting(bbsUrl).catch(() => null);
+			const max = setting && setting.maxRes > 0 ? setting.maxRes : 1000;
+			if (posts.length < max) return;
+			const board = await boardUrlOf(bbsUrl);
+			const next = await resolveNewestThread(board);
+			const curKey = threadKeyFromContact(bbsUrl);
+			const nextKey = threadKeyFromContact(next);
+			if (!nextKey || nextKey === curKey) return;
+			bbsUrl = next;
+			bbsState = null;
+			posts = [];
+			await reloadBbs();
+		} catch {
+			/* 判定に失敗しても現スレ表示を維持 */
+		}
 	}
 
 	async function reloadBbs() {

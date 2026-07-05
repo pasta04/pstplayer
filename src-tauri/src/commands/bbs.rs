@@ -72,19 +72,7 @@ pub async fn fetch_board_setting(url: String) -> Result<BoardSetting, IpcError> 
 /// - 2ch 互換: `https://{host}/{board}/`
 #[tauri::command]
 pub fn board_url_of(url: String) -> Result<String, IpcError> {
-    use pst_core::bbs::url::{parse_ch2, parse_shitaraba};
-    match classify(&url)? {
-        BoardKind::Shitaraba => {
-            let u = parse_shitaraba(&url)
-                .ok_or_else(|| AppError::InvalidUrl(format!("not a shitaraba URL: {url}")))?;
-            Ok(format!("https://jbbs.shitaraba.net/{}/{}/", u.category, u.board_id))
-        }
-        BoardKind::Ch2Compat => {
-            let u = parse_ch2(&url)
-                .ok_or_else(|| AppError::InvalidUrl(format!("not a 2ch URL: {url}")))?;
-            Ok(format!("https://{}/{}/", u.host, u.board))
-        }
-    }
+    pst_core::bbs::url::build_board_url(&url).map_err(Into::into)
 }
 
 /// 板 URL (or スレ URL) と スレッド key から、その板の流儀に合った

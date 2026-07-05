@@ -38,6 +38,7 @@
 		type Post,
 		type SubjectEntry,
 	} from '$lib/api';
+	import { normalizeThreadUrl, threadKeyFromContact } from '$lib/bbs-url';
 	import { formatUptime, linkifySanitized, renderBodyHtml, renderIdHtml } from '$lib/format';
 	import { openSettings, openYpList } from '$lib/windows';
 	import { closeWindow, installShortcuts, setAlwaysOnTop, setDecorations } from '$lib/shortcuts';
@@ -813,27 +814,6 @@
 	// guarantee the URL ends with `/{key}/`. This keeps Range-based
 	// incremental fetch and write.cgi POST happy regardless of how the
 	// user (or PeerCast contact URL) spelled the link.
-	function normalizeThreadUrl(url: string, key: string): string {
-		const idx = url.lastIndexOf(`/${key}`);
-		if (idx < 0) return url;
-		return `${url.slice(0, idx)}/${key}/`;
-	}
-
-	// コンタクト URL がスレッドを指す場合はそのスレッド key を、板 (掲示板)
-	// URL の場合は null を返す。read.cgi / rawmode.cgi / dat 形式、または
-	// したらば短縮スレ形式 (cat/board/key の 3 階層) をスレッドとみなす。
-	// 板 URL (cat/board の 2 階層 / 2ch の host/board) は null。
-	function threadKeyFromContact(url: string): string | null {
-		const hasCgi = /\/(?:read|rawmode|write)\.cgi\//.test(url) || /\/dat\/\d+\.dat/.test(url);
-		if (hasCgi) {
-			const m = url.match(/.*\/(\d+)(?:\/[^/]*)?\/?$/);
-			return m ? m[1] : null;
-		}
-		const sm = url.match(/^https?:\/\/jbbs\.shitaraba\.net\/[^/]+\/[^/]+\/(\d+)\/?$/);
-		if (sm) return sm[1];
-		return null; // 板 URL
-	}
-
 	async function tryLoadBoard(contactUrl: string) {
 		try {
 			// BBS 読み込み前に URL を正規化する。コンタクト/手入力 URL の末尾に
@@ -854,9 +834,21 @@
 
 			if (key) {
 				// コンタクトがスレッドを直接指している → そのスレを開く。
-				// 既に満レスでも自動移動はしない (新着で上限到達時のみ移動する)。
 				currentThreadUrl = loadUrl;
 				await loadCurrentThread(true);
+				// コンタクトのスレが既に満レスなら、初期表示として最新スレへ
+				// リダイレクトする (実機 QA 要望)。boardMaxRes はまだ取得中の
+				// ことがあるので、ここで同期的に取り直してから判定する。
+				try {
+					const s = await fetchBoardSetting(loadUrl);
+					boardMaxRes = s.maxRes;
+				} catch {
+					/* 取得失敗時は既定値で判定 */
+				}
+				const max = boardMaxRes > 0 ? boardMaxRes : THREAD_FULL_FALLBACK;
+				if (posts.length >= max) {
+					await advanceToNewestThread(true);
+				}
 			} else {
 				// コンタクトが板 URL → その板の最新スレを開く (#17)。
 				await openNewestThread();
@@ -904,14 +896,15 @@
 	/// 発火条件 (視聴中に新着レスで現スレが上限到達) は呼び出し側 (polling) が
 	/// 判定する。移動前に 5 秒待機し、新スレが現スレと同じ (= まだ次スレが
 	/// 立っていない) 場合は何もしない。
-	async function advanceToNewestThread() {
+	async function advanceToNewestThread(immediate = false) {
 		if (advancingThread) return;
 		if (!currentThreadUrl || !currentBoardUrl) return;
 		advancingThread = true;
 		try {
 			// 満レス検知から実移動まで 5 秒待つ。最後のレスを読む猶予に加え、
 			// 次スレがまだ立っていない場合に立つのを待つ意味もある。
-			await new Promise((r) => setTimeout(r, 5_000));
+			// 初期表示 (コンタクトのスレが既に満レス) の場合は待たない。
+			if (!immediate) await new Promise((r) => setTimeout(r, 5_000));
 			const list = await listThreads(currentBoardUrl);
 			if (list.length === 0) return;
 			threadList = list;

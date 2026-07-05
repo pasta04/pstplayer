@@ -11,6 +11,25 @@ use super::router::classify;
 use super::types::BoardKind;
 use crate::util::errors::{AppError, AppResult};
 
+/// 任意の (スレ or 板) URL から、その板のトップ URL を正規化して返す。
+/// Tauri command と pst-server の REST の双方から使う。
+pub fn build_board_url(url: &str) -> AppResult<String> {
+    let kind =
+        classify(url).ok_or_else(|| AppError::InvalidUrl(format!("not a BBS URL: {url}")))?;
+    match kind {
+        BoardKind::Shitaraba => {
+            let u = parse_shitaraba(url)
+                .ok_or_else(|| AppError::InvalidUrl(format!("not a shitaraba URL: {url}")))?;
+            Ok(format!("https://jbbs.shitaraba.net/{}/{}/", u.category, u.board_id))
+        }
+        BoardKind::Ch2Compat => {
+            let u = parse_ch2(url)
+                .ok_or_else(|| AppError::InvalidUrl(format!("not a 2ch URL: {url}")))?;
+            Ok(format!("https://{}/{}/", u.host, u.board))
+        }
+    }
+}
+
 /// 板 URL (or スレ URL) とスレッド key から、その板の流儀に合った
 /// canonical なスレッド URL を組み立てる。`${base}/${key}/` を素朴に
 /// 繋ぐと 2ch 互換 (`/test/read.cgi/` が必要) で壊れるため、板種別ごと

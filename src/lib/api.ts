@@ -427,12 +427,19 @@ export async function classifyBoard(url: string): Promise<BoardKind> {
 
 /// 板の SETTING (最大レス数等) を取得。満レス判定 (自動スレ移動) に使う。
 export async function fetchBoardSetting(url: string): Promise<BoardSetting> {
-	return call<BoardSetting>('fetch_board_setting', { url });
+	return dual(
+		() => call<BoardSetting>('fetch_board_setting', { url }),
+		() => httpGet<BoardSetting>(`/api/board/setting?url=${encodeURIComponent(url)}`),
+	);
 }
 
 /// 任意の (スレ or 板) URL から、その板のトップ URL を正規化して返す。
 export async function boardUrlOf(url: string): Promise<string> {
-	return call<string>('board_url_of', { url });
+	return dual(
+		() => call<string>('board_url_of', { url }),
+		async () =>
+			(await httpGet<{ url: string }>(`/api/board/board-url?url=${encodeURIComponent(url)}`)).url,
+	);
 }
 
 /// 板 URL + スレッド key から、板の流儀に合った canonical なスレッド
