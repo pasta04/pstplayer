@@ -1173,6 +1173,19 @@
 	// 「一度投稿すると直る」= 投稿フローの blur→focus() で IME が
 	// textarea の caret 位置を再認識するため。同じ再アンカーをフォーカス
 	// 取得のたびに一度だけ行う。
+	// ウィンドウが非アクティブになったら書き込み欄のフォーカスを外す。
+	// 複数の視聴ウィンドウ間で textarea どうしのフォーカスを往復すると、
+	// フォーカスを保持したまま復帰した textarea の IME アンカーが壊れて
+	// 変換ウィンドウが左上に出る (実機 QA: ステータスバー等を一度
+	// クリックすると直る = 別要素を経由した「新規フォーカス」なら正常)。
+	// 非アクティブ時に blur しておけば、復帰後の入力は常に新規
+	// フォーカスになる。
+	function onWindowBlur() {
+		if (document.activeElement === writeTextarea) {
+			writeTextarea?.blur();
+		}
+	}
+
 	let imeRefocusGuard = false;
 	function onWriteFocus() {
 		if (imeRefocusGuard) return;
@@ -1652,6 +1665,8 @@
 		return String(e);
 	}
 </script>
+
+<svelte:window onblur={onWindowBlur} />
 
 <svelte:head>
 	<title>PSTPlayer</title>
