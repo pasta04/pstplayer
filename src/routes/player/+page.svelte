@@ -25,11 +25,18 @@
 	let channelId = $state<string | null>(null);
 	let tip: string | null = null;
 	let videoStatus = $state('読み込み中…');
-	let hls: { destroy(): void; startLoad(): void; recoverMediaError(): void } | null = null;
+	let hls: {
+		destroy(): void;
+		startLoad(): void;
+		recoverMediaError(): void;
+		swapAudioCodec(): void;
+	} | null = null;
 	// 再生停滞ウォッチドッグ (再生中なのに currentTime が進まない状態を検知)。
 	let stallTimer: ReturnType<typeof setInterval> | null = null;
 	let lastTime = -1;
 	let stallTicks = 0;
+	// hls.js 作り直し回数 (無限リカバリループ防止)。再生が進んだらリセット。
+	let videoRestarts = 0;
 
 	let channelInfo = $state<ChannelInfo | null>(null);
 	let bbsUrl = $state('');
@@ -95,18 +102,48 @@
 				// エラーになることがある。fatal エラーで hls.js がロードを
 				// 止めたままにならないよう、自動リカバリする (実機 QA:
 				// リロード後にバッファ分だけ再生して止まる)。
+				// MEDIA_ERROR の recoverMediaError() は失敗すると即また fatal が
+				// 飛んでくるため、無制限に呼ぶと毎秒数回の detach/attach ループに
+				// なる (実機 QA: デコード不能ストリームで画面が点滅し続けた)。
+				// hls.js 推奨の 1回目 recover → 2回目 swapAudioCodec+recover →
+				// それ以降は作り直し (回数上限つき) に制限する。
+				let mediaRecovers = 0;
+				let lastRecoverAt = 0;
+				const rebuild = () => {
+					h.destroy();
+					if (hls !== h) return;
+					hls = null;
+					videoRestarts += 1;
+					if (videoRestarts > 5) {
+						videoStatus = '再生できません (ストリームをデコードできませんでした)';
+						return;
+					}
+					setTimeout(() => void startVideo(id), 3000 * videoRestarts);
+				};
 				h.on(Hls.Events.ERROR, (_ev: unknown, data: { fatal: boolean; type: string }) => {
 					if (!data.fatal) return;
 					if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
 						setTimeout(() => hls && h.startLoad(), 2000);
-					} else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-						h.recoverMediaError();
-					} else {
-						// その他の fatal は作り直す。
-						h.destroy();
-						hls = null;
-						setTimeout(() => void startVideo(id), 3000);
+						return;
 					}
+					if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+						const now = Date.now();
+						// しばらく安定していたら失敗カウントをリセット。
+						if (now - lastRecoverAt > 15000) mediaRecovers = 0;
+						lastRecoverAt = now;
+						mediaRecovers += 1;
+						if (mediaRecovers === 1) {
+							h.recoverMediaError();
+							return;
+						}
+						if (mediaRecovers === 2) {
+							h.swapAudioCodec();
+							h.recoverMediaError();
+							return;
+						}
+					}
+					// その他の fatal / 復旧しない MEDIA_ERROR は作り直す。
+					rebuild();
 				});
 				h.loadSource(src);
 				h.attachMedia(el);
@@ -225,6 +262,7 @@
 				}
 			} else {
 				stallTicks = 0;
+				videoRestarts = 0;
 			}
 			lastTime = el.currentTime;
 		}, 2000);
