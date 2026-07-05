@@ -954,7 +954,9 @@
 	main {
 		display: grid;
 		grid-template-rows: auto 1fr auto;
-		height: 100vh;
+		/* iOS Safari のアドレスバーぶんを除いた実表示高。100vh だと
+		   下部の保存ボタンがアドレスバーの裏に隠れる (実機 QA)。 */
+		height: 100dvh;
 		padding: 1rem;
 		box-sizing: border-box;
 	}

@@ -577,7 +577,7 @@
 	}
 	main {
 		display: flex;
-		height: 100vh;
+		height: 100dvh;
 		overflow: hidden;
 	}
 	.video-pane {
@@ -592,7 +592,7 @@
 	.video-pane video {
 		width: 100%;
 		height: 100%;
-		max-height: 100vh;
+		max-height: 100dvh;
 		background: #000;
 	}
 	.overlay {

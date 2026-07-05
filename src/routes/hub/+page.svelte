@@ -1367,7 +1367,8 @@
 		   ビューポート固定高さ + overflow:hidden で一覧だけ内部スクロール。 */
 		display: flex;
 		flex-direction: column;
-		height: 100vh;
+		/* iOS Safari のアドレスバー対応 (100vh だと下端が隠れる)。 */
+		height: 100dvh;
 		overflow: hidden;
 		background: var(--bg);
 		color: var(--fg);
