@@ -98,18 +98,15 @@
 			const Hls = (await import('hls.js')).default;
 			if (Hls.isSupported()) {
 				// PeerCastStation の HLS は約8秒セグメント×5本 (窓 ~42秒) と
-				// 小さい。既定の liveSyncDurationCount=3 (エッジ-25秒) だと
-				// 窓の後端近くを再生し続け、autoplay ブロックや停滞で少し
-				// 遅れただけで再生位置の足元からセグメントがローテーション
-				// アウトし、停止→ギャップジャンプを繰り返す (実機 QA:
-				// リロード後に止まる→時間が飛んで再開)。エッジ寄り
-				// (2本 ≒ 17秒) に同期し、4本 (≒33秒) より遅れたら hls.js に
-				// 自動で前方シークさせる。
+				// 小さいため、エッジ寄り (2本 ≒ 17秒遅延) に同期する。
+				// liveMaxLatencyDurationCount による自動シークは、進行中
+				// セッションへの途中参加 (リロード) 時に hls.js のタイム
+				// ライン整合が壊れた状態で 0 秒付近へ飛ばしてしまい、
+				// 「同じシーンのループ」を誘発したため使わない (実機 QA)。
 				const h = new Hls({
 					enableWorker: true,
 					lowLatencyMode: true,
 					liveSyncDurationCount: 2,
-					liveMaxLatencyDurationCount: 4,
 				});
 				// チャンネル join 直後は playlist の応答に時間がかかったり
 				// エラーになることがある。fatal エラーで hls.js がロードを
@@ -260,42 +257,75 @@
 		}
 	}
 
-	/// 再生中に currentTime が数秒進まなければ hls.js のロードを蹴り直す
-	/// (ネットワーク瞬断や join 待ちで止まったままになる保険)。
+	/// 再生の停滞・巻き戻りを監視し、検知したらプレイヤーを作り直す。
+	///
+	/// 進行中セッションへの途中参加 (リロード) では hls.js のタイムライン
+	/// 整合が壊れることがあり、セグメントを取得しても正位置に append
+	/// できず、バッファ切れ→hls.js が後方バッファへシーク→同じ場面を
+	/// ループする (実機 QA で確認)。この状態は startLoad 等の小手先では
+	/// 復旧しないため、新規セッションで入り直すのが確実。
 	function startStallWatchdog(el: HTMLVideoElement) {
 		if (stallTimer) clearInterval(stallTimer);
 		lastTime = -1;
 		stallTicks = 0;
+		let backJumps: number[] = [];
+		const rebuild = () => {
+			const id = channelId;
+			if (!id || !hls) return;
+			try {
+				hls.destroy();
+			} catch {
+				/* ignore */
+			}
+			hls = null;
+			videoRestarts += 1;
+			if (videoRestarts > 5) {
+				videoStatus = '再生できません (ストリームを再生できませんでした)';
+				return;
+			}
+			void startVideo(id);
+		};
 		stallTimer = setInterval(() => {
 			if (!hls || el.paused) {
 				stallTicks = 0;
 				lastTime = el.currentTime;
 				return;
 			}
-			if (el.currentTime === lastTime) {
+			// join 直後でまだ何も append されていない間は「停滞」ではない
+			// (playlist の long-poll で最大 40 秒かかる)。ここで作り直すと
+			// セッションを永遠に作り直し続けてしまう。
+			if (el.readyState < 2 && el.buffered.length === 0) {
+				stallTicks = 0;
+				lastTime = el.currentTime;
+				return;
+			}
+			const t = el.currentTime;
+			if (t === lastTime) {
 				stallTicks += 1;
-				if (stallTicks >= 3) {
-					// 6 秒進んでいない → 前方にバッファ済み区間があれば
-					// そこへ飛び (ギャップ跨ぎ)、ロード再開を蹴る。
+				if (stallTicks >= 4) {
+					// 8 秒進んでいない → 作り直し (新規セッションで入り直す)。
 					stallTicks = 0;
-					try {
-						for (let i = 0; i < el.buffered.length; i++) {
-							const s = el.buffered.start(i);
-							if (s > el.currentTime + 0.5) {
-								el.currentTime = s + 0.1;
-								break;
-							}
-						}
-						hls.startLoad();
-					} catch {
-						/* destroy 済み等は無視 */
-					}
+					rebuild();
+					return;
 				}
 			} else {
 				stallTicks = 0;
-				videoRestarts = 0;
+				// hls.js の stall 復旧による後方シーク (ユーザー操作でない
+				// 3 秒超の巻き戻り) がループの兆候。60 秒に 2 回で作り直す。
+				if (t < lastTime - 3 && lastTime > 0) {
+					const now = Date.now();
+					backJumps = backJumps.filter((x) => now - x < 60000);
+					backJumps.push(now);
+					if (backJumps.length >= 2) {
+						backJumps = [];
+						rebuild();
+						return;
+					}
+				} else if (t > lastTime) {
+					videoRestarts = 0;
+				}
 			}
-			lastTime = el.currentTime;
+			lastTime = t;
 		}, 2000);
 	}
 
