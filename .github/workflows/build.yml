@@ -290,15 +290,29 @@ jobs:
 
   # Raspberry Pi 等の Linux ARM64 向け: pst-server 単体 (ヘッドレスの
   # 視聴中継 / 録画 / Web UI) を tar.gz で配布する。GUI (Tauri/libmpv) は
-  # 含まない。ubuntu-24.04-arm ランナーで native ビルドする。
+  # 含まない。
+  #
+  # ランナー (ubuntu-22.04-arm = glibc 2.35) の glibc に依存すると
+  # Raspberry Pi OS (Debian 11 bullseye, glibc 2.31) では動かないため、
+  # aarch64-unknown-linux-musl をターゲットに *静的リンク* する。pst-server
+  # は純 Rust + rustls (ring) で openssl-sys / libmpv 依存なし (workspace の
+  # reqwest は default-features=false + rustls-tls 固定) のため musl 静的化は
+  # ソース無改変で通り、ldd が `not a dynamic executable` になる = glibc に
+  # 一切依存しないバイナリになる (Pi の glibc バージョンに関係なく動く)。
   build-pst-server-arm64:
     name: Build pst-server (linux-arm64)
     runs-on: ubuntu-22.04-arm
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
+      - name: Install Rust (musl target)
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-musl
+
+      # ring / rustls などの C 部分を musl でコンパイルするためのツールチェイン。
+      - name: Install musl toolchain
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - uses: actions/setup-node@v4
         with:
@@ -313,18 +327,25 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: build-linux-arm64-2204
+          # gnu ターゲットのキャッシュと混ぜないよう別キーにする。
+          shared-key: build-linux-arm64-musl
 
-      - name: Build pst-server
-        run: cargo build --release -p pst-server
+      - name: Build pst-server (static musl)
+        env:
+          CC_aarch64_unknown_linux_musl: musl-gcc
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
+        run: cargo build --release -p pst-server --target aarch64-unknown-linux-musl
 
       - name: Package tar.gz
         run: |
           set -eu
           OUT=pst-server-linux-arm64
           mkdir -p "$OUT"
-          cp target/release/pst-server "$OUT/"
+          cp target/aarch64-unknown-linux-musl/release/pst-server "$OUT/"
           cp -r build "$OUT/web"
+          # 依存確認 (fully static であるべき) を CI ログに残す。
+          file "$OUT/pst-server"
+          (ldd "$OUT/pst-server" 2>&1 || true)
           tar czf "$OUT.tar.gz" "$OUT"
 
       - name: Upload pst-server (linux-arm64)
