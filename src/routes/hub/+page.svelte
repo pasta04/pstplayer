@@ -1073,6 +1073,7 @@
 	<div class="table-wrap">
 		<table>
 			<colgroup>
+				<col class="col-play-col" style:width={'34px'} />
 				<col style:width={colW.name + 'px'} />
 				<col style:width={colW.desc + 'px'} />
 				<col style:width={colW.listeners + 'px'} />
@@ -1086,6 +1087,7 @@
 			</colgroup>
 			<thead>
 				<tr>
+					<th class="col-play" aria-label="再生"></th>
 					<th class="col-name" onclick={() => toggleSort('name')}
 						>チャンネル名{arrow('name')}<span
 							class="col-resizer"
@@ -1181,6 +1183,7 @@
 						class:selected={selectedId === e.id}
 						class:pinned={rule?.pin_top}
 						class:newish={newIds.has(e.id)}
+						class:rule-colored={!!fg}
 						style:background={bg || undefined}
 						style:color={fg || undefined}
 						title={tip}
@@ -1189,7 +1192,7 @@
 						onmousedown={(ev) => onRowMouseDown(ev, e)}
 						oncontextmenu={(ev) => onRowContextMenu(ev, e)}
 					>
-						<td class="col-name">
+						<td class="col-play">
 							<button
 								class="play-btn"
 								title="このチャンネルを再生"
@@ -1200,6 +1203,8 @@
 								}}
 								ondblclick={(ev) => ev.stopPropagation()}>▶</button
 							>
+						</td>
+						<td class="col-name">
 							{#if rule}<span class="star">★</span>{/if}{e.name}{#if watchingIds.has(e.id)}
 								<span class="watching-badge" title="このチャンネルは視聴ウィンドウで開いています"
 									>▶</span
@@ -1212,8 +1217,8 @@
 							{e.desc}
 							{#if e.comment}「{e.comment}」{/if}
 						</td>
-						<td class="col-num">{e.listeners} / {e.relays}</td>
-						<td class="col-num">{e.bitrate}</td>
+						<td class="col-num col-listeners">{e.listeners} / {e.relays}</td>
+						<td class="col-num col-bitrate">{e.bitrate}</td>
 						<td class="col-uptime">{e.uptime}</td>
 						<td class="col-type">{e.content_type}</td>
 						<td class="col-filter">{rule?.name ?? ''}</td>
@@ -1594,9 +1599,11 @@
 		background: #56617a;
 		color: #fff;
 	}
-	/* スマホ幅ではデスクトップ向け操作ボタンを隠し、タップしやすい
-	   サイズ感にする。input の font-size は 16px 未満だと iOS Safari が
-	   フォーカス時に自動ズームするため 16px 以上にする。 */
+	/* スマホ幅: デスクトップ向け操作ボタンを隠し、YP 一覧はカード型の
+	   1 カラム表示にする (再生ボタン | チャンネル名 + ジャンル-詳細 |
+	   右端に 視聴数 / 配信時間 / kbps の3段)。ソートはチャンネル名のみ。
+	   input の font-size は 16px 未満だと iOS Safari がフォーカス時に
+	   自動ズームするため 16px 以上にする。 */
 	@media (max-width: 700px) {
 		.hide-mobile {
 			display: none;
@@ -1607,19 +1614,118 @@
 		.filter {
 			font-size: 16px;
 		}
-		td,
-		th {
-			padding: 8px 6px;
-		}
-		.play-btn {
-			font-size: 15px;
-			padding: 8px 12px;
-			margin-right: 8px;
-		}
 		.toolbar button {
 			font-size: 14px;
 			padding: 8px 10px;
 		}
+
+		table,
+		tbody {
+			display: block;
+		}
+		colgroup {
+			display: none;
+		}
+		thead,
+		thead tr {
+			display: block;
+			position: sticky;
+			top: 0;
+			z-index: 3;
+		}
+		thead th {
+			display: none;
+		}
+		thead th.col-name {
+			display: block;
+			padding: 8px 10px;
+			border-right: none;
+			position: static;
+		}
+		.col-resizer {
+			display: none;
+		}
+
+		tbody tr {
+			display: grid;
+			grid-template-columns: 48px minmax(0, 1fr) max-content;
+			grid-template-rows: auto auto auto;
+			grid-template-areas:
+				'play name stat1'
+				'play desc stat2'
+				'play desc stat3';
+			column-gap: 10px;
+			padding: 8px 10px;
+			border-bottom: 1px solid var(--border);
+			align-items: center;
+		}
+		tbody td {
+			display: block;
+			padding: 0;
+			border: none;
+			overflow: hidden;
+		}
+		td.col-play {
+			grid-area: play;
+			justify-self: center;
+		}
+		td.col-name {
+			grid-area: name;
+			font-size: 16px;
+			font-weight: 600;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+		}
+		td.col-desc {
+			grid-area: desc;
+			align-self: start;
+			font-size: 13px;
+			color: var(--fg-dim);
+			white-space: normal;
+			display: -webkit-box;
+			-webkit-line-clamp: 2;
+			line-clamp: 2;
+			-webkit-box-orient: vertical;
+		}
+		td.col-listeners {
+			grid-area: stat1;
+		}
+		td.col-uptime {
+			grid-area: stat2;
+		}
+		td.col-bitrate {
+			grid-area: stat3;
+		}
+		td.col-listeners,
+		td.col-uptime,
+		td.col-bitrate {
+			font-size: 11px;
+			color: var(--fg-dim);
+			text-align: right;
+			white-space: nowrap;
+		}
+		/* フィルタ (お気に入りルール) の文字色指定がある行はそれを優先。 */
+		tr.rule-colored td.col-desc,
+		tr.rule-colored td.col-listeners,
+		tr.rule-colored td.col-uptime,
+		tr.rule-colored td.col-bitrate {
+			color: inherit;
+		}
+		td.col-type,
+		td.col-filter,
+		td.col-yp,
+		td.col-contact {
+			display: none;
+		}
+		.play-btn {
+			font-size: 16px;
+			padding: 10px 12px;
+			margin: 0;
+		}
+	}
+	td.col-play {
+		text-align: center;
+		padding: 0 2px;
 	}
 	.star {
 		color: #ff8a3d;
