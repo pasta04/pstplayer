@@ -1002,11 +1002,13 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <main onclick={() => closeMenu()}>
 	<header class="toolbar">
-		<button onclick={refresh} disabled={loading}>{loading ? '更新中…' : '↻ 更新'}</button>
+		<button onclick={refresh} disabled={loading}
+			>↻<span class="btn-label">{loading ? ' 更新中…' : ' 更新'}</span></button
+		>
 		<button class="hide-mobile" onclick={watchUrl} title="URL を直接入力して視聴する"
 			>🔗 URL から開く</button
 		>
-		<button onclick={openSettingsUi}>⚙ 設定</button>
+		<button onclick={openSettingsUi}>⚙<span class="btn-label"> 設定</span></button>
 		<button
 			class="hide-mobile"
 			onclick={closeAll}
@@ -1024,7 +1026,11 @@
 		<span class="stat">
 			{visible.length} / {counts.all} ch
 		</span>
-		<span class="updated">最終更新: {fmtTime(lastUpdatedAt)}</span>
+		<span class="updated"
+			><span class="updated-label">最終更新:</span><span class="updated-time"
+				>{fmtTime(lastUpdatedAt)}</span
+			></span
+		>
 	</header>
 
 	<nav class="tabs">
@@ -1034,13 +1040,25 @@
 		<button class:active={activeTab === 'favorites'} onclick={() => (activeTab = 'favorites')}>
 			お気に入り ({counts.fav})
 		</button>
-		<button class:active={activeTab === 'new'} onclick={() => (activeTab = 'new')}>
+		<button
+			class="hide-mobile"
+			class:active={activeTab === 'new'}
+			onclick={() => (activeTab = 'new')}
+		>
 			新着 ({counts.fresh})
 		</button>
-		<button class:active={activeTab === 'recording'} onclick={() => (activeTab = 'recording')}>
+		<button
+			class="hide-mobile"
+			class:active={activeTab === 'recording'}
+			onclick={() => (activeTab = 'recording')}
+		>
 			● 録画中 ({counts.recording})
 		</button>
-		<button class:active={activeTab === 'watching'} onclick={() => (activeTab = 'watching')}>
+		<button
+			class="hide-mobile"
+			class:active={activeTab === 'watching'}
+			onclick={() => (activeTab = 'watching')}
+		>
 			視聴中 ({counts.watching})
 		</button>
 		{#each ypSources.filter((s) => s.show_tab) as src (src.name)}
@@ -1614,9 +1632,23 @@
 		.filter {
 			font-size: 16px;
 		}
+		/* 更新 / 設定はアイコンのみ・再生ボタンと同等のタップサイズに。 */
 		.toolbar button {
-			font-size: 14px;
-			padding: 8px 10px;
+			font-size: 16px;
+			padding: 10px 12px;
+		}
+		.btn-label {
+			display: none;
+		}
+		/* チャンネル数は非表示。最終更新はラベルと時刻を小さく 2 行で。 */
+		.stat {
+			display: none;
+		}
+		.updated {
+			display: flex;
+			flex-direction: column;
+			font-size: 10px;
+			line-height: 1.3;
 		}
 
 		table,
