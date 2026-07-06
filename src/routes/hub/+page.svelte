@@ -847,22 +847,6 @@
 		closeMenu();
 	}
 
-	function openPstServer() {
-		// pst-server URL は config.toml の `pst_server_url` を使う (空なら
-		// localhost:8080)。ブラウザでは pst-server 自身が同一オリジン。
-		const fallback = isTauri()
-			? 'http://localhost:8080/'
-			: typeof window !== 'undefined'
-				? window.location.origin
-				: 'http://localhost:8080/';
-		const url = (pstServerUrl || fallback).trim();
-		if (isTauri()) {
-			void import('@tauri-apps/plugin-opener').then((m) => m.openUrl(url)).catch(() => undefined);
-		} else {
-			window.open(url, '_blank', 'noopener');
-		}
-	}
-
 	let pstServerUrl = $state('');
 
 	// 設定を開く。Tauri は専用ウィンドウ、ブラウザは /settings を別タブで。
@@ -1023,13 +1007,6 @@
 			>🔗 URL から開く</button
 		>
 		<button onclick={openSettingsUi}>⚙ 設定</button>
-		<button
-			class="hide-mobile"
-			onclick={openPstServer}
-			title="pst-server の Web UI (Web グリッド / モバイル UI) をブラウザで開く"
-		>
-			🌐 pst-server
-		</button>
 		<button
 			class="hide-mobile"
 			onclick={closeAll}
