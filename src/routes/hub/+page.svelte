@@ -467,6 +467,9 @@
 		return list;
 	});
 
+	// 選択中チャンネルのコンタクト URL (フッター表示用)。
+	const selectedContact = $derived(visible.find((v) => v.e.id === selectedId)?.e.contact_url ?? '');
+
 	const counts = $derived.by(() => {
 		let all = 0,
 			fav = 0,
@@ -1023,14 +1026,6 @@
 			bind:value={filter}
 			placeholder="絞り込み: 名前 / ジャンル / 詳細 / コメント / YP 名"
 		/>
-		<span class="stat">
-			{visible.length} / {counts.all} ch
-		</span>
-		<span class="updated"
-			><span class="updated-label">最終更新:</span><span class="updated-time"
-				>{fmtTime(lastUpdatedAt)}</span
-			></span
-		>
 	</header>
 
 	<nav class="tabs">
@@ -1266,13 +1261,11 @@
 	</div>
 
 	<footer class="statusbar">
-		<span>★ {counts.fav} / 全 {counts.all} ch</span>
-		<span class="sep">·</span>
-		<span>視聴中 {counts.watching}</span>
-		<span class="sep">·</span>
-		<span>YP {ypSources.length} 件{failures.length > 0 ? ` (失敗 ${failures.length})` : ''}</span>
-		<span class="sep">·</span>
 		<span>PeerCast: {currentPeerHost}:{currentPeerPort}</span>
+		{#if selectedContact}
+			<span class="sep">·</span>
+			<span class="contact" title={selectedContact}>{selectedContact}</span>
+		{/if}
 		<span class="filler"></span>
 		{#if loading}
 			<span class="loading-indicator">⟳ 更新中…</span>
@@ -1417,15 +1410,6 @@
 		border-radius: 3px;
 		background: var(--bg-input);
 		color: inherit;
-	}
-
-	.stat {
-		color: var(--fg-muted);
-	}
-
-	.updated {
-		color: var(--fg-muted);
-		font-size: 11px;
 	}
 
 	.tabs {
@@ -1632,23 +1616,15 @@
 		.filter {
 			font-size: 16px;
 		}
-		/* 更新 / 設定はアイコンのみ・再生ボタンと同等のタップサイズに。 */
+		/* 更新 / 設定はアイコンのみ。枠は保ちつつ中の文字を大きく。 */
 		.toolbar button {
-			font-size: 16px;
-			padding: 10px 12px;
+			font-size: 30px;
+			line-height: 1.2;
+			padding: 0;
+			min-width: 44px;
 		}
 		.btn-label {
 			display: none;
-		}
-		/* チャンネル数は非表示。最終更新はラベルと時刻を小さく 2 行で。 */
-		.stat {
-			display: none;
-		}
-		.updated {
-			display: flex;
-			flex-direction: column;
-			font-size: 10px;
-			line-height: 1.3;
 		}
 
 		table,
@@ -1818,6 +1794,12 @@
 		color: var(--fg-dim);
 	}
 
+	.statusbar .contact {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		min-width: 0;
+	}
 	.statusbar .sep {
 		color: var(--fg-muted);
 	}
