@@ -351,6 +351,7 @@
 				void showVideoContextMenu();
 			}),
 			await listen('player:click', () => {
+				markNativeFocus();
 				void onPlayerClick();
 			}),
 		);
@@ -878,6 +879,10 @@
 	/// 満レス検知後の再試行中フラグ。true の間は advanceToNewestThread の
 	/// 冒頭待機 (数秒) を省く (毎ポーリング周期で新スレ探索を繰り返す)。
 	let fullAdvanceRetry = false;
+	/// 増分取得の無音デシンク対策: 定期的に fetchState を捨てて全件取得
+	/// し直す (実機 QA: 自動更新がエラー無しで止まり続け、スレ再選択で
+	/// 直った事例。304/Range の癖のあるサーバで増分状態が膠着した疑い)。
+	let pollsSinceFullSync = 0;
 	async function openNewestThread() {
 		if (openingBoard) return;
 		const board = currentBoardUrl;
@@ -928,7 +933,7 @@
 			// 次スレがまだ立っていない場合に立つのを待つ意味もある。
 			// 初期表示 (コンタクトのスレが既に満レス) の場合は待たない。
 			if (!immediate) await new Promise((r) => setTimeout(r, 5_000));
-			const list = await listThreads(currentBoardUrl);
+			const list = await withTimeout(listThreads(currentBoardUrl), 10_000, 'listThreads');
 			if (list.length === 0) return;
 			threadList = list;
 			// 板の並び上位から、満レスでない (実取得で確認した) スレを選ぶ。
@@ -936,9 +941,11 @@
 			// ポーリングが見つかるまで再試行する)。
 			const max = boardMaxRes > 0 ? boardMaxRes : THREAD_FULL_FALLBACK;
 			const curKey = currentThreadUrl.match(/(\d+)\/?$/)?.[1] ?? '';
-			const live = await selectLiveThread(currentBoardUrl, max, curKey ? [curKey] : [], {
-				threads: list,
-			});
+			const live = await withTimeout(
+				selectLiveThread(currentBoardUrl, max, curKey ? [curKey] : [], { threads: list }),
+				30_000,
+				'selectLiveThread',
+			);
 			if (!live) return;
 			autoSelectedThread = true;
 			currentThreadUrl = live.url;
@@ -1069,6 +1076,13 @@
 		}
 		threadTimer = setInterval(async () => {
 			if (currentThreadUrl && !threadLoading) {
+				// 定期リシンク: 5 分ごとに増分状態を捨てて全件を取り直す
+				// (増分の膠着があっても最大 5 分で自己回復する)。
+				pollsSinceFullSync += 1;
+				if (pollsSinceFullSync >= Math.ceil(300 / REFRESH_SEC)) {
+					pollsSinceFullSync = 0;
+					fetchState = null;
+				}
 				// 起動時の輻輳等で 0 件のまま固着していたら、増分ではなく
 				// 全件再取得 (forceReset) で回復を試みる。通常時は増分取得。
 				await loadCurrentThread(posts.length === 0 && !threadDead);
@@ -1173,6 +1187,39 @@
 	// 「一度投稿すると直る」= 投稿フローの blur→focus() で IME が
 	// textarea の caret 位置を再認識するため。同じ再アンカーをフォーカス
 	// 取得のたびに一度だけ行う。
+	// ── IME 再アンカー (限定スコープ) ──────────────────────────────
+	// mpv 子ウィンドウや他アプリから WebView がネイティブフォーカスを
+	// 取り戻した「直後」に書き込み欄へフォーカスが入ると、IME への
+	// caret 位置報告が欠落して変換ウィンドウが左上 (0,0) に出ることが
+	// ある (実機 QA: 多窓間はプロセス分離 (deb01ae) で解消済みだが、
+	// 単窓でも mpv → textarea の遷移で再発)。全フォーカスで blur/focus
+	// すると変換不能の副作用が出た (524360e→撤回) ため、ネイティブ
+	// フォーカス遷移の直後 1.5 秒以内に限り、変換開始前なら一度だけ
+	// 再アンカーする。
+	let nativeFocusAt = 0;
+	let composing = false;
+	function markNativeFocus() {
+		nativeFocusAt = Date.now();
+	}
+	function onWriteFocus() {
+		if (Date.now() - nativeFocusAt > 1500) return;
+		const el = writeTextarea;
+		if (!el) return;
+		setTimeout(() => {
+			// 既に変換中なら触らない (blur すると変換が失われる)。
+			if (composing || document.activeElement !== el) return;
+			const selStart = el.selectionStart;
+			const selEnd = el.selectionEnd;
+			el.blur();
+			el.focus();
+			try {
+				el.setSelectionRange(selStart, selEnd);
+			} catch {
+				/* ignore */
+			}
+		}, 100);
+	}
+
 	// 動画領域をクリックしたらウィンドウを前面化 + フォーカスする (#15)。
 	// 動画上のクリックは embed.rs が player:click として転送 (Windows)、
 	// または DOM の onclick から届く (その他)。
@@ -1631,6 +1678,8 @@
 	}
 </script>
 
+<svelte:window onfocus={markNativeFocus} />
+
 <svelte:head>
 	<title>PSTPlayer</title>
 </svelte:head>
@@ -1871,6 +1920,9 @@
 				: '書き込み欄'}
 			bind:value={writeBody}
 			onkeydown={onWriteKey}
+			onfocus={onWriteFocus}
+			oncompositionstart={() => (composing = true)}
+			oncompositionend={() => (composing = false)}
 			disabled={!currentThreadUrl || writeSending}
 			rows={Math.max(1, writeBody.split('\n').length)}
 		></textarea>
