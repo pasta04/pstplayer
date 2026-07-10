@@ -298,7 +298,14 @@ export function installShortcuts(
 			return;
 		}
 
-		if (isFromInput(e)) return;
+		// IME 変換中のキーはショートカットにしない。
+		if (e.isComposing) return;
+		// テキスト入力欄にフォーカスがあっても、Alt 併用ショートカット
+		// (Alt+X 切断等) はテキスト編集と衝突しないので通す。無修飾キー
+		// (文字入力) や Ctrl 系 (Ctrl+C/V/A 等の編集・Ctrl+Enter 送信) は
+		// 入力欄を優先する (実機 QA: 書き込み欄にフォーカスが残ると
+		// Alt+X が効かず、ステータスバーをクリックして外す必要があった)。
+		if (isFromInput(e) && !e.altKey) return;
 
 		const ctrl = e.ctrlKey || e.metaKey;
 
