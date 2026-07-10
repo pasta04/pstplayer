@@ -120,21 +120,19 @@ impl Ch2Client {
         let prev_byte = prev.map(|p| p.last_byte).unwrap_or(0);
         // 増分は「既知の最終バイト (直前の \n) を 1 バイト含めて」要求し、
         // 応答の先頭が \n であることを検証する 2ch クライアントの定石を使う。
-        // - 新着なしでも Range が常に満たせるため 206 (1 バイト) になる。
-        //   起点 == サイズ の Range に対し、If-Modified-Since が一致していても
-        //   304 でなく 416 を返す Apache が実在する (komokomo.ddns.net で実測)。
-        //   その 416 → 全件再取得が毎回走ると、フロントに全レスが増分として
-        //   届いてしまう。
-        // - 先頭が \n でなければ dat が再構築された (削除等) と検知できる。
+        // - 新着なしでも Range が常に満たせるため 206 (1 バイト) になる
+        //   (304 相当。帯域も同等)。2 バイト以上 = 新着、先頭が \n でない
+        //   = dat 再構築、416 = 短縮、で全ケースを Range だけで判別できる。
+        // - If-Modified-Since は送らない。bbs.jpnkn.com の前段 (anti-bot
+        //   層) は IMS や Cache-Control 付きのリクエストを接続断で落とし、
+        //   繰り返すと素の GET まで数分ブロックする (2026-07-10 実測)。
+        //   また 起点 == サイズ の Range に IMS が一致していても 304 でなく
+        //   416 を返す Apache も実在する (komokomo.ddns.net で実測)。
+        //   条件付きヘッダーは百害あって一利なし。
         let overlap = prev_byte > 0;
         let mut req = self.http.get(&url);
-        if let Some(p) = prev {
-            if let Some(lm) = &p.last_modified {
-                req = req.header(reqwest::header::IF_MODIFIED_SINCE, lm);
-            }
-            if overlap {
-                req = req.header(reqwest::header::RANGE, format!("bytes={}-", prev_byte - 1));
-            }
+        if overlap {
+            req = req.header(reqwest::header::RANGE, format!("bytes={}-", prev_byte - 1));
         }
         let resp = req.send().await?;
         let status = resp.status();
