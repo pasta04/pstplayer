@@ -52,9 +52,31 @@
 	let pasteUrl = $state('');
 	let busy = $state(false);
 	let lastError = $state<string | null>(null);
-	// 直近の lastError が BBS 自動更新の失敗によるものか。自動更新が
-	// 成功したら消す (一時的な応答不良のエラーが出続けないように)。
-	let lastErrorFromBbsFetch = false;
+	// どの経路 (書き込み / BBS 自動更新 / bump 等) のエラーか。同じ経路が
+	// 後で成功したらエラー表示を消すために使う (実機 QA: 書き込みの
+	// Rate Exceeded が成功後も残り続けた)。放置されても 20 秒で自動的に
+	// 消える (失敗が続く経路は毎回 set し直されるので表示は継続する)。
+	let lastErrorSource: string | null = null;
+	let lastErrorTimer: ReturnType<typeof setTimeout> | null = null;
+	function setLastError(source: string, msg: string) {
+		lastError = msg;
+		lastErrorSource = source;
+		if (lastErrorTimer) clearTimeout(lastErrorTimer);
+		lastErrorTimer = setTimeout(() => {
+			clearLastError();
+			lastErrorSource = null;
+			lastErrorTimer = null;
+		}, 20_000);
+	}
+	function clearLastError(source?: string) {
+		if (source !== undefined && lastErrorSource !== source) return;
+		lastError = null;
+		lastErrorSource = null;
+		if (lastErrorTimer) {
+			clearTimeout(lastErrorTimer);
+			lastErrorTimer = null;
+		}
+	}
 	// libmpv 描画用子ウィンドウを重ねる対象の DOM 要素。streamUrl がある
 	// 時だけ存在する。位置 / サイズの変化を ResizeObserver で監視して
 	// バックエンドの子ウィンドウに反映する (player_set_video_rect)。
@@ -793,7 +815,7 @@
 				// Record after channelInfo fetch so we have a name.
 			}
 		} catch (e) {
-			lastError = errorMessage(e);
+			setLastError('load', errorMessage(e));
 		} finally {
 			busy = false;
 		}
@@ -1025,10 +1047,7 @@
 			}
 			fetchState = newState;
 			// 取得成功: 以前の自動更新失敗エラーが残っていれば消す。
-			if (lastErrorFromBbsFetch) {
-				lastErrorFromBbsFetch = false;
-				lastError = null;
-			}
+			clearLastError('bbs-fetch');
 			if (forceReset) {
 				// 配信表示 / スレ切替の初回は、最新レス (最下部) を表示した
 				// 状態にする。多数レスでもレイアウト確定後に確実に最下部へ。
@@ -1054,8 +1073,7 @@
 			}
 		} catch (e) {
 			const msg = errorMessage(e);
-			lastError = msg;
-			lastErrorFromBbsFetch = true;
+			setLastError('bbs-fetch', msg);
 			if (isThreadGoneError(msg)) {
 				threadDead = true;
 			}
@@ -1129,8 +1147,9 @@
 			if (streamUrl) {
 				await playerLoad(streamUrl);
 			}
+			clearLastError('player-action');
 		} catch (e) {
-			lastError = errorMessage(e);
+			setLastError('player-action', errorMessage(e));
 		}
 	}
 
@@ -1147,8 +1166,9 @@
 			await stopChannel(endpoint, channelId);
 			await stopChannelPolling().catch(() => undefined);
 			streamUrl = null;
+			clearLastError('player-action');
 		} catch (e) {
-			lastError = errorMessage(e);
+			setLastError('player-action', errorMessage(e));
 		}
 	}
 
@@ -1167,10 +1187,12 @@
 		try {
 			await postToThread(currentThreadUrl, { name: writeName, mail: writeMail, body: writeBody });
 			writeBody = '';
+			// 書き込み成功: 以前の書き込みエラー (Rate Exceeded 等) を消す。
+			clearLastError('post');
 			// Refresh immediately
 			await loadCurrentThread(false);
 		} catch (e) {
-			lastError = errorMessage(e);
+			setLastError('post', errorMessage(e));
 		} finally {
 			writeSending = false;
 		}
@@ -1426,8 +1448,9 @@
 				snapshotBurstCount = 0;
 				snapshotLastPath = '';
 			}, 1000);
+			clearLastError('snapshot');
 		} catch (e) {
-			lastError = errorMessage(e);
+			setLastError('snapshot', errorMessage(e));
 		}
 	}
 
@@ -1471,8 +1494,9 @@
 	async function onOpenSettings() {
 		try {
 			await openSettings();
+			clearLastError('settings');
 		} catch (e) {
-			lastError = errorMessage(e);
+			setLastError('settings', errorMessage(e));
 		}
 	}
 
@@ -1509,8 +1533,9 @@
 		threadListLoading = true;
 		try {
 			threadList = await listThreads(board);
+			clearLastError('thread-list');
 		} catch (e) {
-			lastError = errorMessage(e);
+			setLastError('thread-list', errorMessage(e));
 		} finally {
 			threadListLoading = false;
 		}
