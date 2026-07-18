@@ -512,8 +512,18 @@
 		return sortDesc ? ' ▼' : ' ▲';
 	}
 
+	/// 再生可能な実チャンネルか (通知・お知らせ行は id が空/全ゼロ)。
+	function isPlayable(e: YpEntry): boolean {
+		return !!e.id && [...e.id].some((c) => c !== '0');
+	}
+
 	async function watchRow(e: YpEntry, record = false) {
 		closeMenu();
+		if (!isPlayable(e)) {
+			// 通知行: 再生できないのでコンタクト URL を開く。
+			if (e.contact_url) openInBrowser(e.contact_url);
+			return;
+		}
 		// 録画は常に pst-server が担当する。「視聴 + 録画」は viewer(libmpv) で
 		// 視聴しつつ pst-server にも録画を依頼する。ローカル PeerCast 本体へは
 		// viewer + pst-server の 2 接続になるが、本体 → インターネットのリレーは
@@ -1175,7 +1185,7 @@
 				</tr>
 			</thead>
 			<tbody>
-				{#each visible as { e, rule } (e.id + '@' + e.yp_source)}
+				{#each visible as { e, rule } (e.id + '@' + e.yp_source + '@' + e.name)}
 					{@const src = ypSources.find((s) => s.name === e.yp_source)}
 					{@const bg = effectiveBackground(rule) || src?.background || ''}
 					{@const fg = rule?.text_color || src?.text_color || ''}
@@ -1208,8 +1218,9 @@
 						<td class="col-play">
 							<button
 								class="play-btn"
-								title="このチャンネルを再生"
+								title={isPlayable(e) ? 'このチャンネルを再生' : '通知チャンネル (再生不可)'}
 								aria-label="再生"
+								disabled={!isPlayable(e)}
 								onclick={(ev) => {
 									ev.stopPropagation();
 									void watchRow(e);
@@ -1596,6 +1607,10 @@
 		margin-right: 4px;
 		cursor: pointer;
 		vertical-align: middle;
+	}
+	.play-btn:disabled {
+		opacity: 0.35;
+		cursor: default;
 	}
 	.play-btn:hover {
 		background: #56617a;

@@ -154,10 +154,17 @@ pub async fn fetch_indexes(sources: &[crate::config::schema::YpSource]) -> Multi
             Ok(list) => {
                 for mut e in list {
                     let key = e.id.to_ascii_lowercase();
-                    if key.is_empty() || seen.contains(&key) {
-                        continue;
+                    // 通知・お知らせ行 (RAW 掲載) は id が空/全ゼロのことが
+                    // ある。実チャンネル id のときだけ重複排除し、通知行は
+                    // 常に残す (全ゼロ同士を「重複」と誤判定して YP 間で
+                    // 潰し合わないように)。
+                    let is_real_id = !key.is_empty() && key.chars().any(|c| c != '0');
+                    if is_real_id {
+                        if seen.contains(&key) {
+                            continue;
+                        }
+                        seen.insert(key);
                     }
-                    seen.insert(key);
                     e.yp_source = src.name.clone();
                     entries.push(e);
                 }
