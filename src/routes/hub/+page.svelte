@@ -52,7 +52,13 @@
 	let sortKey = $state<SortKey>(loadSortKey('hub.sortKey', 'listeners'));
 	let sortDesc = $state(loadBool('hub.sortDesc', true));
 	let activeTab = $state<TabKey>(loadTabKey('hub.activeTab', 'all'));
-	let selectedId = $state<string | null>(null);
+	// 行選択は「行キー」で持つ。channel id だと通知行 (id 空/全ゼロ) が
+	// 全行同時に選択されてしまう (実機 QA)。一覧描画の keyed each と同じ
+	// キーを使う。
+	let selectedKey = $state<string | null>(null);
+	function rowKey(e: YpEntry): string {
+		return e.id + '@' + e.yp_source + '@' + e.name;
+	}
 
 	// localStorage への永続化 (ソート / タブ / フィルタはセッション跨ぎ)。
 	$effect(() => {
@@ -468,7 +474,9 @@
 	});
 
 	// 選択中チャンネルのコンタクト URL (フッター表示用)。
-	const selectedContact = $derived(visible.find((v) => v.e.id === selectedId)?.e.contact_url ?? '');
+	const selectedContact = $derived(
+		visible.find((v) => rowKey(v.e) === selectedKey)?.e.contact_url ?? '',
+	);
 
 	const counts = $derived.by(() => {
 		let all = 0,
@@ -672,7 +680,7 @@
 	}
 
 	function onRowClick(e: YpEntry) {
-		selectedId = e.id;
+		selectedKey = rowKey(e);
 	}
 
 	function performAction(action: HubClickAction, e: YpEntry) {
@@ -710,7 +718,7 @@
 
 	function onRowContextMenu(ev: MouseEvent, e: YpEntry) {
 		ev.preventDefault();
-		selectedId = e.id;
+		selectedKey = rowKey(e);
 		// Tauri (デスクトップ) では OS ネイティブメニューで出す。HTML の
 		// メニューはウィンドウ内にしか描けず、小さいウィンドウでは物理的に
 		// 収まらない (実機 QA)。ネイティブならウィンドウ外にはみ出せる
@@ -969,7 +977,7 @@
 		} else if (ev.key === 'Escape') {
 			if (menuOpen) closeMenu();
 		} else if (ev.key === 'Enter') {
-			const e = visible.find((v) => v.e.id === selectedId)?.e;
+			const e = visible.find((v) => rowKey(v.e) === selectedKey)?.e;
 			if (e) {
 				// Shift+Enter で「視聴 + 録画」、通常 Enter で「視聴」
 				if (ev.shiftKey) void watchRow(e, true);
@@ -978,10 +986,10 @@
 		} else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
 			if (visible.length === 0) return;
 			ev.preventDefault();
-			const idx = visible.findIndex((v) => v.e.id === selectedId);
+			const idx = visible.findIndex((v) => rowKey(v.e) === selectedKey);
 			const dir = ev.key === 'ArrowDown' ? 1 : -1;
 			const next = idx < 0 ? 0 : Math.min(visible.length - 1, Math.max(0, idx + dir));
-			selectedId = visible[next].e.id;
+			selectedKey = rowKey(visible[next].e);
 			// DOM 更新後にスクロール。setTimeout(0) で次マイクロタスクへ遅延。
 			setTimeout(() => {
 				document
@@ -1185,7 +1193,7 @@
 				</tr>
 			</thead>
 			<tbody>
-				{#each visible as { e, rule } (e.id + '@' + e.yp_source + '@' + e.name)}
+				{#each visible as { e, rule } (rowKey(e))}
 					{@const src = ypSources.find((s) => s.name === e.yp_source)}
 					{@const bg = effectiveBackground(rule) || src?.background || ''}
 					{@const fg = rule?.text_color || src?.text_color || ''}
@@ -1203,7 +1211,7 @@
 						.filter(Boolean)
 						.join('\n')}
 					<tr
-						class:selected={selectedId === e.id}
+						class:selected={selectedKey === rowKey(e)}
 						class:pinned={rule?.pin_top}
 						class:newish={newIds.has(e.id)}
 						class:rule-colored={!!fg}
