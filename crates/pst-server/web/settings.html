@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ja">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+		<title>PSTPlayer Server · 設定</title>
+		<meta name="theme-color" content="#1e2126" />
+		<link rel="manifest" href="/manifest.webmanifest" />
+		<link rel="icon" href="/icon-192.svg" type="image/svg+xml" />
+		<link rel="stylesheet" href="/style.css" />
+		<link rel="stylesheet" href="/settings.css" />
+	</head>
+	<body data-theme="dark">
+		<header class="topbar">
+			<h1>⚙ 設定</h1>
+			<a class="link-button" href="/">← 戻る</a>
+			<button id="reload" type="button">↻ 再読込</button>
+		</header>
+		<main class="settings">
+			<div id="status" class="muted small">読み込み中…</div>
+			<form id="form" hidden>
+				<section>
+					<h2>PeerCast 接続先</h2>
+					<label>ホスト <input type="text" name="peercast.host" /></label>
+					<label> ポート <input type="number" name="peercast.port" min="1" max="65535" /> </label>
+					<label>Basic 認証 ユーザー <input type="text" name="peercast.auth_user" /></label>
+					<label> Basic 認証 パスワード <input type="password" name="peercast.auth_pass" /> </label>
+				</section>
+
+				<section>
+					<h2>サーバ</h2>
+					<label>bind <input type="text" name="server.bind" /></label>
+					<label>
+						公開 URL (manifest 用、任意) <input type="text" name="server.public_url" />
+					</label>
+				</section>
+
+				<section>
+					<h2>ログ (SD カード保護のため既定 OFF)</h2>
+					<label class="check">
+						<input type="checkbox" name="log.debug" /> デバッグログを書き出す
+					</label>
+					<label>出力先ディレクトリ <input type="text" name="log.dir" /></label>
+				</section>
+
+				<section>
+					<h2>録画</h2>
+					<label class="check">
+						<input type="checkbox" name="recording.enabled" /> 録画機能を有効化
+					</label>
+					<label>保存先ディレクトリ <input type="text" name="recording.dir" /></label>
+					<label>
+						ファイル拡張子 (空 = flv)
+						<input type="text" name="recording.ext" />
+					</label>
+					<label>
+						同時録画上限 (0 = 既定 8)
+						<input type="number" name="recording.max_concurrent" min="0" max="64" />
+					</label>
+					<label>
+						自動録画 polling 間隔 (秒、0 = 既定 60)
+						<input type="number" name="recording.auto_poll_interval_sec" min="0" max="3600" />
+					</label>
+					<label>
+						配信消滅後の停止猶予 (秒、0 = 既定 30)
+						<input type="number" name="recording.auto_stop_grace_sec" min="0" max="3600" />
+					</label>
+				</section>
+
+				<section>
+					<h2>お気に入りルール</h2>
+					<p class="hint small muted">
+						チャンネル一覧で上位固定 / 背景色 / 自動録画を設定するルール。 上から評価され、
+						最初にマッチしたものが採用されます。 フィールドは部分一致 (空欄ワイルドカード、 複数指定
+						AND)。
+					</p>
+					<table id="favs">
+						<thead>
+							<tr>
+								<th>名前</th>
+								<th>ch名</th>
+								<th>ジャンル</th>
+								<th>詳細</th>
+								<th>コメント</th>
+								<th title="上位固定">⬆</th>
+								<th title="自動録画">⏺</th>
+								<th>動作</th>
+								<th>背景</th>
+								<th>文字</th>
+								<th></th>
+							</tr>
+						</thead>
+						<tbody></tbody>
+					</table>
+					<p><button type="button" id="addfav">＋ ルール追加</button></p>
+				</section>
+
+				<footer class="form-footer">
+					<button type="submit" id="save">💾 保存</button>
+					<span id="message" class="small"></span>
+				</footer>
+			</form>
+			<p class="path small muted">設定ファイル: <code id="path">…</code></p>
+		</main>
+		<script type="module" src="/settings.js"></script>
+	</body>
+</html>

@@ -1,0 +1,62 @@
+[package]
+name = "pstplayer"
+description = "PSTPlayer desktop app (Tauri)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+name = "pstplayer_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+pst-core = { path = "../crates/pst-core" }
+# 単一バイナリ・2 モード起動: `pstplayer --server` をバックグラウンドの
+# リレーサーバとして常駐させるため、pst-server の起動ロジック
+# (serve::run) を取り込む。pst-server → pst-core の一方向依存なので
+# 循環はしない。
+pst-server = { path = "../crates/pst-server" }
+# tray-icon: 最小化トレイ常駐 (window.minimize_to_tray) のトレイアイコン用。
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-opener = "2"
+tauri-plugin-notification = "2"
+serde.workspace = true
+serde_json.workspace = true
+# pst-server (ハブ常駐サーバ) の録画 API を Desktop から叩くため
+# (commands/server.rs)。webview は CSP で任意ホストへ fetch できないので
+# Rust 側から HTTP する。
+reqwest.workspace = true
+# バックエンドのチャンネル状態ポーラー (channel_polling.rs) で
+# tokio::spawn / interval / JoinHandle::abort を直接使うため。
+# pst-core 経由でも入っているが、本クレートのコードから直接参照する
+# ので明示。`--server` モードで block_on するマルチスレッドランタイムを
+# 自前で作るため rt-multi-thread を有効化する。
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+libmpv2 = { version = "5", default-features = false, features = ["render"] }
+# libmpv の生の event id / end_file_reason 定数を engine.rs の再接続
+# ロジックで参照するため、低レベルの sys クレートを直接 import する
+# (libmpv2 は再エクスポートしていない)。
+libmpv2-sys = "4"
+raw-window-handle = "0.6"
+
+# On Windows the system has no standard search path for libmpv.
+# Turn on libmpv2's `build_libmpv` helper which reads `MPV_SOURCE` and
+# adds `${MPV_SOURCE}/64/` to rustc-link-search. The CI step places
+# `mpv.lib` / `libmpv.dll.a` there.
+[target.'cfg(target_os = "windows")'.dependencies]
+libmpv2 = { version = "5", default-features = false, features = ["render", "build_libmpv"] }
+# libmpv をプレイヤー領域だけに描く子 HWND を作る / リサイズ追従する
+# ための Win32 API (player/embed.rs)。wid にメイン HWND を直接渡すと
+# WebView2 全域を覆ってしまうため、専用の子ウィンドウに限定する。
+windows = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Shell",
+    "Win32_System_LibraryLoader",
+    "Win32_Graphics_Gdi",
+] }
