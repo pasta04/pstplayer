@@ -33,6 +33,7 @@
 		type YpSource,
 	} from '$lib/api';
 	import { openSettings, openThreadList } from '$lib/windows';
+	import { mergeYpOutcome, ypFailureSummary } from '$lib/yp-merge';
 	import { notify } from '$lib/notifications';
 
 	type SortKey = 'name' | 'genre' | 'listeners' | 'bitrate' | 'uptime' | 'yp_source';
@@ -46,6 +47,25 @@
 	let ypSources = $state<YpSource[]>([]);
 	let loading = $state(false);
 	let lastError = $state<string | null>(null);
+	// YP 取得失敗のステータスバー表示 (一時表示)。一覧は前回分を維持した
+	// まま「失敗した」事実だけを出す。成功で即消え、放置しても 20 秒で
+	// 自動的に消える (失敗が続く間は毎回 set し直されるので表示は継続)。
+	let ypNotice = $state<{ text: string; detail: string } | null>(null);
+	let ypNoticeTimer: ReturnType<typeof setTimeout> | null = null;
+	function setYpNotice(text: string, detail: string) {
+		ypNotice = { text, detail };
+		if (ypNoticeTimer) clearTimeout(ypNoticeTimer);
+		ypNoticeTimer = setTimeout(() => {
+			ypNotice = null;
+			ypNoticeTimer = null;
+		}, YP_NOTICE_MS);
+	}
+	function clearYpNotice() {
+		ypNotice = null;
+		if (ypNoticeTimer) clearTimeout(ypNoticeTimer);
+		ypNoticeTimer = null;
+	}
+	const YP_NOTICE_MS = 20_000;
 	let lastUpdatedAt = $state<Date | null>(null);
 
 	let filter = $state(loadStr('hub.filter', ''));
@@ -301,6 +321,7 @@
 		configSavedUnlisten?.();
 		closeUnlisten?.();
 		resizeUnlisten?.();
+		if (ypNoticeTimer) clearTimeout(ypNoticeTimer);
 	});
 
 	async function refreshWatching() {
@@ -363,17 +384,40 @@
 						'PeerCast 本体に接続できません。設定 → 接続 で host:port を確認してください。';
 				}
 			}
-			const outcome = await fetchYpSources();
-			// 新着 ID 判定
-			const currentIds = new Set(outcome.entries.map((e) => e.id));
+			// YP 取得。一時的な通信失敗で一覧を消さない: 失敗した YP の分は
+			// 前回取得済みの行を維持し (mergeYpOutcome)、失敗はステータス
+			// バーに一時表示するだけにする。呼び出し自体が失敗した場合も同様
+			// (entries は触らない)。
+			let outcome;
+			try {
+				outcome = await fetchYpSources();
+			} catch (e) {
+				const msg = e instanceof Error ? e.message : String(e);
+				setYpNotice('YP 取得失敗', msg);
+				return;
+			}
+			const merged = mergeYpOutcome(entries, outcome);
+			// 新着 ID 判定 (維持した前回分も「現在の一覧」に含めるので、YP 復旧時
+			// に既存チャンネルが全部新着扱いになって再通知されることはない)
+			const currentIds = new Set(merged.map((e) => e.id));
 			const fresh = new Set<string>();
 			for (const id of currentIds) if (!prevIds.has(id)) fresh.add(id);
 			newIds = fresh;
 			prevIds = currentIds;
 
-			entries = outcome.entries;
+			entries = merged;
 			failures = outcome.failures;
-			lastUpdatedAt = new Date();
+			if (outcome.failures.length > 0) {
+				setYpNotice(
+					ypFailureSummary(outcome),
+					outcome.failures.map((f) => `[${f.source}] ${f.url}\n${f.error}`).join('\n\n'),
+				);
+			} else {
+				clearYpNotice();
+			}
+			// 全 YP 失敗のときは一覧が更新されていないので「最終更新」も進めない。
+			const allFailed = outcome.entries.length === 0 && outcome.failures.length > 0;
+			if (!allFailed) lastUpdatedAt = new Date();
 
 			// 新着 + お気に入りマッチ → OS 通知。初回 fetch は「全部新着」に
 			// 見えるので通知抑止。同じ ID は重複通知しない。
@@ -1090,17 +1134,6 @@
 		<div class="error">⚠ {lastError}</div>
 	{/if}
 
-	{#if failures.length > 0}
-		<details class="warn">
-			<summary>⚠ YP 取得失敗 ({failures.length} 件) — 詳細を表示</summary>
-			<ul>
-				{#each failures as f}
-					<li><strong>[{f.source}]</strong> {f.url}<br /><small>{f.error}</small></li>
-				{/each}
-			</ul>
-		</details>
-	{/if}
-
 	<div class="table-wrap">
 		<table>
 			<colgroup>
@@ -1268,6 +1301,11 @@
 								<button onclick={openSettingsUi} class="empty-cta">⚙ 設定で YP を追加する</button>
 							{:else if entries.length === 0 && failures.length > 0}
 								<div>全 YP の取得に失敗しています。</div>
+								<div class="empty-detail">
+									{#each failures as f}
+										<div>[{f.source}] {f.error}</div>
+									{/each}
+								</div>
 								<button onclick={refresh} class="empty-cta">↻ 再試行</button>
 							{:else}
 								チャンネルがありません (絞り込み / タブの設定を確認してください)
@@ -1286,6 +1324,10 @@
 			<span class="contact" title={selectedContact}>{selectedContact}</span>
 		{/if}
 		<span class="filler"></span>
+		{#if ypNotice}
+			<span class="yp-fail" title={ypNotice.detail}>⚠ {ypNotice.text}</span>
+			<span class="sep">·</span>
+		{/if}
 		{#if loading}
 			<span class="loading-indicator">⟳ 更新中…</span>
 		{:else if lastUpdatedAt}
@@ -1373,8 +1415,8 @@
 
 	main {
 		/* flex column + .table-wrap flex:1 でフッターを常にウィンドウ下部に
-		   固定する。以前は grid 5 トラック固定だったが、エラー行 (.error) と
-		   失敗詳細 (.warn) が条件付きで増減して行数がずれ、フッターが 1fr
+		   固定する。以前は grid 5 トラック固定だったが、エラー行 (.error) 等
+		   が条件付きで増減して行数がずれ、フッターが 1fr
 		   トラックに乗り、項目が少ないとき下部固定されず上に詰まっていた。
 		   ビューポート固定高さ + overflow:hidden で一覧だけ内部スクロール。 */
 		display: flex;
@@ -1466,32 +1508,6 @@
 		background: color-mix(in srgb, var(--err) 14%, var(--bg));
 		color: var(--err);
 		border-bottom: 1px solid color-mix(in srgb, var(--err) 35%, var(--bg));
-	}
-
-	.warn {
-		padding: 0.3rem 0.6rem;
-		background: color-mix(in srgb, var(--accent-external) 12%, var(--bg));
-		color: var(--accent-external);
-		font-size: 11px;
-		border-bottom: 1px solid color-mix(in srgb, var(--accent-external) 35%, var(--bg));
-	}
-
-	.warn summary {
-		cursor: pointer;
-		font-weight: 600;
-	}
-
-	.warn ul {
-		margin: 0.4rem 0 0;
-		padding-left: 1.2rem;
-	}
-
-	.warn li {
-		margin: 0.2rem 0;
-	}
-
-	.warn small {
-		color: var(--accent-external);
 	}
 
 	.table-wrap {
@@ -1792,6 +1808,12 @@
 		padding: 1rem;
 	}
 
+	.empty .empty-detail {
+		margin-top: 0.4rem;
+		font-size: 11px;
+		color: var(--fg-dim);
+	}
+
 	.empty .empty-cta {
 		margin-top: 0.5rem;
 		padding: 0.3rem 0.8rem;
@@ -1833,6 +1855,15 @@
 
 	.statusbar .muted {
 		color: var(--fg-muted);
+	}
+
+	.statusbar .yp-fail {
+		color: var(--accent-external);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		min-width: 0;
+		cursor: help;
 	}
 
 	.statusbar .loading-indicator {

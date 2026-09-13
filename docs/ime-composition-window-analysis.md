@@ -1,0 +1,196 @@
+# 視聴画面の書き込み欄で IME 変換ウィンドウが左上 (0,0) に出る問題の解析
+
+対象: 視聴画面 (`src/routes/+page.svelte`) の書き込み欄 (`textarea`)。全角入力
+(日本語 IME) の未確定文字列 / 変換候補が、テキスト入力欄の位置ではなく
+ウィンドウの左上に描画されることがある。本書はコードを変更せず、事象の
+発生経路を一次資料 (本リポジトリ、mpv、wry、tao のソース) から整理したもの。
+
+## 1. 事象と既知の観測 (実機 QA の記録より)
+
+- 発生するのは **Windows (WebView2)**。変換ウィンドウはスクリーンの左上では
+  なく **ウィンドウ (WebView) の左上**に出る。
+- 「一度投稿すると直る」「ステータスバー等の別要素を一度クリックすると直る」
+  「textarea を blur→focus し直すと直る」。
+- 「他アプリとの往復では起きにくい」が、**動画領域 (mpv) をクリックしてから
+  書き込み欄に入力すると再発**する (単窓でも発生)。
+- 変換中 (compositionstart 後) に blur→focus すると変換自体が消える
+  (`524360e` の全フォーカス再アンカーで「変換できなくなる」副作用が出た理由)。
+
+これまでの対策の履歴:
+
+| commit    | 内容                                                                                                     | 結果                                             |
+| --------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `0be0001` | 書き込み欄フォーカス時に blur→focus で再アンカー                                                         | 改善するが再発あり                               |
+| `22eb791` | ウィンドウ blur 時に書き込み欄のフォーカスを外す                                                         | 発症条件の見立てが違い撤回 (`524360e`)           |
+| `524360e` | ウィンドウ focus / 書き込み欄 focus 時に 80ms 遅延 blur→focus                                            | 変換中に blur が走り変換不能になる副作用で撤去   |
+| `deb01ae` | 視聴プロセスごとに WebView2 の UDF を分離 (ブラウザプロセス分離)                                         | **多窓間 (ハブ↔視聴、視聴↔視聴) の発症は解消**   |
+| `c167d31` | ネイティブフォーカス取得後 1.5 秒以内の書き込み欄 focus に限り 100ms 後に一度だけ再アンカー (変換中は不可) | 単窓 (mpv→textarea) の再発向けの限定対策。現行 |
+
+## 2. 一次資料から確定した事実
+
+### 2.1 mpv の埋め込み子ウィンドウはキーボードフォーカスを取らない
+
+mpv `video/out/w32_common.c` (master) より:
+
+- `--wid` 指定時、mpv は `WS_CHILD | WS_VISIBLE` (+ `WS_EX_NOPARENTNOTIFY`) の
+  子ウィンドウを作り、**直後に `EnableWindow(w32->window, 0)` で無効化**する。
+  無効化された窓はマウス入力もキーボードフォーカスも受け取れない
+  (マウスは親 = 本アプリの `PstplayerVideoSurface` 窓に届く)。
+- mpv 内に `SetFocus` の呼び出しは無く、`WM_MOUSEACTIVATE` も処理しない。
+  `WM_SETFOCUS` / `WM_KILLFOCUS` は自身のフラグ更新のみ。
+- IME は `update_ime_enabled()` で `ImmAssociateContext(window, NULL)` により
+  既定で切り離されている。
+
+→ 「mpv の窓がキーボードフォーカス / IME コンテキストを奪う」経路は**存在しない**。
+
+### 2.2 本アプリ側の wid 窓 (`src-tauri/src/player/embed.rs`) もフォーカスを取らない
+
+- `PstplayerVideoSurface` は `WS_CHILD | WS_VISIBLE` の子窓で、WNDPROC は
+  `WM_MOUSEWHEEL` / `WM_LBUTTONDBLCLK` / `WM_RBUTTONUP` / `WM_LBUTTONUP` だけを
+  横取りして Tauri イベント (`player:*`) に変換し、それ以外 (**`WM_LBUTTONDOWN`、
+  `WM_MOUSEACTIVATE` を含む**) は `DefWindowProcW` に流す。
+- `DefWindowProc` は `WM_MOUSEACTIVATE` に `MA_ACTIVATE` を返す。つまり動画を
+  クリックすると **トップレベル窓が活性化される**が、子窓自身は `SetFocus` を
+  呼ばないので、**キーボードフォーカスは活性化されたトップレベル窓 (tao の
+  HWND) に落ちる**。
+
+### 2.3 wry はトップレベル窓の `WM_SETFOCUS` を横取りして WebView2 へフォーカスを移譲する
+
+wry 0.55.1 `src/webview2/mod.rs` (`parent_subclass_proc`) より:
+
+```rust
+WM_SETFOCUS | WM_ENTERSIZEMOVE => {
+  let _ = (*controller).MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC);
+}
+```
+
+→ 2.2 でトップレベル窓に落ちたフォーカスは、直後に **プログラム的に**
+WebView2 (Chromium の HWND) へ戻される。
+
+### 2.4 tao の `set_focus()` は `SetForegroundWindow` のみ
+
+tao 0.35.3 `platform_impl/windows/window.rs`: `set_focus()` は「可視・非最小化・
+非前面」のときだけ `force_window_active` (`SetForegroundWindow`、失敗時は Alt
+キー合成 (`SendInput`) 後に再試行) を呼ぶ。`SetFocus` は呼ばない。
+
+フロントの `onPlayerClick()` は `isFocused()` が false のときだけ
+`show()`/`setFocus()` を呼ぶが、`player:click` は `WM_LBUTTONUP` で発火するため
+その時点では 2.2 の活性化が済んでおり、通常はここで `setFocus()` は走らない。
+
+### 2.5 現行のフロント側対策 (`c167d31`) の動作条件
+
+`src/routes/+page.svelte`:
+
+- `markNativeFocus()` は `<svelte:window onfocus>` と Tauri イベント
+  `player:click` で呼ばれ、時刻を記録する。
+- `onWriteFocus()` は textarea の **`focus` イベント**で呼ばれ、
+  `markNativeFocus` から **1.5 秒以内**なら **100ms 後**に、`composing`
+  でなく activeElement が textarea のままなら blur→focus する。
+
+## 3. 発生メカニズムの推定
+
+### 3.1 「ネイティブフォーカスの往復経路」が 2 通りある
+
+| 経路 | 操作                                              | Win32 レベルで起きること                                                                                                    |
+| ---- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| A    | BBS ペイン / 書き込み欄 / ヘッダを直接クリック    | Chromium 自身の HWND が `WM_MOUSEACTIVATE` を処理して活性化とフォーカス取得を一体で行う (通常の活性化)                       |
+| B    | **動画領域をクリック** (窓が非活性のとき)         | 非 Chromium の子窓 (`PstplayerVideoSurface`) が `MA_ACTIVATE` → フォーカスは **トップレベル HWND** へ → wry が `MoveFocus` → Chromium HWND |
+
+経路 B では、Chromium から見ると「同一スレッド内の別 HWND へフォーカスが抜け
+(`WM_KILLFOCUS`)、直後にプログラム的に戻ってくる (`WM_SETFOCUS`)」というフォーカス
+往復が **DOM の activeElement は textarea のまま**で起きる。他アプリとの往復
+(経路 A に近い、活性化を伴う正規の往復) では起きにくいという観測と整合する。
+
+### 3.2 Chromium (WebView2) の IME 位置決めがこの往復で取りこぼす (推定)
+
+Chromium は Windows で TSF (`TSFTextStore`) を使い、IME からの `GetTextExt`
+問い合わせに対して **レンダラから届いた選択範囲 / 変換文字列の矩形**
+(selection bounds / composition character bounds) を返す。この矩形は
+
+- レンダラ側は **前回送った値と同じなら再送しない** (差分送信)、
+- ブラウザ側は **ネイティブフォーカス喪失時に TextInputClient を切り離し、
+  状態を捨てる**
+
+という性質があるため、経路 B の往復後は「ブラウザ側に矩形が無いのに、
+レンダラ側は変化が無いので送らない」状態になり得る。この状態で変換を始めると
+`GetTextExt` が空矩形 (または未レイアウト) を返し、IME は **対象 HWND の
+クライアント原点 = ウィンドウ左上**に候補ウィンドウを置く。
+
+この節は Chromium のソースを本セッションで直接参照できていないため**推定**
+だが、観測事実とはすべて整合する:
+
+- 投稿で直る: `disabled` でフォーカスが `.posts` へ移り、再 `focus()` で選択矩形が
+  実際に変化して再送される。
+- 別要素クリックで直る / blur→focus で直る: 同上 (フォーカス変化で矩形が再送)。
+- 変換中の blur で変換が消える: 変換のキャンセルは仕様どおり (副作用の理由)。
+- ブラウザプロセス分離 (`deb01ae`) で多窓間が直った: 同一ブラウザプロセス内の
+  別ウィンドウ間で TextInputClient が切り替わる別経路の問題を潰した。
+- 単窓でも動画クリック後に再発: 経路 B。
+
+### 3.3 現行対策 (`c167d31`) が取りこぼす条件
+
+1. **イベント順序**: 経路 B でページフォーカスが戻るとき、Blink は textarea の
+   `focus` (page 型) と `window` の `focus` を同じフォーカス変更処理の中で
+   発火し、Tauri の `player:click` はさらに後から非同期に届く。textarea の
+   `focus` が `window` の `focus` より先に処理されると、`onWriteFocus()` の
+   `Date.now() - nativeFocusAt > 1500` 判定で**再アンカーがスキップされ得る**
+   (前回の `markNativeFocus` が 1.5 秒以内に無い場合)。
+2. **100ms の遅延中に変換が始まる**: IME ON で即入力すると `composing` ガードで
+   再アンカーしない (再アンカーすると変換が消えるため、これ自体は正しい)。
+   その最初の変換が左上に出る。
+3. **1.5 秒より後の書き込み欄クリック**: 動画クリック後 1.5 秒を過ぎてから
+   書き込み欄をクリックした場合は再アンカーしない。この場合は DOM フォーカスが
+   変わるので 3.2 の理屈では矩形が再送されるはずだが、実機で「mpv→textarea で
+   再発」と観測されており、時間窓の妥当性は未検証。
+
+## 4. 実機での検証手順 (次のステップ)
+
+コードを直す前に、3.1〜3.3 を実機で確定させるためのログ取り:
+
+1. **DOM 側**: `window` の `focus`/`blur`、textarea の `focus`/`blur`
+   (`relatedTarget` 込み)、`compositionstart`、`player:click`、Tauri
+   `onFocusChanged` を `performance.now()` 付きで記録し、左上表示が出た回と
+   出なかった回の順序・間隔を比較する (3.3-1 の順序問題の有無が分かる)。
+2. **ネイティブ側**: Spy++ 等でトップレベル HWND、`Chrome_WidgetWin_0/1`、
+   `PstplayerVideoSurface`、mpv の窓への `WM_KILLFOCUS` / `WM_SETFOCUS` /
+   `WM_MOUSEACTIVATE` / `WM_IME_STARTCOMPOSITION` の宛先と順序を記録する
+   (経路 B の「トップレベル経由の往復」が実際に起きているかの確認)。
+3. **再現条件の切り分け** (各 10 回程度):
+   - (a) 他アプリ → 動画クリック → 即変換 / (b) 他アプリ → BBS ペインクリック → 変換
+   - (c) 窓が活性のまま動画クリック → 変換 (活性化を伴わない場合に起きるか)
+   - (d) 書き込み欄にフォーカスを残したまま vs body にフォーカスを逃がした状態
+4. **TSF 経路の切り分け**: `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` に
+   `--disable-features=TSFImeSupport` を足して IMM32 経路に切り替え、症状が
+   消えるかを見る (常用ではなく切り分け用。フラグ名は Chromium の版で変わり得る)。
+5. **環境差**: WebView2 Runtime の版、IME (MS-IME 新/旧、Google 日本語入力、
+   ATOK) ごとの再現率。
+
+## 5. 対策候補 (未実装、優先度順の私見)
+
+- **B-1 (フロント)**: 「textarea の `focus` イベント」待ちをやめ、`player:click`
+  / `onFocusChanged(true)` を受けた時点で、activeElement が textarea かつ
+  `composing` でなければ即 blur→focus する (3.3-1 の順序依存を解消。動画
+  クリック直後に限定するので `524360e` の副作用は出ない)。
+- **B-2 (フロント)**: 動画クリック時に DOM フォーカスを body へ逃がし、書き込み欄
+  への入力を必ず「新規フォーカス」にする (`22eb791` の発想を動画クリックに限定)。
+  入力途中の文字は `writeBody` に残るので実害は小さい。
+- **A (ネイティブ)**: `video_wndproc` で `WM_MOUSEACTIVATE` 後にフォーカスを
+  トップレベル経由にせず、WebView2 の HWND (トップレベル直下の
+  `Chrome_WidgetWin_0`) へ直接 `SetFocus` する、または `ICoreWebView2Controller::MoveFocus`
+  を wry を介さず呼ぶ。経路 B を経路 A に近づける根本寄りの手だが、wry の
+  サブクラスとの二重処理になるため要検証。
+- **C (上流)**: 4 の結果が経路 B + TSF 起因で確定したら WebView2 / wry へ
+  再現手順付きで報告する。
+
+## 6. まとめ
+
+- mpv も本アプリの wid 子窓もキーボードフォーカスを取らない。発症の引き金は
+  「動画 (非 Chromium 子窓) クリックによる活性化でフォーカスが**トップレベル
+  HWND に落ち、wry がプログラム的に WebView2 へ戻す**」という往復 (経路 B)
+  である可能性が高い。
+- この往復は DOM フォーカスを変えないため、Chromium の IME 位置情報
+  (選択矩形) の再送が起きず、最初の変換で候補窓が WebView 左上に出る (推定)。
+- 現行対策は textarea の `focus` イベントと 1.5 秒 / 100ms の時間窓に依存して
+  おり、イベント順序と即時変換の 2 点で取りこぼす余地がある。
+- 修正に入る前に 4 のログ取りで経路 B と順序問題を確定させ、B-1 → A の順で
+  当てるのが安全。

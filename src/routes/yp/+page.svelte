@@ -14,7 +14,23 @@
 
 	let entries = $state<YpEntry[]>([]);
 	let loading = $state(false);
+	// 取得失敗の一時表示。一覧 (entries) は前回分を維持したまま、失敗した
+	// 事実だけをヘッダに出す。次の成功で即消え、放置しても 20 秒で消える。
 	let error = $state<string | null>(null);
+	let errorTimer: ReturnType<typeof setTimeout> | null = null;
+	function setError(msg: string) {
+		error = msg;
+		if (errorTimer) clearTimeout(errorTimer);
+		errorTimer = setTimeout(() => {
+			error = null;
+			errorTimer = null;
+		}, 20_000);
+	}
+	function clearError() {
+		error = null;
+		if (errorTimer) clearTimeout(errorTimer);
+		errorTimer = null;
+	}
 	let ypUrl = $state<string>('');
 	let filter = $state('');
 	let sortKey = $state<'listeners' | 'name' | 'genre' | 'bitrate'>('listeners');
@@ -59,6 +75,7 @@
 	onDestroy(() => {
 		configSavedUnlisten?.();
 		focusUnlisten?.();
+		if (errorTimer) clearTimeout(errorTimer);
 	});
 
 	function matchFor(e: YpEntry): FavoriteRule | null {
@@ -67,11 +84,12 @@
 
 	async function refresh() {
 		loading = true;
-		error = null;
 		try {
 			entries = await fetchYpIndex();
+			clearError();
 		} catch (e) {
-			error = e instanceof CommandError ? `${e.code}: ${e.message}` : String(e);
+			// 一時的な通信失敗で一覧を消さない (entries はそのまま)。
+			setError(e instanceof CommandError ? `${e.code}: ${e.message}` : String(e));
 		} finally {
 			loading = false;
 		}
@@ -156,6 +174,9 @@
 			bind:value={filter}
 			placeholder="絞り込み (名前 / ジャンル / 詳細)"
 		/>
+		{#if error}
+			<span class="err" title={error}>⚠ 取得失敗</span>
+		{/if}
 		<span class="stat">{visible.length} / {entries.length}</span>
 		<button onclick={refresh} disabled={loading}>{loading ? '更新中…' : '↻ 更新'}</button>
 	</header>
@@ -163,10 +184,6 @@
 		<div class="src" title={ypUrl}>取得元: {ypUrl}</div>
 	{:else}
 		<div class="src warn">設定 → PeerCast → 「YP index.txt URL」を設定してください。</div>
-	{/if}
-
-	{#if error}
-		<div class="err">⚠ {error}</div>
 	{/if}
 
 	<div class="table">
@@ -211,7 +228,7 @@
 					<span class="c-uptime">{e.uptime}</span>
 				</button>
 			{/each}
-			{#if !loading && entries.length === 0 && !error}
+			{#if !loading && entries.length === 0}
 				<div class="muted small">
 					{ypUrl ? 'チャンネルがありません。' : 'YP URL が未設定です。'}
 				</div>
@@ -295,8 +312,9 @@
 
 	.err {
 		color: var(--err);
-		padding: 0.5rem 0.7rem;
-		font-size: 0.85rem;
+		font-size: 0.78rem;
+		white-space: nowrap;
+		cursor: help;
 	}
 
 	.table {
