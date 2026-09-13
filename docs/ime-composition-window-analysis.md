@@ -127,6 +127,9 @@ Chromium は Windows で TSF (`TSFTextStore`) を使い、IME からの `GetText
   別ウィンドウ間で TextInputClient が切り替わる別経路の問題を潰した。
 - 単窓でも動画クリック後に再発: 経路 B。
 
+(2026-09-13 追補: この推定のうち Chromium 側の機構は §7 で一次ソースにより
+裏取りした。反証できた変種と残る未知点は §7.4 を参照)
+
 ### 3.3 現行対策 (`c167d31`) が取りこぼす条件
 
 1. **イベント順序**: 経路 B でページフォーカスが戻るとき、Blink は textarea の
@@ -194,3 +197,128 @@ Chromium は Windows で TSF (`TSFTextStore`) を使い、IME からの `GetText
   おり、イベント順序と即時変換の 2 点で取りこぼす余地がある。
 - 修正に入る前に 4 のログ取りで経路 B と順序問題を確定させ、B-1 → A の順で
   当てるのが安全。
+
+## 7. 追補: 一次資料による裏取り (2026-09-13, リモートセッション)
+
+§2 の引用検証と §3.2「推定」の裏取りを、wry 0.55.1 の raw ソースと
+Chromium main (2026-09 時点) を取得して行った結果。行番号は取得時点のもの。
+
+### 7.1 §2 の引用はすべて実ソースと一致 (+ 追加事実)
+
+- wry `parent_subclass_proc` の
+  `WM_SETFOCUS | WM_ENTERSIZEMOVE => MoveFocus(PROGRAMMATIC)` は
+  `src/webview2/mod.rs` L1254-1257 に実在する。サブクラス対象は
+  トップレベル (tao) HWND で、Tauri の通常ウィンドウが通る `new()` は
+  `new_in_hwnd(..., is_child = false)` (L82-91) →
+  `if !is_child { attach_parent_subclass(parent, controller) }` (L538-541)
+  で必ず装着される。経路 B は pstplayer の全ウィンドウに存在する。
+- 追加の事実: wry はトップレベルと WebView2 の間に自前のコンテナ子窓を
+  作っており (`create_container_hwnd`)、その WNDPROC も `WM_SETFOCUS` で
+  `SetFocus(最初の子窓)` する (L186-198、dioxus#2900 対策)。つまり
+  プログラム的フォーカス転送は二層ある。`WebView::focus()` も
+  `MoveFocus(PROGRAMMATIC)` (L1493-1500)。
+- mpv `w32_common.c` の記述 (WS_CHILD + `EnableWindow(0)`、`SetFocus`
+  呼び出し無し、`WM_MOUSEACTIVATE` 未処理、`ImmAssociateContext(window,
+  NULL)`) も master で再確認した。
+
+### 7.2 Chromium の composition 矩形パイプライン (ソースで確定)
+
+候補ウィンドウの位置決めに使う矩形は、次の一方通行のパイプラインでしか
+IME に届かない:
+
+1. renderer: `WidgetBase::UpdateCompositionInfo()` は
+   `monitor_composition_info_` が false なら**計算すらしない**
+   (`widget_base.cc` L1448-1450)。計算しても前回と同値なら**再送しない**
+   (`ShouldUpdateCompositionInfo`, L1538-1549)。送るときは
+   `ImeCompositionRangeChanged(range, character_bounds)`。
+2. `monitor_composition_info_` を立てるのは browser 側からの
+   `RequestCompositionUpdates(immediate, monitor)` だけ (L1510-1517)。
+   その browser 側の呼び元は **TextInputState 更新を受けたとき**の
+   `RWHVA::OnUpdateTextInputStateCalled` → `RequestCompositionUpdates(
+   false, state.type != NONE)` (`render_widget_host_view_aura.cc`
+   L3500, L3596-3602)。**DOM フォーカスも text input type も変わらない
+   経路 B の往復では、この再武装イベントは発生しない。**
+3. browser 側キャッシュ `composition_range_info_map_` は
+   `ImeCompositionRangeChanged` でのみ埋まり (`text_input_manager.cc`
+   L421-447)、`Register` 時は空 (L462-467)。
+4. IME の `GetTextExt` は composition 中は
+   `RWHVA::GetCompositionCharacterBounds` (キャッシュ参照、
+   `index >= character_bounds.size()` なら false — L1873-1890) を引き、
+   false なら **`TS_E_NOLAYOUT`** を返す (`tsf_text_store.cc` L406-441)。
+   composition が無いときだけ `GetCaretBounds()` に落ちる。
+5. 矩形が届いたときだけ `TSFTextStore::SendOnLayoutChange` →
+   `OnLayoutChange(TS_LC_CHANGE)` が飛び、IME が再問い合わせする
+   (L1524-1535)。届かなければ再問い合わせの契機が無い。
+
+つまり「**composition が活性なのに renderer から矩形が一度も届かない**」
+状態が成立すると、`GetTextExt` は毎回 `TS_E_NOLAYOUT`、`OnLayoutChange` は
+発火せず、**その変換の間ずっと**候補窓は誤位置に置かれ続ける。§1 の
+「一過性のちらつきではなく変換全体が左上に出る」観測と一致する。
+
+### 7.3 `TS_E_NOLAYOUT` → 左上は IME 側の文書化済みフォールバック
+
+Firefox の TSF 実装が同じ問題を踏んで IME 別ハックを実装しており、
+MS-IME / Google 日本語入力が `GetTextExt` の `TS_E_NOLAYOUT` に対して
+候補ウィンドウを**画面またはウィンドウの左上に置く**ことが Mozilla の
+バグトラッカーに明記されている:
+
+- [bug 1609675](https://bugzilla.mozilla.org/show_bug.cgi?id=1609675) —
+  MS-IME candidate window sometimes appears and flickers at top-left
+  corner of display ([TSF][TS_E_NOLAYOUT])
+- [bug 1061604](https://bugzilla.mozilla.org/show_bug.cgi?id=1061604) —
+  Google 日本語入力向け NOLAYOUT ハック /
+  [bug 970860](https://bugzilla.mozilla.org/show_bug.cgi?id=970860) /
+  [bug 1081993](https://bugzilla.mozilla.org/show_bug.cgi?id=1081993)
+  (候補窓が常にブラウザウィンドウ左上)
+
+一方 Chromium main の `TSFTextStore::GetTextExt` に Mozilla 型の IME 別
+NOLAYOUT 回避ハックは見当たらない (素直に `TS_E_NOLAYOUT` を返す)。
+「Chromium で矩形が欠けると日本語 IME は左上に出す」ことの傍証になる。
+
+### 7.4 反証できた変種と、残った未知点
+
+- **反証**: 「ネイティブフォーカス往復で TSF の document focus が迷子に
+  なる」変種は否定してよい。Chromium は `ITfThreadMgr::AssociateFocus(
+  attached_window_handle_, document_manager)` で **HWND に文書を紐付けて
+  おり** (`tsf_bridge.cc` L650-683、L295-305 のコメントも参照)、HWND が
+  ネイティブフォーカスを取り直せば OS 側が document focus を自動復元する。
+- ネイティブ blur/focus で走る `InputMethodWinTSF::OnBlur/OnFocus` が
+  やるのは TSF イベントルータと key event dispatcher の付け外しだけ
+  (`input_method_win_tsf.cc` L64-85)。`SetFocusedClient` (スレッド focus /
+  AssociateFocus の更新) は **aura フォーカスが変わったときだけ**
+  (`OnDidChangeFocusedClient`, L176-181)。
+- なお `OnWillChangeFocusedClient → ConfirmCompositionText` (L167-171) は
+  「本当のクライアント変更が変換中に起きると変換が確定される」実装で、
+  `524360e` の副作用 (再アンカーで変換が消える) の根拠そのもの。
+- **残る未知点はひとつ**: 経路 B の往復の間に WebView2 runtime が
+  RWHVA / renderer へ blur・focus をどこまで伝搬させ、それが
+  `monitor_composition_info_` と送信条件をどう倒すのか。ここだけは
+  Chromium 読解では確定できず、§4 の実機ログ (+ §7.5) 待ち。
+
+### 7.5 §4 への追加手段: `ime` トレースカテゴリで NOLAYOUT を直接観測できる
+
+7.2 の各点には `TRACE_EVENT("ime", ...)` が仕込まれている:
+`TSFTextStore::GetTextExt` (start,end / DIP rect / screen rect)、
+`RWHVA::GetCompositionCharacterBounds` (comp_char_rect)、
+`WidgetBase::UpdateCompositionInfo`。したがって
+
+```
+WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--trace-startup=ime --trace-startup-duration=60 --trace-startup-file=C:\temp\ime-trace.json
+```
+
+で起動して再現させ、perfetto (ui.perfetto.dev) で開けば、「`GetTextExt`
+が rect を返したか / NOLAYOUT だったか」「comp_char_rect イベントが
+そもそも出ているか (= 矩形が browser に届いているか)」を Spy++ より
+直接的に判別できる (フラグ名・可否は WebView2 の版で要確認。startup
+トレースが使えない場合は §4-4 の `--disable-features=TSFImeSupport`
+切り分けを先に)。
+
+### 7.6 対策候補への影響
+
+§5 の優先順位は変更なし。**B-1 (player:click / onFocusChanged 起点の
+即時 blur→focus) の根拠が強くなった**: blur→focus は DOM フォーカス変化
+なので TextInputState 更新 → `RequestCompositionUpdates` 再武装 (7.2-2)
+→ 次の変換から矩形が流れる、という復旧経路をちょうど踏み直す。既知の
+「投稿すると直る / 別要素クリックで直る」も全て同じ経路の再武装として
+説明できる。変換開始**前**に済ませる必要がある点も 7.4 の
+`ConfirmCompositionText` から自明。
