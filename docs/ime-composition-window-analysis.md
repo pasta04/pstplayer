@@ -24,7 +24,8 @@
 | `22eb791` | ウィンドウ blur 時に書き込み欄のフォーカスを外す                                                         | 発症条件の見立てが違い撤回 (`524360e`)           |
 | `524360e` | ウィンドウ focus / 書き込み欄 focus 時に 80ms 遅延 blur→focus                                            | 変換中に blur が走り変換不能になる副作用で撤去   |
 | `deb01ae` | 視聴プロセスごとに WebView2 の UDF を分離 (ブラウザプロセス分離)                                         | **多窓間 (ハブ↔視聴、視聴↔視聴) の発症は解消**   |
-| `c167d31` | ネイティブフォーカス取得後 1.5 秒以内の書き込み欄 focus に限り 100ms 後に一度だけ再アンカー (変換中は不可) | 単窓 (mpv→textarea) の再発向けの限定対策。現行 |
+| `c167d31` | ネイティブフォーカス取得後 1.5 秒以内の書き込み欄 focus に限り 100ms 後に一度だけ再アンカー (変換中は不可) | 単窓 (mpv→textarea) でも再発 |
+| 本コミット | §5 B-1 を実装。再アンカーの起点を textarea の focus イベントから**ネイティブフォーカス取得**(`player:click` / `onFocusChanged(true)` / window focus) に変更し、§3.3-1 の順序依存を解消 (変換中は触らない条件は維持)。現行 | 実機確認待ち |
 
 ## 2. 一次資料から確定した事実
 
@@ -168,12 +169,13 @@ Chromium は Windows で TSF (`TSFTextStore`) を使い、IME からの `GetText
 5. **環境差**: WebView2 Runtime の版、IME (MS-IME 新/旧、Google 日本語入力、
    ATOK) ごとの再現率。
 
-## 5. 対策候補 (未実装、優先度順の私見)
+## 5. 対策候補 (優先度順の私見)
 
-- **B-1 (フロント)**: 「textarea の `focus` イベント」待ちをやめ、`player:click`
-  / `onFocusChanged(true)` を受けた時点で、activeElement が textarea かつ
-  `composing` でなければ即 blur→focus する (3.3-1 の順序依存を解消。動画
-  クリック直後に限定するので `524360e` の副作用は出ない)。
+- **B-1 (フロント) — 実装済み (本コミット)**: 「textarea の `focus` イベント」
+  待ちをやめ、`player:click` / `onFocusChanged(true)` / window focus を受けた
+  時点で、activeElement が textarea かつ `composing` でなければ blur→focus
+  する (3.3-1 の順序依存を解消。動画クリック直後に限定するので `524360e` の
+  副作用は出ない)。これで直らなければ次は A (ネイティブ) へ進む。
 - **B-2 (フロント)**: 動画クリック時に DOM フォーカスを body へ逃がし、書き込み欄
   への入力を必ず「新規フォーカス」にする (`22eb791` の発想を動画クリックに限定)。
   入力途中の文字は `writeBody` に残るので実害は小さい。

@@ -323,7 +323,11 @@
 		try {
 			const { getCurrentWindow } = await import('@tauri-apps/api/window');
 			focusUnlisten = await getCurrentWindow().onFocusChanged(({ payload: focused }) => {
-				if (focused) reloadBbsPrefs();
+				if (!focused) return;
+				// ネイティブフォーカスの復帰そのものを IME 再アンカーの起点に
+				// する (DOM フォーカスが動かない往復も拾うため)。
+				markNativeFocus();
+				reloadBbsPrefs();
 			});
 		} catch {
 			/* best-effort */
@@ -520,6 +524,7 @@
 		if (playerTimer) clearInterval(playerTimer);
 		if (countdownTimer) clearInterval(countdownTimer);
 		if (reconnectStatusTimer) clearTimeout(reconnectStatusTimer);
+		if (reanchorTimer) clearTimeout(reanchorTimer);
 		threadSelectedUnlisten?.();
 		configSavedUnlisten?.();
 		focusUnlisten?.();
@@ -692,7 +697,7 @@
 	/// 後から確定するため、tick 後に加えて次の 2 フレームでも測り直して
 	/// 確実に最新レスを画面内に収める。
 	async function scrollPostsToBottomSettled() {
-		await tick();
+		await tickSafe();
 		scrollPostsToBottom();
 		requestAnimationFrame(() => {
 			scrollPostsToBottom();
@@ -905,6 +910,23 @@
 	/// し直す (実機 QA: 自動更新がエラー無しで止まり続け、スレ再選択で
 	/// 直った事例。304/Range の癖のあるサーバで増分状態が膠着した疑い)。
 	let pollsSinceFullSync = 0;
+	/// threadLoading を立てた時刻 (0 = 非ロード中)。解放されないまま固着
+	/// すると、ポーリングの `!threadLoading` 条件で自動更新が無音のまま
+	/// 永久に止まる (実機 QA: カウントダウンは動いているのにレスが増えず、
+	/// エラーも出ず、スレ一覧から選び直すと復帰した = `!threadLoading` を
+	/// 通らない thread:selected 経路だけが生きていた。Ctrl+Shift+R も
+	/// 同条件で塞がれるため手動復旧もできない)。個々の await には
+	/// withTimeout / tickSafe を張ったが、想定外の経路まで塞ぎきれないので
+	/// 開始時刻を見て明らかに長い場合は強制解放し、次周期で取り直す。
+	let threadLoadingSince = 0;
+	/// 正常時の loadCurrentThread は fetchThread (12s) + tickSafe (2s) +
+	/// 描画で高々 15 秒程度。その 4 倍を固着とみなす。
+	const THREAD_LOADING_STUCK_MS = 60_000;
+	/// loadCurrentThread の世代。ウォッチドッグが強制解放した後に、固着して
+	/// いた旧呼び出しが後から解決してその finally が走っても、進行中の新しい
+	/// ロードのフラグを消さないようにするための識別子 (消すと二重フェッチに
+	/// なりレスが重複しうる)。強制解放時にも進めて旧世代を無効化する。
+	let threadLoadSeq = 0;
 	async function openNewestThread() {
 		if (openingBoard) return;
 		const board = currentBoardUrl;
@@ -1009,13 +1031,29 @@
 		});
 	}
 
+	/// Svelte の更新フラッシュ待ち (tick) の安全版。描画側 ($derived /
+	/// $effect) で例外が出るとフラッシュが詰まって tick() が解決しない
+	/// ことがあり、これを loadCurrentThread の中で無防備に await すると
+	/// finally に到達できず threadLoading が true のまま固着する
+	/// (= 自動更新が無音で止まる)。上限時間で必ず打ち切る。
+	function tickSafe(ms = 2_000): Promise<void> {
+		return Promise.race([
+			tick(),
+			new Promise<void>((r) => {
+				setTimeout(r, ms);
+			}),
+		]);
+	}
+
 	async function loadCurrentThread(forceReset: boolean) {
 		if (!currentThreadUrl) return;
 		// 一度スレ落ち判定したら自動更新をスキップ (手動 reloadThreadFull
 		// が呼ばれた場合のみ再試行: forceReset=true で死亡フラグを解除)。
 		if (threadDead && !forceReset) return;
 		if (forceReset) threadDead = false;
+		const seq = ++threadLoadSeq;
 		threadLoading = true;
+		threadLoadingSince = Date.now();
 		if (forceReset) threadReloading = true;
 		try {
 			const prev = forceReset ? null : fetchState;
@@ -1054,7 +1092,7 @@
 				await scrollPostsToBottomSettled();
 			} else if (appendedNew && autoscroll && wasAtBottom) {
 				// 新着レスは一瞬で飛ばず、設定速度でスムーズに流す (#20)。
-				await tick();
+				await tickSafe();
 				smoothScrollToBottom();
 			}
 
@@ -1078,8 +1116,13 @@
 				threadDead = true;
 			}
 		} finally {
-			threadLoading = false;
-			threadReloading = false;
+			// 自分が最新世代のときだけ解放する (ウォッチドッグに強制解放され
+			// た旧世代が後から解決しても、進行中のロードを巻き込まない)。
+			if (seq === threadLoadSeq) {
+				threadLoading = false;
+				threadLoadingSince = 0;
+				threadReloading = false;
+			}
 		}
 	}
 
@@ -1093,6 +1136,22 @@
 			startChannelPolling(endpoint, channelId).catch(() => undefined);
 		}
 		threadTimer = setInterval(async () => {
+			// 固着ウォッチドッグ (threadLoadingSince の宣言箇所を参照)。
+			// threadLoading が解放されないまま長時間経っていたら強制解放し、
+			// 同じ周期でそのまま再取得に進ませる (無音の永久停止を防ぐ)。
+			if (threadLoading && threadLoadingSince > 0) {
+				const heldMs = Date.now() - threadLoadingSince;
+				if (heldMs > THREAD_LOADING_STUCK_MS) {
+					console.warn(`[bbs] threadLoading stuck for ${heldMs}ms; forcing release`);
+					// 世代を進めて旧呼び出しの finally を無効化してから解放する。
+					threadLoadSeq += 1;
+					threadLoading = false;
+					threadLoadingSince = 0;
+					threadReloading = false;
+					// 増分状態も巻き添えで壊れている可能性があるので捨てる。
+					fetchState = null;
+				}
+			}
 			if (currentThreadUrl && !threadLoading) {
 				// 定期リシンク: 5 分ごとに増分状態を捨てて全件を取り直す
 				// (増分の膠着があっても最大 5 分で自己回復する)。
@@ -1203,43 +1262,71 @@
 		writeTextarea?.focus();
 	}
 
-	// IME の変換ウィンドウがウィンドウ左上 (0,0) に描画されることが
-	// ときどきある問題の対策 (実機 QA、根本原因は未特定。mpv 子ウィンドウ
-	// とのネイティブフォーカス往復後の初回入力で発生しやすい)。
-	// 「一度投稿すると直る」= 投稿フローの blur→focus() で IME が
-	// textarea の caret 位置を再認識するため。同じ再アンカーをフォーカス
-	// 取得のたびに一度だけ行う。
 	// ── IME 再アンカー (限定スコープ) ──────────────────────────────
 	// mpv 子ウィンドウや他アプリから WebView がネイティブフォーカスを
-	// 取り戻した「直後」に書き込み欄へフォーカスが入ると、IME への
-	// caret 位置報告が欠落して変換ウィンドウが左上 (0,0) に出ることが
-	// ある (実機 QA: 多窓間はプロセス分離 (deb01ae) で解消済みだが、
-	// 単窓でも mpv → textarea の遷移で再発)。全フォーカスで blur/focus
-	// すると変換不能の副作用が出た (524360e→撤回) ため、ネイティブ
-	// フォーカス遷移の直後 1.5 秒以内に限り、変換開始前なら一度だけ
-	// 再アンカーする。
+	// 取り戻した「直後」に書き込み欄へ入力すると、IME への caret 位置
+	// 報告が欠落して変換ウィンドウが左上 (0,0) に出る (実機 QA: 多窓間は
+	// プロセス分離 (deb01ae) で解消したが、単窓でも mpv → textarea で再発)。
+	//
+	// 機構 (docs/ime-composition-window-analysis.md §7 で一次資料により確定):
+	// 動画クリックは非 Chromium の子窓が活性化を起こすためフォーカスが一旦
+	// トップレベル HWND に落ち、wry が WM_SETFOCUS で MoveFocus して WebView2
+	// へ戻す。この往復では DOM フォーカスが変わらない。Chromium は composition
+	// 矩形を「TextInputState 更新で再武装されたときだけ」renderer から送るので、
+	// 往復後は矩形が送られず GetTextExt が TS_E_NOLAYOUT を返し続け、IME は
+	// 候補窓をウィンドウ左上に置く。DOM フォーカスを入れ直すと TextInputState が
+	// 更新されて再武装されるため復旧する (「投稿すると直る」のも同じ経路)。
+	//
+	// 旧実装 (c167d31) は textarea の focus イベントを起点にしていたが、この
+	// 往復では textarea の focus が window の focus より先に処理されることが
+	// あり、「直前 1.5 秒以内にネイティブフォーカスがあったか」の判定を
+	// 取りこぼしていた。ネイティブフォーカス取得そのものを起点にして順序
+	// 依存を無くす。全フォーカスでの blur/focus は変換不能の副作用が出た
+	// (524360e→撤回) ため、変換中は触らない条件は維持する。
 	let nativeFocusAt = 0;
 	let composing = false;
-	function markNativeFocus() {
-		nativeFocusAt = Date.now();
-	}
-	function onWriteFocus() {
-		if (Date.now() - nativeFocusAt > 1500) return;
+	let reanchorTimer: ReturnType<typeof setTimeout> | null = null;
+
+	/// 書き込み欄の DOM フォーカスを入れ直し、Chromium に選択矩形を再送
+	/// させる。変換中に blur すると変換が失われるので触らない。
+	function reanchorWriteBox() {
 		const el = writeTextarea;
 		if (!el) return;
-		setTimeout(() => {
-			// 既に変換中なら触らない (blur すると変換が失われる)。
-			if (composing || document.activeElement !== el) return;
-			const selStart = el.selectionStart;
-			const selEnd = el.selectionEnd;
-			el.blur();
-			el.focus();
-			try {
-				el.setSelectionRange(selStart, selEnd);
-			} catch {
-				/* ignore */
-			}
+		if (composing || document.activeElement !== el) return;
+		const selStart = el.selectionStart;
+		const selEnd = el.selectionEnd;
+		el.blur();
+		el.focus();
+		try {
+			el.setSelectionRange(selStart, selEnd);
+		} catch {
+			/* ignore */
+		}
+	}
+
+	/// ネイティブフォーカスの往復が落ち着いてから一度だけ再アンカーする。
+	/// 複数経路 (window focus / onFocusChanged / player:click) から同時に
+	/// 呼ばれても 1 本にまとめる。
+	function scheduleReanchor() {
+		if (reanchorTimer) clearTimeout(reanchorTimer);
+		reanchorTimer = setTimeout(() => {
+			reanchorTimer = null;
+			reanchorWriteBox();
 		}, 100);
+	}
+
+	/// WebView がネイティブフォーカスを取り戻したときに呼ぶ。
+	function markNativeFocus() {
+		nativeFocusAt = Date.now();
+		scheduleReanchor();
+	}
+
+	/// 書き込み欄に DOM フォーカスが入ったとき。DOM フォーカスが実際に動く
+	/// 経路なら矩形は再送されるので本来不要だが、ネイティブ往復と重なった
+	/// ときの取りこぼしを埋めるため、往復直後に限り再アンカーする。
+	function onWriteFocus() {
+		if (Date.now() - nativeFocusAt > 1500) return;
+		scheduleReanchor();
 	}
 
 	// 動画領域をクリックしたらウィンドウを前面化 + フォーカスする (#15)。
