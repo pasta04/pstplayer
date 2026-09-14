@@ -244,6 +244,7 @@
 	let channelStatusUnlisten: UnlistenFn | null = null;
 	let reconnectingUnlisten: UnlistenFn | null = null;
 	let reconnectStoppedUnlisten: UnlistenFn | null = null;
+	let fileLoadedUnlisten: UnlistenFn | null = null;
 	let endFileObservedUnlisten: UnlistenFn | null = null;
 
 	let shortcutsUnlisten: (() => void) | null = null;
@@ -410,6 +411,21 @@
 				null, // 次のイベントまで表示し続ける
 			);
 		});
+		// 再生が実際に始まった (mpv FILE_LOADED)。再接続シーケンス中だった
+		// なら成功したということなので「自動再接続中…」表示を畳む。これが
+		// 無いと reconnecting の表示 (autoHide なし = 次のイベントまで表示
+		// し続ける) が復帰後も残り続ける (実機 QA)。手動 reload / bump で
+		// 読み直したときも、古い再接続エラー表示をここで消す。
+		fileLoadedUnlisten = await listen<{
+			was_reconnect: boolean;
+			attempt: number;
+		}>('player:file_loaded', (e) => {
+			if (e.payload.was_reconnect) {
+				showReconnectStatus(`再接続しました (試行 ${e.payload.attempt} 回目)`, 5000);
+			} else {
+				clearReconnectStatus();
+			}
+		});
 		reconnectStoppedUnlisten = await listen<{
 			reason: string;
 			end_file_reason: string;
@@ -534,6 +550,7 @@
 		channelStatusUnlisten?.();
 		reconnectingUnlisten?.();
 		reconnectStoppedUnlisten?.();
+		fileLoadedUnlisten?.();
 		endFileObservedUnlisten?.();
 		shortcutsUnlisten?.();
 		themeUnlisten?.();
@@ -801,7 +818,9 @@
 
 	async function onPaste() {
 		busy = true;
-		lastError = null;
+		// 生代入だと lastErrorSource と自動消去タイマーが残り、後続の
+		// clearLastError(source) が誤って別経路のエラーに一致しうる。
+		clearLastError();
 		try {
 			const url = pasteUrl.trim();
 			if (!url) return;

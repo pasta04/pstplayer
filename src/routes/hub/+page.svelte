@@ -590,6 +590,11 @@
 				const tip = e.tip ? `&tip=${encodeURIComponent(e.tip)}` : '';
 				window.open(`/player?id=${encodeURIComponent(e.id)}${tip}`, '_blank', 'noopener');
 			}
+			// 同じ操作が後で成功したら、前回の失敗メッセージは消す。ハブの
+			// lastError は自動消去が無く、消しているのは refresh() だけな
+			// ので、ここで消さないと「直したのにエラーが出たまま」になる
+			// (YP 自動更新を切っている = refresh_sec 0 なら永久に残る)。
+			lastError = null;
 			// 即座に「視聴中」リストを更新 (5 秒待たずにバッジが付く)。
 			// spawn 直後は lock が完了していないかもしれないので少し待つ。
 			setTimeout(() => {
@@ -604,6 +609,7 @@
 		closeMenu();
 		try {
 			await closeViewer(e.id);
+			lastError = null;
 			setTimeout(() => {
 				void refreshWatching();
 			}, 400);
@@ -622,6 +628,7 @@
 		}
 		try {
 			await serverRecordStop(pstServerUrl, e.id);
+			lastError = null;
 			setTimeout(() => {
 				void refreshWatching();
 			}, 400);
@@ -642,6 +649,7 @@
 		}
 		try {
 			await serverRecordStart(pstServerUrl, e.id, e.name ?? '', e.tip);
+			lastError = null;
 			setTimeout(() => {
 				void refreshWatching();
 			}, 600);
@@ -656,7 +664,8 @@
 			setTimeout(() => {
 				void refreshWatching();
 			}, 400);
-			if (n === 0) lastError = '視聴中のウィンドウはありません';
+			// 成功したら前回の失敗メッセージを消す (0 件は案内として出す)。
+			lastError = n === 0 ? '視聴中のウィンドウはありません' : null;
 		} catch (err) {
 			lastError = err instanceof Error ? err.message : String(err);
 		}
@@ -689,6 +698,7 @@
 		const tip = tipMatch?.[1] ? decodeURIComponent(tipMatch[1]) : undefined;
 		try {
 			await spawnViewer(id, { tip });
+			lastError = null;
 			setTimeout(() => {
 				void refreshWatching();
 			}, 800);

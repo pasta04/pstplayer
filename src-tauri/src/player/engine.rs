@@ -40,6 +40,7 @@ const REASON_REDIRECT: u32 = libmpv2_sys::mpv_end_file_reason_MPV_END_FILE_REASO
 const EVENT_NONE: u32 = libmpv2_sys::mpv_event_id_MPV_EVENT_NONE;
 const EVENT_SHUTDOWN: u32 = libmpv2_sys::mpv_event_id_MPV_EVENT_SHUTDOWN;
 const EVENT_END_FILE: u32 = libmpv2_sys::mpv_event_id_MPV_EVENT_END_FILE;
+const EVENT_FILE_LOADED: u32 = libmpv2_sys::mpv_event_id_MPV_EVENT_FILE_LOADED;
 
 /// libmpv が EndFile で返す reason の人間可読化。Tauri event payload に
 /// 含めて、ステータス帯 / 開発者ログで表示する。
@@ -195,6 +196,15 @@ pub struct ReconnectingPayload {
 pub struct ReconnectStoppedPayload {
     pub reason: SkipReason,
     pub end_file_reason: String,
+}
+
+/// 再生が実際に始まった (mpv の FILE_LOADED)。フロントはこれを受けて
+/// 「自動再接続中…」表示を畳む。`was_reconnect` は「再接続シーケンスの
+/// 途中だったか」で、true なら再接続が成功したことを意味する。
+#[derive(Debug, Clone, Serialize)]
+pub struct FileLoadedPayload {
+    pub was_reconnect: bool,
+    pub attempt: u32,
 }
 
 // ── Mpv ハンドルを別スレッドへ送るための Send wrapper ────────
@@ -403,6 +413,23 @@ fn event_loop<R: Runtime + 'static>(
             id if id == EVENT_END_FILE => {
                 let end_file = unsafe { *(event.data as *const libmpv2_sys::mpv_event_end_file) };
                 handle_end_file(end_file.reason as u32, &state, &mpv, &app);
+            }
+            id if id == EVENT_FILE_LOADED => {
+                // 再生が始まった = 再接続シーケンス中だったならそれが成功した。
+                // フロントの「自動再接続中…」表示を畳ませる (これが無いと
+                // 再接続中メッセージが出たまま残る)。
+                //
+                // 状態 (attempts / series_started_at / immediate_disconnects)
+                // はここでは触らない。FILE_LOADED は「load しては即 EOF」を
+                // 繰り返す配信でも毎回飛ぶため、ここで attempts を 0 に
+                // 戻すと MaxAttempts / TotalTimeout の諦め判定が効かなくなり
+                // 無限に再接続し続ける。即切断の連続は immediate_disconnects
+                // (→ BroadcastLikelyEnded) が別途見ている。
+                let attempt = state.lock().expect("engine state lock").attempts;
+                let _ = app.emit(
+                    "player:file_loaded",
+                    FileLoadedPayload { was_reconnect: attempt > 0, attempt },
+                );
             }
             _ => continue,
         }
