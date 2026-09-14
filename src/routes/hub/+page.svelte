@@ -1289,7 +1289,7 @@
 			<span class="sep">·</span>
 		{/if}
 		{#if loading}
-			<span class="loading-indicator">⟳ 更新中…</span>
+			<span class="loading-indicator"><span class="spinner" aria-hidden="true"></span>更新中…</span>
 		{:else if lastUpdatedAt}
 			<span class="muted">最終更新: {fmtTime(lastUpdatedAt)}</span>
 		{/if}
@@ -1824,8 +1824,23 @@
 
 	.statusbar .loading-indicator {
 		color: var(--accent);
-		animation: spin 1s linear infinite;
-		display: inline-block;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35em;
+	}
+
+	/* 回転させるのはアイコンだけにする。以前は .loading-indicator 全体に
+	   animation を掛けていたため、「更新中…」の文字ごと回っていた
+	   (実機 QA)。⟳ の字形はフォント依存で潰れるので、文字ではなく
+	   border で描いたリングを回す。 */
+	.statusbar .spinner {
+		width: 0.85em;
+		height: 0.85em;
+		flex: none;
+		border: 2px solid color-mix(in srgb, currentColor 25%, transparent);
+		border-top-color: currentColor;
+		border-radius: 50%;
+		animation: spin 0.8s linear infinite;
 	}
 
 	@keyframes spin {
@@ -1834,6 +1849,13 @@
 		}
 		to {
 			transform: rotate(360deg);
+		}
+	}
+
+	/* モーション低減設定では回転を遅くする (止めると更新中か判らなくなる)。 */
+	@media (prefers-reduced-motion: reduce) {
+		.statusbar .spinner {
+			animation-duration: 2.4s;
 		}
 	}
 
