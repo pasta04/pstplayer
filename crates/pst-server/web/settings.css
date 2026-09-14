@@ -1,0 +1,112 @@
+/* PSTPlayer Server — 設定画面の追加スタイル */
+
+.link-button {
+	background: var(--bg-elev);
+	color: inherit;
+	border: 1px solid var(--border-strong);
+	border-radius: 4px;
+	padding: 0.3rem 0.7rem;
+	font-family: inherit;
+	font-size: 0.85rem;
+	text-decoration: none;
+}
+
+.settings {
+	padding: 0.6rem 0.9rem env(safe-area-inset-bottom, 0.6rem);
+	max-width: 760px;
+	margin: 0 auto;
+}
+
+.settings section {
+	margin-bottom: 1.2rem;
+	background: var(--bg-elev);
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	padding: 0.6rem 0.8rem;
+}
+
+.settings section h2 {
+	margin: 0 0 0.5rem;
+	font-size: 0.95rem;
+	font-weight: 600;
+	color: var(--fg-dim);
+}
+
+.settings label {
+	display: grid;
+	grid-template-columns: 11rem 1fr;
+	gap: 0.5rem;
+	align-items: center;
+	font-size: 0.85rem;
+	margin: 0.25rem 0;
+}
+
+.settings label.check {
+	grid-template-columns: auto 1fr;
+}
+
+.settings input[type='text'],
+.settings input[type='password'],
+.settings input[type='number'] {
+	background: var(--bg-input);
+	color: inherit;
+	border: 1px solid var(--border);
+	border-radius: 3px;
+	padding: 0.25rem 0.45rem;
+	font-family: inherit;
+	font-size: 0.85rem;
+}
+
+#favs {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.78rem;
+}
+
+#favs th,
+#favs td {
+	text-align: left;
+	padding: 0.2rem 0.3rem;
+	border-bottom: 1px solid var(--border);
+}
+
+#favs input[type='text'] {
+	width: 100%;
+	min-width: 4rem;
+	background: var(--bg-input);
+	color: inherit;
+	border: 1px solid var(--border);
+	border-radius: 3px;
+	padding: 0.1rem 0.3rem;
+}
+
+#favs .ops button {
+	background: var(--bg-input);
+	color: inherit;
+	border: 1px solid var(--border);
+	border-radius: 3px;
+	padding: 0.1rem 0.3rem;
+	margin-right: 0.15rem;
+	cursor: pointer;
+}
+
+.form-footer {
+	display: flex;
+	gap: 0.6rem;
+	align-items: center;
+	margin-top: 1rem;
+}
+
+.form-footer button[type='submit'] {
+	background: var(--accent);
+	color: #000;
+	border: 1px solid var(--accent);
+	border-radius: 4px;
+	padding: 0.45rem 1.2rem;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.path {
+	margin-top: 1.5rem;
+}

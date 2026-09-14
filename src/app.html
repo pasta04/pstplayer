@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ja">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>PSTPlayer</title>
+		<style>
+			/* Theme tokens. data-theme="light" overrides the dark defaults.
+			   コンテナ帯 (スレッドタイトル帯 / ステータスバー /
+			   書き込み欄まわり) は両テーマとも黒で固定。BBS ペインと
+			   レス一覧 / 入力 textarea はテーマに追従して明色 (ライト
+			   = 白、ダーク = 暗グレー) になる。 */
+			:root {
+				--bg: #1d1f23;
+				--bg-elev: #25282d;
+				--bg-input: #14161a;
+				--border: #34373d;
+				--border-strong: #4a4d54;
+				--fg: #e8eaed;
+				--fg-dim: #c6c9d0;
+				--fg-muted: #8a8d94;
+				--accent: #5b8def;
+				--accent-link: #88c4ff;
+				--accent-external: #cfa84d;
+				--accent-name: #97e09e;
+				--accent-num: #5b8def;
+				--err: #f08c8c;
+				--bar-thread: #000;
+				--bar-status: #000;
+				--bar-write: #000;
+			}
+			:root[data-theme='light'] {
+				--bg: #f5f6f8;
+				--bg-elev: #ffffff;
+				--bg-input: #ffffff;
+				--border: #d0d4dc;
+				--border-strong: #aab0bb;
+				--fg: #1d1f23;
+				--fg-dim: #404448;
+				--fg-muted: #6b7079;
+				--accent: #2a64d9;
+				--accent-link: #1659c4;
+				--accent-external: #8a6a1f;
+				--accent-name: #1f7d3a;
+				--accent-num: #2a64d9;
+				--err: #c43d3d;
+				--bar-thread: #000;
+				--bar-status: #000;
+				--bar-write: #000;
+			}
+			/* iOS Safari は input / select / textarea の font-size が
+			   16px 未満だとフォーカス時に自動ズームする。スマホ幅では
+			   全ページの入力要素を一律 16px 以上にする (コンポーネント
+			   スコープの指定より優先させるため !important)。 */
+			@media (max-width: 700px) {
+				input,
+				select,
+				textarea {
+					font-size: 16px !important;
+				}
+			}
+		</style>
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>
