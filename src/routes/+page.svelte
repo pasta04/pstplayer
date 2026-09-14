@@ -323,10 +323,13 @@
 		try {
 			const { getCurrentWindow } = await import('@tauri-apps/api/window');
 			focusUnlisten = await getCurrentWindow().onFocusChanged(({ payload: focused }) => {
-				if (!focused) return;
+				if (!focused) {
+					imeLog('tauri blur');
+					return;
+				}
 				// ネイティブフォーカスの復帰そのものを IME 再アンカーの起点に
 				// する (DOM フォーカスが動かない往復も拾うため)。
-				markNativeFocus();
+				markNativeFocus('onFocusChanged');
 				reloadBbsPrefs();
 			});
 		} catch {
@@ -377,7 +380,7 @@
 				void showVideoContextMenu();
 			}),
 			await listen('player:click', () => {
-				markNativeFocus();
+				markNativeFocus('player:click');
 				void onPlayerClick();
 			}),
 		);
@@ -1287,18 +1290,74 @@
 	let composing = false;
 	let reanchorTimer: ReturnType<typeof setTimeout> | null = null;
 
+	/// 左上変換ウィンドウの実機調査用ログ (既定 OFF)。DevTools で
+	/// `localStorage.setItem('pst.imeDebug','1')` を実行して再読み込みすると
+	/// フォーカス遷移と再アンカーの順序が出る (docs/ime-*.md §4-1)。
+	const imeDebug = (() => {
+		try {
+			return localStorage.getItem('pst.imeDebug') === '1';
+		} catch {
+			return false;
+		}
+	})();
+	function imeLog(ev: string, extra = '') {
+		if (!imeDebug) return;
+		const ae = document.activeElement;
+		const tag = ae ? `${ae.tagName}${ae === writeTextarea ? '(write)' : ''}` : 'null';
+		console.log(`[ime ${performance.now().toFixed(0)}] ${ev} active=${tag} ${extra}`);
+	}
+
 	/// 書き込み欄の DOM フォーカスを入れ直し、Chromium に選択矩形を再送
 	/// させる。変換中に blur すると変換が失われるので触らない。
-	function reanchorWriteBox() {
+	/// 次のフレーム境界まで待つ。最小化・遮蔽等で rAF が止まる環境でも
+	/// 復帰処理を落とさないよう、タイマーでも必ず打ち切る。
+	function nextFrame(): Promise<void> {
+		return new Promise<void>((resolve) => {
+			let done = false;
+			const finish = () => {
+				if (done) return;
+				done = true;
+				resolve();
+			};
+			requestAnimationFrame(() => requestAnimationFrame(finish));
+			setTimeout(finish, 50);
+		});
+	}
+
+	async function reanchorWriteBox() {
 		const el = writeTextarea;
 		if (!el) return;
-		if (composing || document.activeElement !== el) return;
+		if (composing || document.activeElement !== el) {
+			imeLog('reanchor skip', `composing=${composing}`);
+			return;
+		}
+		imeLog('reanchor blur');
 		const selStart = el.selectionStart;
 		const selEnd = el.selectionEnd;
 		el.blur();
-		el.focus();
+		// ここでフレーム境界を跨ぐのが必須。同期 blur→focus では直らない:
+		// Chromium は TextInputState を BeginMainFrame ごとに 1 回だけ送り
+		// (WidgetBase::DidBeginMainFrame → UpdateTextInputState)、さらに
+		// 「前回と同じ type / info なら送らない」重複排除がある
+		// (UpdateTextInputStateInternal)。同期 blur→focus はフレームを
+		// 跨がないので差し引きゼロ = 何も送られず、composition 矩形の
+		// 再武装 (RequestCompositionUpdates) が起きない。投稿フロー
+		// (disabled → tick → 再有効化 → focus) が確実に直るのは、間に
+		// フレームを跨いだ TEXT_INPUT_TYPE_NONE が挟まるため。
+		await nextFrame();
+		// 待っている間にユーザーが別要素へフォーカスを移していたら奪わない
+		// (blur 直後は activeElement が body になる)。
+		const ae = document.activeElement;
+		if (ae && ae !== document.body && ae !== el) {
+			imeLog('reanchor abort (focus moved)');
+			return;
+		}
+		const cur = writeTextarea;
+		if (!cur) return;
+		cur.focus();
+		imeLog('reanchor refocused');
 		try {
-			el.setSelectionRange(selStart, selEnd);
+			cur.setSelectionRange(selStart, selEnd);
 		} catch {
 			/* ignore */
 		}
@@ -1311,12 +1370,13 @@
 		if (reanchorTimer) clearTimeout(reanchorTimer);
 		reanchorTimer = setTimeout(() => {
 			reanchorTimer = null;
-			reanchorWriteBox();
+			void reanchorWriteBox();
 		}, 100);
 	}
 
 	/// WebView がネイティブフォーカスを取り戻したときに呼ぶ。
-	function markNativeFocus() {
+	function markNativeFocus(src = '') {
+		imeLog('native focus', src);
 		nativeFocusAt = Date.now();
 		scheduleReanchor();
 	}
@@ -1325,7 +1385,9 @@
 	/// 経路なら矩形は再送されるので本来不要だが、ネイティブ往復と重なった
 	/// ときの取りこぼしを埋めるため、往復直後に限り再アンカーする。
 	function onWriteFocus() {
-		if (Date.now() - nativeFocusAt > 1500) return;
+		const since = Date.now() - nativeFocusAt;
+		imeLog('write focus', `sinceNative=${since}ms`);
+		if (since > 1500) return;
 		scheduleReanchor();
 	}
 
@@ -1790,7 +1852,7 @@
 	}
 </script>
 
-<svelte:window onfocus={markNativeFocus} />
+<svelte:window onfocus={() => markNativeFocus('window')} />
 
 <svelte:head>
 	<title>PSTPlayer</title>
@@ -2033,8 +2095,14 @@
 			bind:value={writeBody}
 			onkeydown={onWriteKey}
 			onfocus={onWriteFocus}
-			oncompositionstart={() => (composing = true)}
-			oncompositionend={() => (composing = false)}
+			oncompositionstart={() => {
+				composing = true;
+				imeLog('compositionstart');
+			}}
+			oncompositionend={() => {
+				composing = false;
+				imeLog('compositionend');
+			}}
 			disabled={!currentThreadUrl || writeSending}
 			rows={Math.max(1, writeBody.split('\n').length)}
 		></textarea>

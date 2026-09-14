@@ -25,7 +25,8 @@
 | `524360e` | ウィンドウ focus / 書き込み欄 focus 時に 80ms 遅延 blur→focus                                            | 変換中に blur が走り変換不能になる副作用で撤去   |
 | `deb01ae` | 視聴プロセスごとに WebView2 の UDF を分離 (ブラウザプロセス分離)                                         | **多窓間 (ハブ↔視聴、視聴↔視聴) の発症は解消**   |
 | `c167d31` | ネイティブフォーカス取得後 1.5 秒以内の書き込み欄 focus に限り 100ms 後に一度だけ再アンカー (変換中は不可) | 単窓 (mpv→textarea) でも再発 |
-| 本コミット | §5 B-1 を実装。再アンカーの起点を textarea の focus イベントから**ネイティブフォーカス取得**(`player:click` / `onFocusChanged(true)` / window focus) に変更し、§3.3-1 の順序依存を解消 (変換中は触らない条件は維持)。現行 | 実機確認待ち |
+| `0b52f68` | §5 B-1 を実装。再アンカーの起点を textarea の focus イベントから**ネイティブフォーカス取得**(`player:click` / `onFocusChanged(true)` / window focus) に変更し、§3.3-1 の順序依存を解消 | **再発** (起点は直ったが再アンカー自体が無効だった → §8) |
+| 本コミット | 再アンカーの blur→focus を**フレーム境界を跨ぐ**形に変更 (§8 で確定した真因)。あわせて実機調査ログ (既定 OFF) を追加。現行 | 実機確認待ち |
 
 ## 2. 一次資料から確定した事実
 
@@ -324,3 +325,69 @@ WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--trace-startup=ime --trace-startup-durati
 「投稿すると直る / 別要素クリックで直る」も全て同じ経路の再武装として
 説明できる。変換開始**前**に済ませる必要がある点も 7.4 の
 `ConfirmCompositionText` から自明。
+
+## 8. 真因の確定: 同期 blur→focus では再武装が起きない (2026-09-14)
+
+`0b52f68` (B-1) で再アンカーの**起点**は直ったが実機で再発した。調べた
+結果、起点ではなく**再アンカーの実装そのもの**が無効だったことが
+Chromium のソースで確定した。これは `0be0001` / `c167d31` / `0b52f68` の
+3 回すべてに共通する欠陥で、過去の対策が「改善するが再発」を繰り返した
+理由でもある。
+
+### 8.1 TextInputState はフレーム単位 + 差分のみ送信される
+
+- 送信契機は **`WidgetBase::DidBeginMainFrame()` → `UpdateTextInputState()`**
+  (`widget_base.cc` L704-710)。つまり `focus()` の呼び出しごとではなく
+  **BeginMainFrame ごとに 1 回**評価される。
+- しかも `UpdateTextInputStateInternal` には差分チェックがある
+  (L1254 以降):
+
+  ```cpp
+  // Only sends text input params if they are changed or if the ime should be
+  // shown.
+  if (show_virtual_keyboard || reply_to_request ||
+      text_input_type_ != new_type || text_input_mode_ != new_mode ||
+      text_input_info_ != new_info || ...) {
+  ```
+
+→ 同期的に `el.blur(); el.focus();` すると、**フレーム境界を跨がない**ので
+BeginMainFrame の時点では type も info も直前と完全に同一になる。差分が
+無いので **TextInputState は 1 回も送られない**。§7.2-2 のとおり
+`RequestCompositionUpdates(monitor=true)` は TextInputState 更新を受けた
+browser 側でしか呼ばれないため、**矩形の再武装が起きない** =
+`GetTextExt` は `TS_E_NOLAYOUT` を返し続け、候補窓は左上のまま。
+
+### 8.2 「投稿すると直る」が成立していた理由
+
+投稿フローは `disabled = true` → `await tick()` → `disabled = false` →
+`focus()` と**複数フレームに跨る**。そのため
+
+1. あるフレームで `TEXT_INPUT_TYPE_NONE` が送られ (browser 側で
+   `RequestCompositionUpdates(monitor=false)`)、
+2. 次のフレームで `TEXT_INPUT_TYPE_TEXT_AREA` が送られて
+   `RequestCompositionUpdates(monitor=true)` で**再武装**される
+
+という 2 回の実遷移が発生する。これが唯一確実に直る操作だった理由で、
+「別要素をクリックして戻す」「他アプリへ行って戻る」も同じ理屈。
+
+### 8.3 対策
+
+再アンカーを **blur → フレーム境界を跨ぐ → focus** に変更した
+(`nextFrame()`: `requestAnimationFrame` 2 回 + 50ms のタイマー保険)。
+最小化・遮蔽で rAF が止まる環境でもフォーカスを落としたままにしない。
+待機中にユーザーが別要素へフォーカスを移していた場合は奪い返さない。
+
+### 8.4 それでも直らない場合の実機ログ
+
+視聴画面に既定 OFF の調査ログを入れた (§4-1 の代替)。DevTools で
+
+```js
+localStorage.setItem('pst.imeDebug', '1'); // 解除は removeItem
+```
+
+を実行して再読み込みすると、`[ime <ms>] <event> active=<tag>` 形式で
+window / Tauri / player:click の各フォーカス取得、書き込み欄の focus、
+`compositionstart` / `compositionend`、再アンカーの blur / refocus /
+skip / abort が時刻付きで出る。左上に出た回と出なかった回でこの並びを
+比較すれば、「再アンカーが走ったか」「変換開始が再アンカーより先か」が
+切り分けられる。
