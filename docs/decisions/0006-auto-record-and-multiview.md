@@ -316,14 +316,14 @@ pst-server が無くても完結する。
       `CLOSE` opcode を追加 (`close\n`)、`request_close(addr)` /
       `serve(..., on_close)` で対応。Tauri command `close_viewer` /
       `close_all_viewers` でハブから視聴ウィンドウを終了させられる
-- [x] **`--record-on-start` CLI フラグ**: ハブの右クリック「視聴 +
+- [x] ~~**`--record-on-start` CLI フラグ**: ハブの右クリック「視聴 +
       録画」から spawn 時に付与される。viewer 側で favorites の
       auto_record と独立に強制録画開始 (Hub から記録「したい時」の
-      ワンクリックを提供)
+      ワンクリックを提供)~~ → **廃止** (後述の「視聴と録画の分離」)
 - [x] **ハブ画面 (`/hub` route)**: pstplayer を URL 引数なしで起動
       した時のメイン UI。複数 YP テーブル + お気に入り適用 + 右クリック
-      メニュー + 自動再 fetch + 視聴中バッジ + 新着 OS 通知 + 「視聴 +
-      録画」 + 一括クローズ + 「録画中」タブ + ⏹ 録画停止 + ダブル/
+      メニュー + 自動再 fetch + 視聴中バッジ + 新着 OS 通知 + 録画開始 /
+      停止 + 一括クローズ + 「録画中」タブ + ダブル/
       ミドルクリック動作の設定 + Ctrl+1〜9 のタブ切替 + URL 直接視聴。
       設計は [pstplayer-hub-*.md](../design/)、使い方は
       [docs/usage/hub.md](../usage/hub.md)
@@ -422,3 +422,31 @@ pst-server が無くても完結する。
 - Web グリッドの帯域試算 (1 配信 1.5 Mbps × 9 = 13.5 Mbps、Wi-Fi 6 でも
   ギリギリ)
 - マルチビュー時のステータスバー / 録画ボタンの取り扱い
+
+---
+
+## 事後変更: 視聴と録画の分離 (2026-09-14)
+
+本 ADR で導入した「視聴 + 録画」ワンクリック (`--record-on-start` +
+`HubClickAction::WatchAndRecord`) を**廃止**し、視聴と録画を完全に
+独立した操作にした。
+
+**理由**: 「視聴 + 録画」で始めると視聴と録画が同じ viewer プロセスに
+束ねられるため、**視聴だけやめて録画を続ける**ことができなかった
+(視聴ウィンドウを閉じる = 録画も止まる)。
+
+**変更後**: 録画は視聴の有無と無関係に pst-server が担当する。ハブの
+右クリックメニューは視聴系 (▶ 視聴 / ✕ 閉じる) と録画系 (⏺ 録画開始 /
+⏹ 録画停止) が直交し、どちらを止めてももう一方は続く。
+
+廃止したもの:
+
+- `--record-on-start` CLI フラグと `CliArgs::record_on_start`
+- `spawn_viewer` の `record` 引数 (+ focus 時の録画開始 IPC 送信)
+- `HubClickAction::WatchAndRecord` (ダブル / ミドルクリック動作の選択肢)
+- ハブの `Shift+Enter` (視聴 + 録画 spawn)
+- 「録画のみ (ウィンドウ無し)」— 「⏺ 録画開始」と同一処理になったため統合
+
+viewer 側の録画機構 (`startrec` / `stoprec` IPC と libmpv の
+stream-record) はこの変更では撤去していないが、フロントからの
+呼び出し経路は無くなった。

@@ -247,12 +247,11 @@ pub fn start_viewer_recording(channel_id: String) -> bool {
 /// 一緒に送って引き込みを発火させる。`tip` 値は URL クエリ注入対策で
 /// [`pst_core::peercast::url::build_pls_url`] 側で検証する。
 ///
-/// `record` = true で `--record-on-start` を追加 (= viewer 側で
-/// favorites の auto_record と独立に強制録画開始)。
+/// 録画は視聴と独立した操作 (ハブの「録画開始」→ pst-server) なので、
+/// ここでは録画に一切関与しない。
 #[tauri::command]
 pub fn spawn_viewer(
     channel_id: String,
-    record: Option<bool>,
     hidden: Option<bool>,
     tip: Option<String>,
 ) -> Result<SpawnViewerOutcome, IpcError> {
@@ -270,12 +269,6 @@ pub fn spawn_viewer(
     // 落ちた、ファイアウォール等) なら新規 spawn にフォールバック。
     if let Some(info) = single_instance::read_existing(channel_id) {
         if single_instance::request_focus(info.ipc_addr).is_ok() {
-            // 既に視聴中のチャンネルに「視聴+録画」した場合、focus だけだと
-            // 録画指示が失われる (D3)。record=true なら録画開始 IPC も送って
-            // 既存ウィンドウで録画を開始させる。
-            if record.unwrap_or(false) {
-                let _ = single_instance::request_start_recording(info.ipc_addr);
-            }
             return Ok(SpawnViewerOutcome::Focused);
         }
         // probe → focus の間に死んだ可能性 → spawn にフォールスルー。
@@ -293,10 +286,7 @@ pub fn spawn_viewer(
     })?;
     let mut cmd = Command::new(exe);
     cmd.arg(&url);
-    if record.unwrap_or(false) {
-        cmd.arg("--record-on-start");
-    }
-    // 「録画のみ」: ウィンドウを表示せず (--hidden) 起動する (D2)。録画は継続。
+    // `--hidden`: ウィンドウを表示せずに起動する (D2)。
     if hidden.unwrap_or(false) {
         cmd.arg("--hidden");
     }

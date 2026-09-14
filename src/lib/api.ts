@@ -184,7 +184,6 @@ export interface CliArgs {
 	hidden: boolean;
 	show_help: boolean;
 	show_version: boolean;
-	record_on_start: boolean;
 }
 
 export async function getCliArgs(): Promise<CliArgs> {
@@ -305,11 +304,10 @@ export type SpawnViewerOutcome = 'focused' | 'spawned';
 /// tip が分からないときは省略可。
 export async function spawnViewer(
 	channelId: string,
-	options?: { record?: boolean; hidden?: boolean; tip?: string },
+	options?: { hidden?: boolean; tip?: string },
 ): Promise<SpawnViewerOutcome> {
 	return call<SpawnViewerOutcome>('spawn_viewer', {
 		channelId,
-		record: options?.record ?? false,
 		hidden: options?.hidden ?? false,
 		tip: options?.tip ?? null,
 	});
@@ -606,7 +604,7 @@ export interface YpCfg {
 	sources: YpSource[];
 }
 
-export type HubClickAction = 'none' | 'watch' | 'watch_and_record' | 'open_bbs' | 'open_contact';
+export type HubClickAction = 'none' | 'watch' | 'open_bbs' | 'open_contact';
 
 export interface HubCfg {
 	refresh_sec: number;

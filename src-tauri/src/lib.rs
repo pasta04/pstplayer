@@ -51,14 +51,6 @@ fn maybe_acquire_lock(cli: &CliArgs) -> AcquireOutcome {
             if let Err(e) = single_instance::request_focus(info.ipc_addr) {
                 eprintln!("既存ウィンドウへのフォーカス要求が失敗: {e}");
             }
-            // `--record-on-start` 付き (= ハブの「視聴+録画」) で起動された
-            // のに既存ウィンドウがあった場合、focus だけだと録画指示が失わ
-            // れる。既存ウィンドウへ録画開始 IPC も送る (D3)。
-            if cli.record_on_start {
-                if let Err(e) = single_instance::request_start_recording(info.ipc_addr) {
-                    eprintln!("既存ウィンドウへの録画開始要求が失敗: {e}");
-                }
-            }
             AcquireOutcome::ConflictResolved
         }
         Err(e) => {
@@ -364,7 +356,7 @@ pub fn run() {
                     eprintln!("warning: failed to initialise libmpv: {e}");
                 }
             }
-            // 「録画のみ」(--hidden) で起動された場合はウィンドウを非表示に
+            // `--hidden` で起動された場合はウィンドウを非表示に
             // する (D2)。録画 (stream-record) はウィンドウ表示に依存しないので
             // 非表示のまま録り続けられる。停止はハブの「視聴中」操作から行う。
             if start_hidden {

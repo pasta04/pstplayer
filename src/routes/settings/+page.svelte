@@ -617,7 +617,6 @@
 							onchange={(e) => setHubDoubleClick(e.currentTarget.value)}
 						>
 							<option value="watch">視聴 (別ウィンドウで開く)</option>
-							<option value="watch_and_record">視聴 + 録画開始</option>
 							<option value="open_bbs">BBS としてコンタクト URL を開く</option>
 							<option value="open_contact">コンタクト URL をブラウザで開く</option>
 							<option value="none">何もしない</option>
@@ -630,7 +629,6 @@
 							onchange={(e) => setHubMiddleClick(e.currentTarget.value)}
 						>
 							<option value="watch">視聴 (別ウィンドウで開く)</option>
-							<option value="watch_and_record">視聴 + 録画開始</option>
 							<option value="open_bbs">BBS としてコンタクト URL を開く</option>
 							<option value="open_contact">コンタクト URL をブラウザで開く</option>
 							<option value="none">何もしない</option>

@@ -569,20 +569,14 @@
 		return !!e.id && [...e.id].some((c) => c !== '0');
 	}
 
-	async function watchRow(e: YpEntry, record = false) {
+	/// 視聴を開始する。録画は視聴と独立した操作 (startRecordingRow /
+	/// stopRecordingRow) なので、ここでは録画に一切触れない。視聴をやめても
+	/// 録画は続き、録画をやめても視聴は続く。
+	async function watchRow(e: YpEntry) {
 		closeMenu();
 		if (!isPlayable(e)) {
 			// 通知行: 再生できないのでコンタクト URL を開く。
 			if (e.contact_url) openInBrowser(e.contact_url);
-			return;
-		}
-		// 録画は常に pst-server が担当する。「視聴 + 録画」は viewer(libmpv) で
-		// 視聴しつつ pst-server にも録画を依頼する。ローカル PeerCast 本体へは
-		// viewer + pst-server の 2 接続になるが、本体 → インターネットのリレーは
-		// 1 本なので外向き帯域は増えない。録画には pst-server が必須。
-		if (record && !pstServerUrl) {
-			lastError =
-				'「視聴 + 録画」の録画は pst-server が担当します (設定 → ハブ → pst-server URL を設定し、pst-server を起動してください)。録画なしの「視聴」はそのまま使えます。';
 			return;
 		}
 		try {
@@ -595,9 +589,6 @@
 				// できない (実測 503) ため、YP の tip を引き継ぐ。
 				const tip = e.tip ? `&tip=${encodeURIComponent(e.tip)}` : '';
 				window.open(`/player?id=${encodeURIComponent(e.id)}${tip}`, '_blank', 'noopener');
-			}
-			if (record) {
-				await serverRecordStart(pstServerUrl, e.id, e.name ?? '');
 			}
 			// 即座に「視聴中」リストを更新 (5 秒待たずにバッジが付く)。
 			// spawn 直後は lock が完了していないかもしれないので少し待つ。
@@ -639,28 +630,11 @@
 		}
 	}
 
-	// 「録画のみ」= 視聴ウィンドウを開かず pst-server に録画させる (再生なし /
-	// 音なし)。録画は pst-server が HTTP ストリームを直接ファイルへ保存する。
-	async function recordOnlyRow(e: YpEntry) {
-		closeMenu();
-		if (!pstServerUrl) {
-			lastError =
-				'「録画のみ」には pst-server が必要です (設定 → ハブ → pst-server URL を設定し、pst-server を起動してください)。「視聴 + 録画」なら不要です。';
-			return;
-		}
-		try {
-			await serverRecordStart(pstServerUrl, e.id, e.name ?? '', e.tip);
-			setTimeout(() => {
-				void refreshWatching();
-			}, 600);
-		} catch (err) {
-			lastError = err instanceof Error ? err.message : String(err);
-		}
-	}
-
+	/// 録画開始。録画は視聴と独立した操作で、pst-server が HTTP ストリームを
+	/// 直接ファイルへ保存する (再生なし / 音なし)。視聴ウィンドウの有無に
+	/// 関係なく開始でき、視聴をやめても録画は続く。
 	async function startRecordingRow(e: YpEntry) {
 		closeMenu();
-		// 視聴中のまま録画開始。録画は pst-server が担当し、viewer はそのまま再生。
 		if (!pstServerUrl) {
 			lastError =
 				'録画は pst-server が担当します (設定 → ハブ → pst-server URL を設定し、pst-server を起動してください)。';
@@ -670,7 +644,7 @@
 			await serverRecordStart(pstServerUrl, e.id, e.name ?? '', e.tip);
 			setTimeout(() => {
 				void refreshWatching();
-			}, 400);
+			}, 600);
 		} catch (err) {
 			lastError = err instanceof Error ? err.message : String(err);
 		}
@@ -731,9 +705,6 @@
 		switch (action) {
 			case 'watch':
 				void watchRow(e);
-				break;
-			case 'watch_and_record':
-				void watchRow(e, true);
 				break;
 			case 'open_bbs':
 				void openBbs(e.contact_url);
@@ -802,18 +773,6 @@
 					action: () => void closeRow(t),
 				}),
 			);
-			if (recordingIds.has(t.id)) {
-				items.push(
-					await MenuItem.new({ text: '⏹ 録画停止', action: () => void stopRecordingRow(t) }),
-				);
-			} else {
-				items.push(
-					await MenuItem.new({
-						text: '⏺ 録画開始 (視聴中のまま)',
-						action: () => void startRecordingRow(t),
-					}),
-				);
-			}
 		} else {
 			items.push(
 				await MenuItem.new({
@@ -821,22 +780,17 @@
 					action: () => void watchRow(t),
 				}),
 			);
-			if (recordingIds.has(t.id)) {
-				// 「録画のみ」中 (視聴ウィンドウ無し) でも停止できること。
-				items.push(
-					await MenuItem.new({ text: '⏹ 録画停止', action: () => void stopRecordingRow(t) }),
-				);
-			} else {
-				items.push(
-					await MenuItem.new({ text: '⏺ 視聴 + 録画開始', action: () => void watchRow(t, true) }),
-				);
-				items.push(
-					await MenuItem.new({
-						text: '⏺ 録画のみ (ウィンドウ無し)',
-						action: () => void recordOnlyRow(t),
-					}),
-				);
-			}
+		}
+		// 録画は視聴と独立した操作なので、視聴中かどうかに関係なく同じ
+		// 項目を出す (視聴をやめても録画は続き、その逆も同じ)。
+		if (recordingIds.has(t.id)) {
+			items.push(
+				await MenuItem.new({ text: '⏹ 録画停止', action: () => void stopRecordingRow(t) }),
+			);
+		} else {
+			items.push(
+				await MenuItem.new({ text: '⏺ 録画開始', action: () => void startRecordingRow(t) }),
+			);
 		}
 		items.push(await sep());
 		items.push(
@@ -1022,11 +976,7 @@
 			if (menuOpen) closeMenu();
 		} else if (ev.key === 'Enter') {
 			const e = visible.find((v) => rowKey(v.e) === selectedKey)?.e;
-			if (e) {
-				// Shift+Enter で「視聴 + 録画」、通常 Enter で「視聴」
-				if (ev.shiftKey) void watchRow(e, true);
-				else void watchRow(e);
-			}
+			if (e) void watchRow(e);
 		} else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
 			if (visible.length === 0) return;
 			ev.preventDefault();
@@ -1351,23 +1301,19 @@
 	>
 		{#if watchingIds.has(t.id)}
 			<button onclick={() => closeRow(t)} class="primary">✕ 視聴ウィンドウを閉じる</button>
-			{#if recordingIds.has(t.id)}
-				<button onclick={() => stopRecordingRow(t)}>⏹ 録画停止</button>
-			{:else}
-				<button onclick={() => startRecordingRow(t)}>⏺ 録画開始 (視聴中のまま)</button>
-			{/if}
 		{:else}
 			<button onclick={() => watchRow(t)} class="primary">▶ 視聴 (別ウィンドウで開く)</button>
-			{#if recordingIds.has(t.id)}
-				<button onclick={() => stopRecordingRow(t)}>⏹ 録画停止</button>
-			{:else}
-				<button onclick={() => watchRow(t, true)}>⏺ 視聴 + 録画開始</button>
-				<button
-					onclick={() => recordOnlyRow(t)}
-					title="pst-server に録画させる (視聴ウィンドウを開かず、再生も音も無し)"
-					>⏺ 録画のみ</button
-				>
-			{/if}
+		{/if}
+		<!-- 録画は視聴と独立した操作なので、視聴中かどうかに関係なく同じ項目を
+		     出す (視聴をやめても録画は続き、その逆も同じ)。 -->
+		{#if recordingIds.has(t.id)}
+			<button onclick={() => stopRecordingRow(t)}>⏹ 録画停止</button>
+		{:else}
+			<button
+				onclick={() => startRecordingRow(t)}
+				title="pst-server に録画させる (視聴とは独立。視聴していなくても録画でき、視聴をやめても続く)"
+				>⏺ 録画開始</button
+			>
 		{/if}
 		<hr />
 		<button onclick={() => openBbs(t.contact_url)} disabled={!t.contact_url}

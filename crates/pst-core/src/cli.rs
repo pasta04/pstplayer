@@ -29,13 +29,10 @@ pub struct CliArgs {
     pub no_autoplay: bool,
     pub no_bbs: bool,
     pub minimized: bool,
-    /// 視聴ウィンドウを表示せず録画だけ行う (ハブの「録画のみ」)。
+    /// 視聴ウィンドウを表示せずに起動する。
     pub hidden: bool,
     pub show_help: bool,
     pub show_version: bool,
-    /// 起動時に強制的に録画も開始する (favorites の auto_record と独立)。
-    /// hub から「視聴 + 録画」で spawn された viewer が使う。
-    pub record_on_start: bool,
 }
 
 /// Parse a slice of arguments (excluding `argv[0]`).
@@ -58,7 +55,6 @@ pub fn parse(args: &[String]) -> CliArgs {
                     "hidden" => out.hidden = true,
                     "help" => out.show_help = true,
                     "version" => out.show_version = true,
-                    "record-on-start" => out.record_on_start = true,
                     _ => {
                         let next = iter.next().cloned();
                         assign_long(&mut out, rest, next);
@@ -153,15 +149,10 @@ mod tests {
     }
 
     #[test]
-    fn record_on_start_flag() {
+    fn unknown_long_flag_is_ignored() {
+        // 「視聴 + 録画」廃止で `--record-on-start` は無くなった。未知の
+        // long flag を渡しても URL 解釈を壊さないこと。
         let a = parse(&argv(&["http://h/pls/x", "--record-on-start"]));
-        assert!(a.record_on_start);
         assert_eq!(a.url.as_deref(), Some("http://h/pls/x"));
-    }
-
-    #[test]
-    fn record_on_start_default_off() {
-        let a = parse(&argv(&["http://h/pls/x"]));
-        assert!(!a.record_on_start);
     }
 }

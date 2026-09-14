@@ -63,8 +63,6 @@ pub enum HubClickAction {
     /// 視聴ウィンドウを別プロセスで開く。
     #[default]
     Watch,
-    /// 視聴 + 録画開始。
-    WatchAndRecord,
     /// BBS としてコンタクト URL を開く。
     OpenBbs,
     /// コンタクト URL をブラウザで開く。
