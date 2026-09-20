@@ -2467,41 +2467,60 @@
 	{/if}
 
 	<!-- Status bar (緑) -->
+	<!-- 3 分割 (左: 配信情報 / 中: メッセージ / 右: ボタン類)。余白の吸収は
+	     中央の .s-msg だけに持たせる。以前は .s-actions / .reconnect / .err が
+	     それぞれ margin-left: auto を持っていて、フレックスの余白がこれらに
+	     分配されていたため、メッセージが出るたびにボタンの位置が動いていた
+	     (実機 QA)。長いメッセージは .s-msg 内で省略し、右端のボタン類は
+	     flex: none で常に同じ位置に固定する。 -->
 	<div class="status-bar">
-		{#if statusLine}
-			<span class="s-name">{statusLine.name}</span>
-			<span class="s-info">
-				{statusLine.br}
-				{#if statusLine.fps}({statusLine.fps}){/if}
-				{statusLine.ldir}
-				{statusLine.lrel}
-			</span>
-			{#if statusLine.size}<span class="s-size">{statusLine.size}</span>{/if}
-			<span class="s-up">{formatUptime(liveUptimeSec)}</span>
-			<span class="s-vol" title="マウスホイールで音量調整">♪ {volume}</span>
-			<span class="s-actions">
-				<button onclick={onBump} title="再接続 (Bump)">↻</button>
-				<button onclick={onStop} title="切断 (Stop)">■</button>
-				<button onclick={onOpenSettings} title="設定">⚙</button>
-			</span>
-		{:else}
-			<span class="muted">未接続</span>
-		{/if}
-		{#if currentThreadUrl}
-			<!-- スレッド表示中のレス件数。`.length` 直読みは本番で追従しない
-			     ため iterate ベースの postCount を使う (上の $effect を参照)。
-			     フィルタ中は表示中件数も併記。 -->
-			<span class="s-posts" title="現スレッドのレス件数 (フィルタ中は表示中 / 全件)">
-				📝 {#if visiblePosts.length !== postCount}{visiblePosts.length} /
-				{/if}{postCount}
-			</span>
-		{/if}
-		{#if reconnectStatus}
-			<span class="reconnect" title="自動再接続の状態 (詳細は engine.rs)">⟳ {reconnectStatus}</span>
-		{/if}
-		{#if lastError}
-			<span class="err">⚠ {lastError}</span>
-		{/if}
+		<span class="s-left">
+			{#if statusLine}
+				<span class="s-name">{statusLine.name}</span>
+				<span class="s-info">
+					{statusLine.br}
+					{#if statusLine.fps}({statusLine.fps}){/if}
+					{statusLine.ldir}
+					{statusLine.lrel}
+				</span>
+				{#if statusLine.size}<span class="s-size">{statusLine.size}</span>{/if}
+				<span class="s-up">{formatUptime(liveUptimeSec)}</span>
+				<span class="s-vol" title="マウスホイールで音量調整">♪ {volume}</span>
+			{:else}
+				<span class="muted">未接続</span>
+			{/if}
+		</span>
+
+		<span class="s-msg">
+			{#if reconnectStatus}
+				<span class="reconnect" title="自動再接続の状態 (詳細は engine.rs)"
+					>⟳ {reconnectStatus}</span
+				>
+			{/if}
+			{#if lastError}
+				<!-- 省略されても全文を読めるよう title に原文を入れる。 -->
+				<span class="err" title={lastError}>⚠ {lastError}</span>
+			{/if}
+		</span>
+
+		<span class="s-right">
+			{#if statusLine}
+				<span class="s-actions">
+					<button onclick={onBump} title="再接続 (Bump)">↻</button>
+					<button onclick={onStop} title="切断 (Stop)">■</button>
+					<button onclick={onOpenSettings} title="設定">⚙</button>
+				</span>
+			{/if}
+			{#if currentThreadUrl}
+				<!-- スレッド表示中のレス件数。`.length` 直読みは本番で追従しない
+				     ため iterate ベースの postCount を使う (上の $effect を参照)。
+				     フィルタ中は表示中件数も併記。 -->
+				<span class="s-posts" title="現スレッドのレス件数 (フィルタ中は表示中 / 全件)">
+					📝 {#if visiblePosts.length !== postCount}{visiblePosts.length} /
+					{/if}{postCount}
+				</span>
+			{/if}
+		</span>
 	</div>
 </div>
 
@@ -2968,8 +2987,38 @@
 		text-align: right;
 	}
 
+	/* 左: 配信情報。長いチャンネル名は縮めて省略する (ボタンより先に譲る)。 */
+	.s-left {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		flex: 0 1 auto;
+		min-width: 0;
+		overflow: hidden;
+	}
+
+	/* 中央: 通信エラー / 再接続メッセージ。余白の吸収はここだけが担い、
+	   長文もここで省略する。 */
+	.s-msg {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 0.5rem;
+		flex: 1 1 auto;
+		min-width: 0;
+		overflow: hidden;
+	}
+
+	/* 右: ボタン類 + レス件数。flex: none で縮めず、メッセージの有無や
+	   長さに関係なく常に同じ位置に出す。 */
+	.s-right {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		flex: none;
+	}
+
 	.s-actions {
-		margin-left: auto;
 		display: flex;
 		gap: 0.3rem;
 	}
@@ -3005,19 +3054,21 @@
 		margin: 0 0 0.4rem;
 	}
 
+	/* margin-left: auto は持たせない (余白は .s-msg が吸う)。幅が足りない
+	   ときは省略表示にして、ボタン類を押し出さない。 */
 	.err {
 		color: var(--err);
-		margin-left: auto;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.reconnect {
 		color: #f5b942;
-		margin-left: auto;
 		font-weight: 500;
-	}
-
-	.reconnect + .err {
-		margin-left: 0.5rem;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	/* Linked anchors / IDs inside post bodies and header. */
