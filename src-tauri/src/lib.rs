@@ -281,6 +281,14 @@ pub fn run() {
 
     let cli_args = cli::parse(&std::env::args().skip(1).collect::<Vec<_>>());
 
+    // PeerCast 向けリクエストのタイムアウト (設定「接続タイムアウト (秒)」) を
+    // HTTP 層へ反映する。CLIENT は Lazy な共有インスタンスで後から作り直せない
+    // ため、値を持たせてリクエストごとに適用する方式 (util::http 参照)。
+    // 設定変更時は set_config からも同じ関数を呼んで即反映する。
+    if let Ok(cfg) = pst_core::config::load() {
+        pst_core::util::http::set_peercast_timeout_secs(cfg.peercast.timeout_sec);
+    }
+
     // channel_id 単位の single_instance チェック。URL 起動 + 既存プロセスが
     // 同 ch を視聴中の場合は何もせず終了 (フォーカス要求は送る)。
     let lock_handle = match maybe_acquire_lock(&cli_args) {
@@ -492,6 +500,7 @@ pub fn run() {
             commands::config::config_file_path,
             commands::config::save_window_geometry,
             commands::config::push_recent_host,
+            commands::config::remember_channel_volume,
             commands::bbs::list_threads,
             commands::bbs::fetch_thread,
             commands::bbs::post_to_thread,

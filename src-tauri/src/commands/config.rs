@@ -49,6 +49,8 @@ pub async fn set_config(
         }
     }
     config::save(&config).map_err(IpcError::from)?;
+    // 「接続タイムアウト (秒)」を再起動なしで反映する。
+    pst_core::util::http::set_peercast_timeout_secs(config.peercast.timeout_sec);
     // 稼働中の内蔵サーバへ設定変更 (お気に入り / YP / 録画先 / peercast) を
     // 即反映する。
     if let Some(handle) = cfg_handle {
@@ -92,4 +94,23 @@ pub fn push_recent_host(host: String, port: u16) -> Result<(), IpcError> {
     })
     .map(|_| ())
     .map_err(Into::into)
+}
+
+/// チャンネル名ごとの音量を覚える。次に同じチャンネルを開いたとき、この値
+/// に戻す (未記録のチャンネルは `player.volume` = 初期音量を使う)。
+///
+/// 視聴ウィンドウは複数プロセスが同時に動くので、`config::update` で
+/// 部分更新して他ウィンドウの書き込みを巻き込まないようにする。保存先を
+/// localStorage にしないのは、視聴プロセスが WebView2 の UDF をプロセス
+/// ごとに分離しており (lib.rs の setup_webview_isolation)、起動のたびに
+/// localStorage が空になるため。
+#[tauri::command]
+pub fn remember_channel_volume(name: String, volume: u8) -> Result<(), IpcError> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Ok(());
+    }
+    config::update(|cfg| cfg.player.remember_channel_volume(&name, volume))
+        .map(|_| ())
+        .map_err(Into::into)
 }

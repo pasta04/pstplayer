@@ -305,6 +305,52 @@ pub struct PlayerConfig {
     /// - ユーザ手動 stop / 別チャンネル load でリセット
     #[serde(default)]
     pub auto_reconnect: bool,
+    /// チャンネル名ごとに覚えた音量 (最近使った順、先頭が最新)。同じ
+    /// チャンネルを開き直したときに前回の音量へ戻すために使う。ここに
+    /// 無いチャンネルは `volume` (初期音量) を使う。
+    #[serde(default)]
+    pub channel_volumes: Vec<ChannelVolume>,
+}
+
+/// [`PlayerConfig::channel_volumes`] の 1 件。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChannelVolume {
+    pub name: String,
+    pub volume: u8,
+}
+
+/// 覚えるチャンネル数の上限。超えたら古い順に捨てる。
+pub const MAX_CHANNEL_VOLUMES: usize = 200;
+
+impl PlayerConfig {
+    /// チャンネルの音量を記憶する。最近使った順 (先頭が最新) に並べ替え、
+    /// 上限を超えたら古いものから捨てる (recent_hosts と同じ方式)。
+    /// 名前が空のチャンネルは記憶しない (キーにならないため)。
+    pub fn remember_channel_volume(&mut self, name: &str, volume: u8) {
+        let name = name.trim();
+        if name.is_empty() {
+            return;
+        }
+        self.channel_volumes.retain(|e| e.name != name);
+        self.channel_volumes.insert(
+            0,
+            ChannelVolume {
+                name: name.to_string(),
+                volume,
+            },
+        );
+        self.channel_volumes.truncate(MAX_CHANNEL_VOLUMES);
+    }
+
+    /// そのチャンネルで使う音量。記憶が無ければ `volume` (初期音量)。
+    pub fn volume_for_channel(&self, name: &str) -> u8 {
+        let name = name.trim();
+        self.channel_volumes
+            .iter()
+            .find(|e| e.name == name)
+            .map(|e| e.volume)
+            .unwrap_or(self.volume)
+    }
 }
 
 impl Default for PlayerConfig {
@@ -318,6 +364,7 @@ impl Default for PlayerConfig {
             recording_dir: String::new(),
             recording_ext: String::new(),
             auto_reconnect: false,
+            channel_volumes: Vec::new(),
         }
     }
 }
@@ -471,6 +518,51 @@ mod tests {
             assert!(json.get(key).is_some(), "missing {key}: {json}");
         }
         assert!(json.get("auto_refresh_sec").is_none());
+    }
+
+    /// チャンネルごとの音量記憶: 最近使った順・上書き・上限・フォールバック。
+    #[test]
+    fn channel_volume_is_remembered_most_recent_first() {
+        let mut p = PlayerConfig::default();
+        assert_eq!(p.volume_for_channel("未記録"), p.volume, "未記録は初期音量");
+
+        p.remember_channel_volume("ch-a", 30);
+        p.remember_channel_volume("ch-b", 40);
+        assert_eq!(p.volume_for_channel("ch-a"), 30);
+        assert_eq!(p.volume_for_channel("ch-b"), 40);
+        assert_eq!(p.channel_volumes[0].name, "ch-b", "最新が先頭");
+
+        // 同じチャンネルは重複せず上書きされ、先頭へ移動する。
+        p.remember_channel_volume("ch-a", 55);
+        assert_eq!(p.volume_for_channel("ch-a"), 55);
+        assert_eq!(p.channel_volumes.len(), 2);
+        assert_eq!(p.channel_volumes[0].name, "ch-a");
+
+        // 名前の空白は無視し、空名は記録しない。
+        p.remember_channel_volume("  ch-a  ", 60);
+        assert_eq!(p.volume_for_channel("ch-a"), 60);
+        assert_eq!(p.channel_volumes.len(), 2);
+        p.remember_channel_volume("   ", 10);
+        assert_eq!(p.channel_volumes.len(), 2);
+    }
+
+    #[test]
+    fn channel_volume_list_is_capped() {
+        let mut p = PlayerConfig::default();
+        for i in 0..(MAX_CHANNEL_VOLUMES + 20) {
+            p.remember_channel_volume(&format!("ch{i}"), 50);
+        }
+        assert_eq!(p.channel_volumes.len(), MAX_CHANNEL_VOLUMES);
+        // 最後に入れたものは残り、最初に入れたものは捨てられる。
+        assert_eq!(
+            p.channel_volumes[0].name,
+            format!("ch{}", MAX_CHANNEL_VOLUMES + 19)
+        );
+        assert_eq!(
+            p.volume_for_channel("ch0"),
+            p.volume,
+            "溢れた分は初期音量に戻る"
+        );
     }
 
     /// 自動更新間隔が TOML を往復しても保たれること (既定値で潰れない)。

@@ -20,6 +20,7 @@
 		playerSetAspect,
 		playerSetAutoReconnect,
 		playerSetVolume,
+		rememberChannelVolume,
 		playerSnapshot,
 		playerStatus,
 		playerStop,
@@ -229,6 +230,14 @@
 
 	// Volume (0-100). Wheel over the player area changes it.
 	let volume = $state(80);
+	// ── チャンネルごとの音量記憶 ──────────────────────────────────
+	// 同じチャンネルを開き直したら前回の音量に戻す。記録が無いチャンネルは
+	// 設定の「初期音量」(player.volume) を使う。保存先を localStorage に
+	// しないのは、視聴プロセスが WebView2 の UDF をプロセスごとに分離して
+	// おり (lib.rs の setup_webview_isolation)、起動のたびに localStorage が
+	// 空になるため。config なら複数の視聴ウィンドウ間でも共有できる。
+	let volumeChannelName: string | null = null;
+	let volumeSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
 	// Seconds until the next BBS auto-refresh tick (5s cycle).
 	/// BBS 自動更新間隔の既定値 (秒)。config の bbs.auto_refresh_sec が
@@ -550,6 +559,12 @@
 		if (countdownTimer) clearInterval(countdownTimer);
 		if (reconnectStatusTimer) clearTimeout(reconnectStatusTimer);
 		if (reanchorTimer) clearTimeout(reanchorTimer);
+		// 音量変更直後に閉じられても取りこぼさないよう、保留分を流す。
+		if (volumeSaveTimer) {
+			clearTimeout(volumeSaveTimer);
+			volumeSaveTimer = null;
+			flushVolumeSave();
+		}
 		threadSelectedUnlisten?.();
 		configSavedUnlisten?.();
 		focusUnlisten?.();
@@ -876,6 +891,7 @@
 		if (!endpoint || !channelId) return;
 		try {
 			channelInfo = await fetchChannelInfo(endpoint, channelId);
+			if (channelInfo?.name) void applyRememberedVolume(channelInfo.name);
 			channelStatus = await fetchChannelStatus(endpoint, channelId);
 			statusAtMs = Date.now();
 		} catch (e) {
@@ -1525,6 +1541,43 @@
 		await menu.popup();
 	}
 
+	/// チャンネル名が判明した時点で、記憶済みの音量 (無ければ初期音量) を
+	/// 適用する。1 チャンネルにつき一度だけ。
+	async function applyRememberedVolume(name: string) {
+		const key = name.trim();
+		if (!key || volumeChannelName === key) return;
+		volumeChannelName = key;
+		try {
+			const cfg = await getConfig();
+			const hit = cfg?.player?.channel_volumes?.find((e) => e.name === key);
+			const fallback = Number(cfg?.player?.volume);
+			const v = hit ? Number(hit.volume) : fallback;
+			if (Number.isFinite(v)) volume = Math.max(0, Math.min(150, Math.round(v)));
+		} catch {
+			/* 読めなければ既定値のまま */
+		}
+		// mpv にも必ず送る。従来は volume の初期値を一度も適用しておらず、
+		// UI 表示と実際の音量がずれていた (ホイールで動かすまで反映されない)。
+		playerSetVolume(volume).catch(() => undefined);
+	}
+
+	/// 音量変更を少し待ってから保存する。ホイールは連続で飛んでくるので、
+	/// 1 操作ごとに config を書き換えない。
+	function scheduleVolumeSave() {
+		if (!volumeChannelName) return;
+		if (volumeSaveTimer) clearTimeout(volumeSaveTimer);
+		volumeSaveTimer = setTimeout(() => {
+			volumeSaveTimer = null;
+			flushVolumeSave();
+		}, 800);
+	}
+
+	function flushVolumeSave() {
+		const name = volumeChannelName;
+		if (!name) return;
+		rememberChannelVolume(name, volume).catch(() => undefined);
+	}
+
 	function onPlayerWheel(e: WheelEvent) {
 		// Wheel up increases volume, wheel down decreases.
 		e.preventDefault();
@@ -1534,6 +1587,7 @@
 		if (next === volume) return;
 		volume = next;
 		playerSetVolume(volume).catch(() => undefined);
+		scheduleVolumeSave();
 	}
 
 	// ── 動画ウィンドウ (mpv) からのネイティブ入力 (Windows) ─────────────
@@ -1545,6 +1599,7 @@
 		if (next === volume) return;
 		volume = next;
 		playerSetVolume(volume).catch(() => undefined);
+		scheduleVolumeSave();
 	}
 	// 動画の右クリック (player:contextmenu / DOM の oncontextmenu) は
 	// showVideoContextMenu() で OS ネイティブメニューを出す (カーソル位置)。

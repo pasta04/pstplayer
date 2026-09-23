@@ -6,7 +6,7 @@
 
 use crate::util::{
     errors::{AppError, AppResult},
-    http::CLIENT,
+    http::{peercast_timeout, CLIENT},
 };
 
 use super::{
@@ -36,7 +36,11 @@ pub async fn resolve_stream_url(url: &str) -> AppResult<String> {
         }
     };
 
-    let resp = CLIENT.get(&direct_url).send().await?;
+    let resp = CLIENT
+        .get(&direct_url)
+        .timeout(peercast_timeout())
+        .send()
+        .await?;
     if !resp.status().is_success() {
         return Err(AppError::Network(format!(
             "playlist fetch returned {}",

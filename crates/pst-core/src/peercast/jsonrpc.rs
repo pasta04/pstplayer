@@ -4,7 +4,7 @@
 
 use crate::util::{
     errors::{AppError, AppResult},
-    http::CLIENT,
+    http::{peercast_timeout, CLIENT},
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -61,6 +61,7 @@ pub async fn call(endpoint: &PeerCastEndpoint, method: &str, params: Value) -> A
 
     let mut builder = CLIENT
         .post(&url)
+        .timeout(peercast_timeout())
         .header("X-Requested-With", "XMLHttpRequest")
         .header("Content-Type", "application/json");
 

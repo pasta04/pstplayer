@@ -528,7 +528,14 @@ export interface BbsConfig {
 	autoscrollSpeed: number;
 }
 
+/// チャンネル名ごとに覚えた音量 (最近使った順、先頭が最新)。
+export interface ChannelVolume {
+	name: string;
+	volume: number;
+}
+
 export interface PlayerCfg {
+	/// 初期音量。channel_volumes に記録が無いチャンネルで使う。
 	volume: number;
 	aspect_mode: string;
 	snapshot_dir: string;
@@ -539,6 +546,8 @@ export interface PlayerCfg {
 	/// 配信切断時に自動再接続するか。既定 false (= 観察モード)。
 	/// 詳細は src-tauri/src/player/engine.rs。
 	auto_reconnect: boolean;
+	/// チャンネルごとの音量記憶。
+	channel_volumes: ChannelVolume[];
 }
 
 export interface WindowCfg {
@@ -735,6 +744,7 @@ function browserConfig(s: ServerConfigResponse): Config {
 			recording_dir: '',
 			recording_ext: '',
 			auto_reconnect: false,
+			channel_volumes: [],
 		},
 		favorites: s.favorites ?? { rules: [] },
 		yp: s.yp ?? { sources: [] },
@@ -789,6 +799,11 @@ export async function saveWindowGeometry(
 
 export async function pushRecentHost(host: string, port: number): Promise<void> {
 	return call<void>('push_recent_host', { host, port });
+}
+
+/// チャンネル名ごとの音量を覚える。次に同じチャンネルを開いたときに復元する。
+export async function rememberChannelVolume(name: string, volume: number): Promise<void> {
+	return call<void>('remember_channel_volume', { name, volume });
 }
 
 // ── Player (libmpv) ─────────────────────────────────────────────────

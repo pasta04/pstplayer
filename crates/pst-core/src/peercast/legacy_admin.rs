@@ -6,7 +6,7 @@
 
 use crate::util::{
     errors::{AppError, AppResult},
-    http::CLIENT,
+    http::{peercast_timeout, CLIENT},
 };
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
@@ -15,7 +15,7 @@ use super::types::{ChannelInfo, ChannelRecord, ChannelStatus, PeerCastEndpoint, 
 
 async fn admin(endpoint: &PeerCastEndpoint, query: &str) -> AppResult<String> {
     let url = format!("{}/admin?{query}", endpoint.base_url());
-    let mut builder = CLIENT.get(&url);
+    let mut builder = CLIENT.get(&url).timeout(peercast_timeout());
     if let Some(auth) = &endpoint.auth {
         builder = builder.basic_auth(&auth.user, Some(&auth.pass));
     }
