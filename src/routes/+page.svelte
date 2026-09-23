@@ -231,8 +231,14 @@
 	let volume = $state(80);
 
 	// Seconds until the next BBS auto-refresh tick (5s cycle).
-	const REFRESH_SEC = 5;
-	let refreshCountdown = $state(REFRESH_SEC);
+	/// BBS 自動更新間隔の既定値 (秒)。config の bbs.auto_refresh_sec が
+	/// 読めないときのフォールバック。Rust 側の default_refresh_sec と同値。
+	const DEFAULT_REFRESH_SEC = 5;
+	/// 実際に使う BBS 自動更新間隔 (秒)。設定 (bbs.autoRefreshSec) から
+	/// reloadBbsPrefs() で読み込む。以前はここが定数 5 のハードコードで、
+	/// 設定画面で変更しても視聴画面に一切反映されなかった (実機 QA)。
+	let refreshSec = $state(DEFAULT_REFRESH_SEC);
+	let refreshCountdown = $state(DEFAULT_REFRESH_SEC);
 
 	// Polling handles (channel status は backend ポーラー経由なのでここ
 	// では持たない)
@@ -573,6 +579,19 @@
 			{
 				const sp = Number(cfg?.bbs?.autoscrollSpeed);
 				autoscrollSpeed = Number.isFinite(sp) && sp > 0 ? sp : 600;
+			}
+			{
+				// BBS 自動更新間隔。設定 UI の入力範囲 (1〜120 秒) に合わせて
+				// クランプする。変更されたら動作中のタイマーを新しい間隔で
+				// 張り直し、設定保存やウィンドウ復帰で即座に反映させる。
+				const rs = Number(cfg?.bbs?.autoRefreshSec);
+				const next = Number.isFinite(rs)
+					? Math.min(120, Math.max(1, Math.round(rs)))
+					: DEFAULT_REFRESH_SEC;
+				if (next !== refreshSec) {
+					refreshSec = next;
+					if (threadTimer) startThreadTimer();
+				}
 			}
 			// 書き込み欄の名前 / メールは「初回 mount 時だけ」config から
 			// 流し込む。config:saved やフォーカス復帰での再読込時は触らない
@@ -1149,7 +1168,6 @@
 	}
 
 	function startPolling() {
-		if (threadTimer) clearInterval(threadTimer);
 		if (playerTimer) clearInterval(playerTimer);
 		// チャンネル状態 (status) は backend ポーラーが 5 秒間隔で
 		// fetch → 'channel:status' event を emit する。フロントは
@@ -1157,6 +1175,23 @@
 		if (endpoint && channelId) {
 			startChannelPolling(endpoint, channelId).catch(() => undefined);
 		}
+		startThreadTimer();
+		playerTimer = setInterval(() => {
+			playerStatus().then(
+				(s) => (playerStat = s),
+				() => undefined,
+			);
+		}, 1_000);
+	}
+
+	/// BBS 自動更新のタイマー (本体 + カウントダウン) を現在の refreshSec で
+	/// 張り直す。間隔の設定変更時にも呼ぶので、既存のタイマーは両方とも必ず
+	/// 止めること (countdownTimer を止め忘れると多重に走ってカウントダウンが
+	/// 二重に減る)。
+	function startThreadTimer() {
+		if (threadTimer) clearInterval(threadTimer);
+		if (countdownTimer) clearInterval(countdownTimer);
+		refreshCountdown = refreshSec;
 		threadTimer = setInterval(async () => {
 			// 固着ウォッチドッグ (threadLoadingSince の宣言箇所を参照)。
 			// threadLoading が解放されないまま長時間経っていたら強制解放し、
@@ -1178,7 +1213,7 @@
 				// 定期リシンク: 5 分ごとに増分状態を捨てて全件を取り直す
 				// (増分の膠着があっても最大 5 分で自己回復する)。
 				pollsSinceFullSync += 1;
-				if (pollsSinceFullSync >= Math.ceil(300 / REFRESH_SEC)) {
+				if (pollsSinceFullSync >= Math.ceil(300 / refreshSec)) {
 					pollsSinceFullSync = 0;
 					fetchState = null;
 				}
@@ -1201,18 +1236,12 @@
 				// openNewestThread が失敗した状態。再試行する。
 				await openNewestThread();
 			}
-			refreshCountdown = REFRESH_SEC;
-		}, REFRESH_SEC * 1_000);
+			refreshCountdown = refreshSec;
+		}, refreshSec * 1_000);
 		countdownTimer = setInterval(() => {
 			if (refreshCountdown > 0) refreshCountdown -= 1;
 			// uptime をリアルタイム (1 秒刻み) で進めるための時刻更新。
 			nowMs = Date.now();
-		}, 1_000);
-		playerTimer = setInterval(() => {
-			playerStatus().then(
-				(s) => (playerStat = s),
-				() => undefined,
-			);
 		}, 1_000);
 	}
 

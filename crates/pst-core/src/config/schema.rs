@@ -451,4 +451,38 @@ mod tests {
         assert_eq!(legacy.timeout_sec, 3);
         assert_eq!(legacy.yp_url, "x");
     }
+
+    /// 設定 UI とビューアは bbs 設定を camelCase で読む。キー名がずれると
+    /// JS 側で undefined になり、「設定したのに反映されない」死に設定に
+    /// なる (実機 QA: 自動更新間隔を変えても視聴画面が 5 秒のままだった)。
+    #[test]
+    fn bbs_config_serializes_camel_case_for_frontend() {
+        let json = serde_json::to_value(BbsConfig::default()).unwrap();
+        for key in [
+            "defaultName",
+            "defaultMail",
+            "autoRefreshSec",
+            "displayMode",
+            "submitKey",
+            "notifyOnNewPost",
+            "autoscroll",
+            "autoscrollSpeed",
+        ] {
+            assert!(json.get(key).is_some(), "missing {key}: {json}");
+        }
+        assert!(json.get("auto_refresh_sec").is_none());
+    }
+
+    /// 自動更新間隔が TOML を往復しても保たれること (既定値で潰れない)。
+    #[test]
+    fn bbs_auto_refresh_sec_roundtrips() {
+        let mut cfg = Config::default();
+        cfg.bbs.auto_refresh_sec = 10;
+        let parsed: Config =
+            toml::from_str(&toml::to_string(&cfg).expect("serialise")).expect("parse");
+        assert_eq!(parsed.bbs.auto_refresh_sec, 10);
+        // キー欠落時は既定 5 に戻ること。
+        let empty: BbsConfig = toml::from_str("").expect("parse empty");
+        assert_eq!(empty.auto_refresh_sec, default_refresh_sec());
+    }
 }
