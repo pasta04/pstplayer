@@ -42,6 +42,14 @@
 	import { normalizeThreadUrl, threadKeyFromContact } from '$lib/bbs-url';
 	import { selectLiveThread } from '$lib/thread-select';
 	import { formatUptime, linkifySanitized, renderBodyHtml, renderIdHtml } from '$lib/format';
+	import {
+		followAfterScroll,
+		gapToBottom,
+		isNearBottom as metricsNearBottom,
+		repinAction,
+		SCROLL_UP_KEYS,
+		wheelCancelsAnimation,
+	} from '$lib/follow-bottom';
 	import { openSettings, openYpList } from '$lib/windows';
 	import { closeWindow, installShortcuts, setAlwaysOnTop, setDecorations } from '$lib/shortcuts';
 	import { notify } from '$lib/notifications';
@@ -646,8 +654,17 @@
 	// ── Post-list auto scroll ────────────────────────────────────────
 	//
 	// Spec (docs/ui-design.md §147): デフォルト ON。手動スクロール時は
-	// 一時停止 = ユーザーが末尾付近にいない時は追従しない。
-	const NEAR_BOTTOM_PX = 24;
+	// 一時停止 = ユーザーが過去レスを読みに行っている間は追従しない。
+	//
+	// 「追従する意思」を状態として持つ (判定は $lib/follow-bottom.ts)。以前は
+	// 取得直前の位置をスナップショットして判定していたため、一度でも最下部から
+	// 離れると以後ずっと止まったままになっていた (実機 QA)。ユーザーが自分で
+	// 上へスクロールしたときだけ解除し、最下部に戻ったら再開する。
+	let followBottom = true;
+	/// 直前のスクロール位置。上方向への移動 (= 過去レスを読みに行った) の検出用。
+	let lastPostsScrollTop = 0;
+	/// レス一覧の内容全体。高さの変化 (後から伸びた等) を ResizeObserver で拾う。
+	let postsInnerEl: HTMLDivElement | null = $state(null);
 
 	// ── 自動再接続ステータス表示 ─────────────────────────────────
 
@@ -702,8 +719,67 @@
 
 	function isNearBottom(el: HTMLElement | null): boolean {
 		if (!el) return false;
-		return el.scrollTop + el.clientHeight >= el.scrollHeight - NEAR_BOTTOM_PX;
+		return metricsNearBottom(el);
 	}
+
+	function onPostsScroll() {
+		const el = postsEl;
+		if (!el) return;
+		const top = el.scrollTop;
+		followBottom = followAfterScroll({
+			follow: followBottom,
+			nearBottom: isNearBottom(el),
+			movedUp: top < lastPostsScrollTop - 1,
+			animating: smoothScrollRaf !== 0,
+		});
+		lastPostsScrollTop = top;
+	}
+
+	/// 上向きの wheel だけ自前のスクロールアニメを止める (ユーザーのスクロール
+	/// と取り合わないため)。以前は全ての wheel で止めており、deltaY=0 でも
+	/// アニメが途中で終わって最下部に届かなくなる原因の一つだった。
+	function onPostsWheel(e: WheelEvent) {
+		if (wheelCancelsAnimation(e.deltaY)) cancelSmoothScroll();
+	}
+
+	/// スクロールバーをつかんだら、ドラッグと取り合わないようアニメを止める。
+	/// スクロールバーは内容領域 (clientWidth) の外側、右端にある。
+	function onPostsPointerDown(e: PointerEvent) {
+		const el = postsEl;
+		if (!el) return;
+		const r = el.getBoundingClientRect();
+		if (e.clientX - r.left > el.clientWidth) cancelSmoothScroll();
+	}
+
+	/// 内容やコンテナの大きさが変わったとき、追従中なら最下部へ貼り直す。
+	/// 新着の追加以外で最下部から離れるケース (HTML 表示の後追い差し替え /
+	/// 書き込み欄が伸びて一覧が縮んだ / リサイズ / ペインの再表示) を拾う。
+	function repinPostsIfFollowing() {
+		const el = postsEl;
+		if (!el) return;
+		const action = repinAction({
+			follow: followBottom,
+			enabled: autoscroll,
+			animating: smoothScrollRaf !== 0,
+			gap: gapToBottom(el),
+			clientHeight: el.clientHeight,
+		});
+		if (action === 'jump') el.scrollTop = el.scrollHeight;
+		else if (action === 'smooth') smoothScrollToBottom();
+	}
+
+	// BBS ペインは条件描画なので、再表示のたびに .posts が作り直される。
+	// そのつど監視し直す (初回の callback で先頭から始まった一覧も貼り直される)。
+	$effect(() => {
+		const el = postsEl;
+		const inner = postsInnerEl;
+		if (!el || typeof ResizeObserver === 'undefined') return;
+		lastPostsScrollTop = el.scrollTop;
+		const ro = new ResizeObserver(() => repinPostsIfFollowing());
+		ro.observe(el);
+		if (inner) ro.observe(inner);
+		return () => ro.disconnect();
+	});
 
 	function scrollPostsToBottom() {
 		if (postsEl) postsEl.scrollTop = postsEl.scrollHeight;
@@ -722,7 +798,7 @@
 		let last = performance.now();
 		const step = (now: number) => {
 			const el2 = postsEl;
-			if (!el2) {
+			if (!el2 || !followBottom) {
 				smoothScrollRaf = 0;
 				return;
 			}
@@ -1122,18 +1198,23 @@
 			// Snapshot whether the user was anchored to the bottom *before*
 			// we mutate `posts`, so reactive re-render extends the
 			// scrollable area without losing the anchor.
-			const wasAtBottom = isNearBottom(postsEl);
-			let appendedNew = false;
+			// 追加前の件数。置換経路 (定期リシンク / fullReload) でも件数が増えて
+			// いれば新着ありとしてスクロールする。以前は置換経路では一切スクロール
+			// せず、5 分ごとのリシンクに新着が重なるたびに最下部から取り残されて
+			// 自動スクロールが止まる主因になっていた。
+			const hadCount = posts.length;
+			let grew = false;
 			if (forceReset || !fetchState || newState.fullReload) {
 				// 全体スナップショット (初回 / 手動リロード / サーバが増分を
 				// 返せなかった / dat 再構築) は置換。追記すると全レスが
 				// 二重になり、レス番号キーの {#each} が重複キーで落ちて
 				// 以降の描画更新が止まる (実機 QA: komokomo.ddns.net)。
 				posts = newPosts;
+				grew = newPosts.length > hadCount;
 				if (forceReset || newState.fullReload) sanitizedCache = new Map();
 			} else if (newPosts.length > 0) {
 				posts = [...posts, ...newPosts];
-				appendedNew = true;
+				grew = true;
 				if (notifyOnNewPost) {
 					const preview = newPosts[0].body.replace(/\s+/g, ' ').slice(0, 80);
 					const title = `新着 ${newPosts.length} 件 / ${posts[0]?.threadTitle || ''}`;
@@ -1146,8 +1227,10 @@
 			if (forceReset) {
 				// 配信表示 / スレ切替の初回は、最新レス (最下部) を表示した
 				// 状態にする。多数レスでもレイアウト確定後に確実に最下部へ。
+				// 別スレを読んでいて追従を外していても、新しいスレでは追従する。
+				followBottom = true;
 				await scrollPostsToBottomSettled();
-			} else if (appendedNew && autoscroll && wasAtBottom) {
+			} else if (grew && autoscroll && followBottom) {
 				// 新着レスは一瞬で飛ばず、設定速度でスムーズに流す (#20)。
 				await tickSafe();
 				smoothScrollToBottom();
@@ -1621,6 +1704,8 @@
 		const el = postsEl;
 		if (!el) return;
 		cancelSmoothScroll();
+		// 先頭へ = 過去レスを読みに行く意思、末尾へ = 追従に戻る意思。
+		followBottom = pos === 'bottom';
 		el.scrollTo({ top: pos === 'top' ? 0 : el.scrollHeight, behavior: 'instant' });
 	}
 	function focusPostsFilter() {
@@ -1852,6 +1937,8 @@
 	}
 
 	function onPostsKeyDown(e: KeyboardEvent) {
+		// 上へのスクロールキーはユーザーのスクロールと取り合わないようアニメを止める。
+		if (SCROLL_UP_KEYS.has(e.key)) cancelSmoothScroll();
 		// Treat Enter/Space on a post-number "button" the same as click.
 		if (e.key !== 'Enter' && e.key !== ' ') return;
 		const t = e.target;
@@ -2109,7 +2196,9 @@
 					class="posts"
 					role="list"
 					bind:this={postsEl}
-					onwheel={cancelSmoothScroll}
+					onscroll={onPostsScroll}
+					onwheel={onPostsWheel}
+					onpointerdown={onPostsPointerDown}
 					onclick={onPostsClick}
 					oncontextmenu={onPostsContextMenu}
 					onkeydown={onPostsKeyDown}
@@ -2117,30 +2206,38 @@
 					onmouseleave={onPostsLeave}
 					onfocusin={onPostsFocusIn}
 				>
-					{#each visiblePosts as p (p.number)}
-						<div class="post" role="listitem" class:highlight-id={hoveredId && p.id === hoveredId}>
-							<div class="head">
-								<span
-									class="num"
-									role="button"
-									tabindex="-1"
-									data-post-num={p.number}
-									title="クリックで &gt;&gt;{p.number} を書き込み欄に挿入">{p.number}</span
-								>
-								<span class="name">{p.name}</span>
-								{#if p.mail}<span class="mail">[{p.mail}]</span>{/if}
-								<span class="date">{p.date}</span>
-								{#if p.id}<span class="id">{@html renderIdHtml(p.id)}</span>{/if}
+					<!-- 内容全体の高さの変化を ResizeObserver で拾うための入れ物 (後から
+					     伸びたときに最下部へ貼り直す)。a11y ツリー上は透過させる。 -->
+					<div class="posts-inner" role="presentation" bind:this={postsInnerEl}>
+						{#each visiblePosts as p (p.number)}
+							<div
+								class="post"
+								role="listitem"
+								class:highlight-id={hoveredId && p.id === hoveredId}
+							>
+								<div class="head">
+									<span
+										class="num"
+										role="button"
+										tabindex="-1"
+										data-post-num={p.number}
+										title="クリックで &gt;&gt;{p.number} を書き込み欄に挿入">{p.number}</span
+									>
+									<span class="name">{p.name}</span>
+									{#if p.mail}<span class="mail">[{p.mail}]</span>{/if}
+									<span class="date">{p.date}</span>
+									{#if p.id}<span class="id">{@html renderIdHtml(p.id)}</span>{/if}
+								</div>
+								<div class="body">
+									{#if displayMode === 'html' && sanitizedCache.has(p.number)}
+										{@html sanitizedCache.get(p.number) ?? ''}
+									{:else}
+										{@html renderBodyHtml(p.body)}
+									{/if}
+								</div>
 							</div>
-							<div class="body">
-								{#if displayMode === 'html' && sanitizedCache.has(p.number)}
-									{@html sanitizedCache.get(p.number) ?? ''}
-								{:else}
-									{@html renderBodyHtml(p.body)}
-								{/if}
-							</div>
-						</div>
-					{/each}
+						{/each}
+					</div>
 				</div>
 				{#if threadReloading}
 					<!-- 絶対配置のオーバーレイにして .posts の高さに影響させない。
