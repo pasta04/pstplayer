@@ -1,0 +1,17 @@
+.svelte-kit
+build
+node_modules
+src-tauri/target
+src-tauri/Cargo.lock
+src-tauri/gen
+package-lock.json
+docs/
+LICENSE
+
+# cargo-about の Handlebars テンプレートと生成物。Prettier の
+# Handlebars 解釈とは構文が合わないため除外。
+about.hbs
+THIRD-PARTY.md
+
+# 同梱 vendor (hls.js 等)。サードパーティの minified ファイルは触らない。
+crates/pst-server/web/vendor/

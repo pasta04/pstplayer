@@ -1,0 +1,397 @@
+/* PSTPlayer Web — モバイル優先のミニマル UI */
+
+:root {
+	--bg: #1e2126;
+	--bg-elev: #25282d;
+	--bg-input: #14161a;
+	--border: #34373d;
+	--border-strong: #4a4d54;
+	--fg: #e8eaed;
+	--fg-dim: #c6c9d0;
+	--fg-muted: #8a8d94;
+	--accent: #ff8a3d;
+	--err: #f08c8c;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+	background: var(--bg);
+	color: var(--fg);
+	font-family:
+		-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, 'Noto Sans CJK JP',
+		sans-serif;
+	font-size: 14px;
+	line-height: 1.5;
+	min-height: 100vh;
+	min-height: 100svh;
+}
+
+.topbar {
+	position: sticky;
+	top: 0;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.6rem 0.9rem env(safe-area-inset-bottom, 0);
+	padding-bottom: 0.6rem;
+	background: #000;
+	border-bottom: 1px solid var(--border);
+	z-index: 10;
+}
+
+.topbar h1 {
+	margin: 0;
+	font-size: 1.05rem;
+	font-weight: 600;
+	flex: 1;
+}
+
+.topbar button {
+	background: var(--bg-elev);
+	color: inherit;
+	border: 1px solid var(--border-strong);
+	border-radius: 4px;
+	padding: 0.3rem 0.7rem;
+	font-family: inherit;
+	font-size: 0.85rem;
+	cursor: pointer;
+}
+
+main {
+	padding: 0;
+	max-width: 960px;
+	margin: 0 auto;
+}
+
+#player-section {
+	padding: 0.5rem 0.6rem 1rem;
+}
+
+.player-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin-bottom: 0.4rem;
+}
+
+.player-toolbar h2 {
+	margin: 0;
+	flex: 1;
+	font-size: 1rem;
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+#record {
+	background: var(--bg-elev);
+	color: inherit;
+	border: 1px solid var(--border-strong);
+	border-radius: 4px;
+	padding: 0.3rem 0.7rem;
+	font-family: inherit;
+	font-size: 0.85rem;
+	cursor: pointer;
+}
+
+#record.on {
+	background: var(--accent);
+	color: #000;
+	border-color: var(--accent);
+}
+
+#record-info {
+	padding: 0.5rem 0;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	word-break: break-all;
+}
+
+#back {
+	background: transparent;
+	color: var(--accent);
+	border: none;
+	font-size: 0.9rem;
+	cursor: pointer;
+	padding: 0.3rem 0;
+}
+
+#player {
+	width: 100%;
+	background: #000;
+	border-radius: 4px;
+	max-height: 60vh;
+}
+
+table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+table th,
+table td {
+	text-align: left;
+	padding: 0.5rem 0.6rem;
+	border-bottom: 1px solid var(--border);
+	font-size: 0.88rem;
+}
+
+table th {
+	font-size: 0.75rem;
+	color: var(--fg-muted);
+	font-weight: 600;
+	background: #000;
+	position: sticky;
+	top: 0;
+}
+
+table tbody tr {
+	cursor: pointer;
+}
+
+table tbody tr:hover,
+table tbody tr:active {
+	background: var(--bg-elev);
+}
+
+table tbody tr.pinned {
+	font-weight: 600;
+}
+
+.fav-mark {
+	color: var(--accent);
+	margin-right: 0.25rem;
+}
+
+table .num {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	color: var(--fg-dim);
+}
+
+#status,
+.muted {
+	color: var(--fg-muted);
+}
+
+.small {
+	font-size: 0.8rem;
+}
+
+#status {
+	padding: 0.8rem 0.9rem;
+}
+
+.error {
+	color: var(--err);
+	padding: 0.8rem 0.9rem;
+	font-size: 0.88rem;
+}
+
+.bottom {
+	margin-top: 2rem;
+	padding: 1rem 0.9rem calc(env(safe-area-inset-bottom, 0) + 1rem);
+	text-align: center;
+	color: var(--fg-muted);
+	font-size: 0.78rem;
+	border-top: 1px solid var(--border);
+}
+
+.bottom a {
+	color: var(--accent);
+}
+
+/* ===== Grid mode ===== */
+
+#mode-toggle.active {
+	background: var(--accent);
+	color: #000;
+	border-color: var(--accent);
+}
+
+#grid-section {
+	padding: 0.5rem 0.6rem 1rem;
+}
+
+.grid-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin-bottom: 0.5rem;
+}
+
+.grid-toolbar button {
+	background: var(--bg-elev);
+	color: inherit;
+	border: 1px solid var(--border-strong);
+	border-radius: 4px;
+	padding: 0.3rem 0.7rem;
+	font-family: inherit;
+	font-size: 0.85rem;
+	cursor: pointer;
+}
+
+/* レスポンシブ列数:
+ *   〜480 px = 2 列 (モバイル縦)
+ *   〜900 px = 3 列 (タブレット / 横画面スマホ)
+ *   〜1400 px = 4 列 (PC ブラウザ通常)
+ *   1400 px〜 = 5 列 (ワイドモニタ)
+ * 設計図は docs/design/web-grid-mockup.svg を参照。
+ */
+.grid {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	gap: 0.5rem;
+}
+
+@media (min-width: 600px) {
+	.grid {
+		grid-template-columns: repeat(3, 1fr);
+		gap: 0.6rem;
+	}
+}
+
+@media (min-width: 1024px) {
+	.grid {
+		grid-template-columns: repeat(4, 1fr);
+	}
+}
+
+@media (min-width: 1600px) {
+	.grid {
+		grid-template-columns: repeat(5, 1fr);
+	}
+}
+
+.tile {
+	background: var(--bg-elev);
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	overflow: hidden;
+	cursor: pointer;
+	display: flex;
+	flex-direction: column;
+}
+
+.tile-video-wrap {
+	position: relative;
+	aspect-ratio: 16 / 9;
+	background: #000;
+	overflow: hidden;
+}
+
+.tile-video {
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+	display: block;
+	background: #000;
+}
+
+.tile-overlay-top {
+	position: absolute;
+	inset: 0 0 auto 0;
+	padding: 0.25rem 0.4rem;
+	background: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), transparent);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	color: #fff;
+	font-size: 0.78rem;
+	font-weight: 600;
+	pointer-events: none;
+}
+
+.tile-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 70%;
+}
+
+.tile-record,
+.tile-close {
+	pointer-events: auto;
+	background: rgba(0, 0, 0, 0.55);
+	border: none;
+	color: #fff;
+	width: 26px;
+	height: 26px;
+	border-radius: 50%;
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 0.85rem;
+	padding: 0;
+}
+
+.tile-record {
+	color: #ff5555;
+	font-size: 1rem;
+}
+
+.tile-record.on {
+	background: var(--accent);
+	color: #000;
+}
+
+.tile-close {
+	position: absolute;
+	right: 6px;
+	bottom: 6px;
+}
+
+.tile-info {
+	padding: 0.4rem 0.55rem 0.55rem;
+	font-size: 0.85rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+}
+
+.tile-info-name {
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.tile-info-meta {
+	font-size: 0.78rem;
+	color: var(--fg-muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.tile-info-meta-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.grid-empty {
+	padding: 0.8rem;
+	text-align: center;
+}
+
+.grid-empty[hidden] {
+	display: none;
+}
+
+/* グリッドモードでは「チャンネル一覧の click は『タイル追加』」になる */
+body[data-grid='on'] #channels-section::before {
+	content: '＋ 行をタップでグリッドに追加';
+	display: block;
+	padding: 0.4rem 0.9rem;
+	color: var(--accent);
+	font-size: 0.8rem;
+	border-bottom: 1px solid var(--border);
+}

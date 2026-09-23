@@ -1,0 +1,217 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 同じブランチ / PR で連続して push されたら古い実行をキャンセル。
+# (GitHub Actions の無料枠を節約)
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    name: Rust (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Tauri + libmpv (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev \
+            libayatana-appindicator3-dev \
+            libxdo-dev \
+            libmpv-dev \
+            pkg-config
+
+      - name: Install libmpv (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          brew install mpv pkg-config
+          MPV_PREFIX="$(brew --prefix mpv)"
+          echo "MPV_PREFIX=${MPV_PREFIX}" >> "$GITHUB_ENV"
+          # Tell rustc and pkg-config where libmpv lives.
+          echo "RUSTFLAGS=-L ${MPV_PREFIX}/lib -D warnings" >> "$GITHUB_ENV"
+          echo "PKG_CONFIG_PATH=${MPV_PREFIX}/lib/pkgconfig" >> "$GITHUB_ENV"
+          echo "DYLD_FALLBACK_LIBRARY_PATH=${MPV_PREFIX}/lib" >> "$GITHUB_ENV"
+
+      - name: Setup MSVC environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install libmpv (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # shinchiro/mpv-winbuild-cmake ships a MinGW-style import
+          # library (libmpv.dll.a) but no MSVC import library (mpv.lib).
+          # Generate mpv.lib from libmpv-2.dll using dumpbin + lib.exe.
+          $url  = 'https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20260530/mpv-dev-x86_64-v3-20260530-git-13a3e3a.7z'
+          $tmp  = "$env:TEMP\mpv-dev.7z"
+          $base = "$env:GITHUB_WORKSPACE\mpv-dev"
+          $sub  = Join-Path $base '64'
+          Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $tmp
+          New-Item -ItemType Directory -Force -Path $sub | Out-Null
+          & 'C:\Program Files\7-Zip\7z.exe' x $tmp -o"$sub" -y
+
+          # dumpbin /exports → .def → lib /def: → mpv.lib
+          $dll = Join-Path $sub 'libmpv-2.dll'
+          $def = Join-Path $sub 'mpv.def'
+          $lib = Join-Path $sub 'mpv.lib'
+
+          $exports = & dumpbin.exe /exports $dll
+          $names = @()
+          foreach ($line in $exports) {
+            if ($line -match '^\s+\d+\s+[0-9A-Fa-f]+\s+[0-9A-Fa-f]+\s+(\S+)\s*$') {
+              $names += $Matches[1]
+            }
+          }
+          if ($names.Count -eq 0) { throw "failed to extract exports from $dll" }
+
+          # LIBRARY ディレクティブで import-name を libmpv-2.dll に固定。
+          # これを書かないと lib.exe は .def のファイル名 (mpv) から
+          # mpv.dll を import-name にしてしまい、起動時に「mpv.dll が
+          # 見つからない」と言われる。
+          'LIBRARY libmpv-2.dll' | Out-File -FilePath $def -Encoding ascii
+          'EXPORTS'              | Out-File -FilePath $def -Encoding ascii -Append
+          $names                  | Out-File -FilePath $def -Encoding ascii -Append
+
+          & lib.exe /def:$def /out:$lib /machine:x64
+          if (-not (Test-Path $lib)) { throw "lib.exe did not produce $lib" }
+
+          "MPV_SOURCE=$base"      | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "RUSTFLAGS=-D warnings" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          # cargo test launches the test binary which loads libmpv-2.dll
+          # via the OS loader. GITHUB_PATH was tried and didn't seem to
+          # propagate to the test process — copy the DLL into System32
+          # so it's found regardless of cwd or PATH order.
+          Copy-Item "$sub\libmpv-2.dll" "$env:WINDIR\System32\" -Force
+
+      - name: Set Linux RUSTFLAGS
+        if: runner.os == 'Linux'
+        run: echo "RUSTFLAGS=-D warnings" >> "$GITHUB_ENV"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry / target
+        uses: Swatinem/rust-cache@v2
+
+      - name: cargo fmt (workspace)
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy (workspace)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      # Windows ランナーでも全 OS 共通でフルテストを試みる。過去は
+      # `STATUS_DLL_NOT_FOUND` で test バイナリが起動しなかったが、最近
+      # の `tauri build --no-bundle` + libmpv-2.dll の System32 配置で
+      # 安定したので分岐を解消。万一退化したら次のコミットで Windows
+      # だけ `--no-run` に戻すこと。
+      - name: cargo test (workspace)
+        run: cargo test --workspace
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: npm ci
+        run: npm ci
+
+      - name: svelte-check
+        run: npm run check
+
+      - name: Lint (prettier + eslint)
+        run: npm run lint
+
+      - name: Unit tests (vitest)
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+  # PR への状況通知。Rust (3 OS) と Frontend の集約結果を 1 コメントに
+  # まとめて PR に投稿する。
+  #
+  # 目的: Web Claude Code セッションはアイドル時にコンテナが eviction
+  # されるため、CI 緑化を「常駐ポーリング」で見届けることが原理的に
+  # できない。一方 PR コメントの追加イベントは webhook で Claude
+  # セッションを wake up させる契機になるので、寝ている間に push した
+  # 場合でも「CI 完了 → コメント追加 → 起床して状況確認 + 必要なら
+  # 自動修正 push → 再 eviction」のサイクルが成立する。
+  #
+  # PR 以外 (main への push 等) では skip して PR を汚さない。
+  # 既存コメントの再利用 (update) はせず毎回 create する: update だと
+  # webhook イベントが `edited` になり Claude の wake up 確実性が下がる
+  # ため (`created` が最も確実)。
+  notify-pr:
+    name: Post PR comment with CI summary
+    needs: [rust, frontend]
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Post summary comment
+        uses: actions/github-script@v7
+        env:
+          RUST_RESULT: ${{ needs.rust.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+        with:
+          script: |
+            const rust = process.env.RUST_RESULT;
+            const frontend = process.env.FRONTEND_RESULT;
+            const overall =
+              rust === 'success' && frontend === 'success' ? 'success' : 'failure';
+            const emoji = overall === 'success' ? '✅' : '❌';
+            const symbol = (r) =>
+              r === 'success' ? '✅' : r === 'failure' ? '❌' : r === 'cancelled' ? '⚪' : '⚠';
+            const runUrl =
+              `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}` +
+              `/actions/runs/${context.runId}`;
+            const headSha = context.payload.pull_request.head.sha.slice(0, 7);
+            const body = [
+              `### ${emoji} CI 完了 — \`${headSha}\``,
+              '',
+              '| Job | Result |',
+              '| --- | :---: |',
+              `| Rust (3 OS matrix) | ${symbol(rust)} ${rust} |`,
+              `| Frontend | ${symbol(frontend)} ${frontend} |`,
+              '',
+              `[Run #${context.runId}](${runUrl})`,
+              '',
+              '<sub>Auto-posted by `ci.yml` notify-pr job. See workflow comment for rationale.</sub>',
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body,
+            });

@@ -1,0 +1,65 @@
+# pst-server.toml example
+#
+# 詳細は docs/usage/server.md を参照。
+
+# 紐付け先 PeerCastStation。LAN 内の Pi から見た IP / port。
+[peercast]
+host = "192.0.2.10"
+port = 7144
+auth_user = ""
+auth_pass = ""
+
+[server]
+# 0.0.0.0:8080 で LAN 公開、127.0.0.1:8080 ならローカルのみ。
+# CLI で上書き可: --port <n> (ポートのみ) / --bind <ip:port> (全体)。
+bind = "0.0.0.0:8080"
+# 逆プロキシ経由で公開する場合の公開 URL。PWA manifest など Absolute
+# URL を作る用途。
+public_url = ""
+
+# 登録 YP の一覧。サーバ側で index.txt を集約し GET /api/yp/all で配信する
+# (pst-server が「YP 一覧表示」を担う)。複数記述可。上から順に表示され、
+# 重複 channel_id は上の YP を優先。
+# [[yp.sources]]
+# name = "SP"
+# url = "http://example.com/index.txt"
+# [[yp.sources]]
+# name = "EP"
+# url = "http://example.org/index.txt"
+
+# Raspberry Pi の SD カード寿命対策として、本サーバは既定で一切
+# ログを書き出さない (起動失敗等の致命的なメッセージのみ stderr)。
+# 不具合調査時のみ tmpfs 等を指定して有効化する。
+[log]
+debug = false
+dir = ""
+
+# 録画機能 (既定 OFF)。
+# enabled = true かつ dir 指定で /api/record/start が動く。
+# SD カードへの書き込みを避けるには dir を USB / SSD マウント先にする。
+# 同時録画は max_concurrent 本まで (0 で既定 8)。
+#
+# auto_poll_interval_sec / auto_stop_grace_sec は自動配信録画
+# (favorites.rules の auto_record = true) で使う。それぞれ 0 で
+# 既定 (60 秒 / 30 秒)。短くしすぎると getChannels への負荷が増える。
+[recording]
+enabled = false
+dir = ""             # 例: "/mnt/usb/recordings"
+ext = ""             # 空なら flv
+max_concurrent = 0
+auto_poll_interval_sec = 0
+auto_stop_grace_sec = 0
+
+# お気に入りルール (複数記述可)。上から評価され、最初にマッチしたもの
+# が採用。pin_top でチャンネル一覧の上位に固定、auto_record で視聴
+# 開始時に自動録画、color で行の背景色 (CSS 色) を指定。
+# Web フロントは /api/favorites でこの設定を読み出して適用する。
+# [[favorites.rules]]
+# name = "メイン"
+# channel_name = "MOXch"   # 部分一致
+# genre = ""
+# desc = ""
+# comment = ""
+# pin_top = true
+# auto_record = false
+# color = "#ff8a3d22"
