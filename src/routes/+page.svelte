@@ -366,19 +366,16 @@
 			title: string;
 		}>('thread:selected', async (e) => {
 			// スレ一覧 / URL 入力からの手動選択。満レスでも自動移動しない。
-			autoSelectedThread = false;
-			fullAdvanceRetry = false;
-			// 板 URL + key から板の流儀に合ったスレ URL をバックエンドで
-			// 構築する (`${base}/${key}/` の素朴連結は 2ch 互換で壊れる)。
-			try {
-				currentThreadUrl = await threadUrlOf(e.payload.boardUrl, e.payload.key);
-			} catch {
-				const base = e.payload.boardUrl.replace(/\/+$/, '');
-				currentThreadUrl = `${base}/${e.payload.key}/`;
-			}
-			fetchState = null;
-			posts = [];
-			await loadCurrentThread(true);
+			await openThreadManually(async () => {
+				// 板 URL + key から板の流儀に合ったスレ URL をバックエンドで
+				// 構築する (`${base}/${key}/` の素朴連結は 2ch 互換で壊れる)。
+				try {
+					return await threadUrlOf(e.payload.boardUrl, e.payload.key);
+				} catch {
+					const base = e.payload.boardUrl.replace(/\/+$/, '');
+					return `${base}/${e.payload.key}/`;
+				}
+			});
 		});
 
 		// YP ウィンドウからのチャンネル選択は ADR-0006 Step 4 で別プロセス
@@ -982,7 +979,7 @@
 	// guarantee the URL ends with `/{key}/`. This keeps Range-based
 	// incremental fetch and write.cgi POST happy regardless of how the
 	// user (or PeerCast contact URL) spelled the link.
-	async function tryLoadBoard(contactUrl: string) {
+	async function tryLoadBoard(contactUrl: string, opts?: { manual?: boolean }) {
 		try {
 			// BBS 読み込み前に URL を正規化する。コンタクト/手入力 URL の末尾に
 			// ブラウザ用の読み出し範囲 (/l50, /l30, /501-1000 等) が付いていても、
@@ -1000,8 +997,13 @@
 				.then((s) => (boardMaxRes = s.maxRes))
 				.catch(() => (boardMaxRes = 0));
 
-			if (key) {
+			if (key && opts?.manual) {
+				// URL 入力で特定のスレを指定された = 手動選択。満レスでも
+				// 最新スレへ飛ばさない (過去ログを読みたいケース)。
+				await openThreadManually(async () => loadUrl);
+			} else if (key) {
 				// コンタクトがスレッドを直接指している → そのスレを開く。
+				const nav = ++threadNavSeq;
 				autoSelectedThread = true;
 				currentThreadUrl = loadUrl;
 				await loadCurrentThread(true);
@@ -1015,7 +1017,9 @@
 					/* 取得失敗時は既定値で判定 */
 				}
 				const max = boardMaxRes > 0 ? boardMaxRes : THREAD_FULL_FALLBACK;
-				if (posts.length >= max) {
+				// その間にユーザーが自分でスレを選んでいたら、そちらのスレで
+				// 満レス判定をしてしまわないよう何もしない。
+				if (nav === threadNavSeq && autoSelectedThread && posts.length >= max) {
 					await advanceToNewestThread(true);
 				}
 			} else {
@@ -1036,6 +1040,12 @@
 	/// なら true。手動選択 (スレ一覧 / URL 入力) は false になり、満レスでも
 	/// 自動移動しない (過去ログを読みたいケースのため)。
 	let autoSelectedThread = false;
+	/// スレ切替の世代。切り替えのたびに進める。満レス後の新スレ探索や板からの
+	/// 最新スレ選出は数秒〜数十秒待つので、開始時の世代を覚えておき、待って
+	/// いる間にユーザーが自分でスレを選んでいたら (世代が進んでいたら) 自動移動
+	/// を確定しない。以前はこの確認が無く、探索の待機中に手動で開いたスレが
+	/// 探索完了と同時に最新スレで上書きされていた (実機 QA)。
+	let threadNavSeq = 0;
 	/// 満レス検知後の再試行中フラグ。true の間は advanceToNewestThread の
 	/// 冒頭待機 (数秒) を省く (毎ポーリング周期で新スレ探索を繰り返す)。
 	let fullAdvanceRetry = false;
@@ -1060,10 +1070,30 @@
 	/// ロードのフラグを消さないようにするための識別子 (消すと二重フェッチに
 	/// なりレスが重複しうる)。強制解放時にも進めて旧世代を無効化する。
 	let threadLoadSeq = 0;
+	/// ユーザーが自分で特定のスレを選んだ (別ウィンドウ / 画面内のスレ一覧、
+	/// URL 入力)。手動選択は満レスでも自動移動しない (過去ログを読みたい
+	/// ケース)。世代を進めて、進行中の自動移動を無効化する。
+	///
+	/// 手動選択の入口はすべてここを通すこと。以前は別ウィンドウ経由の選択
+	/// だけが自動選択フラグを戻しており、画面内のスレ一覧や URL 入力で開いた
+	/// 過去の満レススレは最新スレへ引き戻されていた (実機 QA)。
+	async function openThreadManually(resolveUrl: () => Promise<string>) {
+		const nav = ++threadNavSeq;
+		autoSelectedThread = false;
+		fullAdvanceRetry = false;
+		const url = await resolveUrl();
+		if (nav !== threadNavSeq) return; // URL の解決中にさらに別のスレが選ばれた
+		currentThreadUrl = url;
+		fetchState = null;
+		posts = [];
+		await loadCurrentThread(true);
+	}
+
 	async function openNewestThread() {
 		if (openingBoard) return;
 		const board = currentBoardUrl;
 		if (!board) return;
+		const nav = threadNavSeq;
 		openingBoard = true;
 		try {
 			let list = threadList;
@@ -1071,6 +1101,8 @@
 				list = await withTimeout(listThreads(board), 10_000, 'listThreads');
 				threadList = list;
 			}
+			// 取得中にユーザーが自分でスレを選んでいたら、そちらを優先する。
+			if (nav !== threadNavSeq) return;
 			if (list.length === 0) {
 				currentThreadUrl = null;
 				posts = [];
@@ -1085,6 +1117,9 @@
 				'selectLiveThread',
 			);
 			if (!live) return;
+			// 探索中にユーザーが自分でスレを選んでいたら、そちらを優先する。
+			if (nav !== threadNavSeq) return;
+			threadNavSeq += 1;
 			autoSelectedThread = true;
 			currentThreadUrl = live.url;
 			fetchState = null;
@@ -1104,12 +1139,16 @@
 	async function advanceToNewestThread(immediate = false) {
 		if (advancingThread) return;
 		if (!currentThreadUrl || !currentBoardUrl) return;
+		const nav = threadNavSeq;
 		advancingThread = true;
 		try {
 			// 満レス検知から実移動まで 5 秒待つ。最後のレスを読む猶予に加え、
 			// 次スレがまだ立っていない場合に立つのを待つ意味もある。
 			// 初期表示 (コンタクトのスレが既に満レス) の場合は待たない。
 			if (!immediate) await new Promise((r) => setTimeout(r, 5_000));
+			// 待っている間にユーザーが自分でスレを選んだら (手動選択は満レス
+			// でも自動移動しない) 何もしない。
+			if (nav !== threadNavSeq || !autoSelectedThread) return;
 			const list = await withTimeout(listThreads(currentBoardUrl), 10_000, 'listThreads');
 			if (list.length === 0) return;
 			threadList = list;
@@ -1124,6 +1163,9 @@
 				'selectLiveThread',
 			);
 			if (!live) return;
+			// 探索中にユーザーが自分でスレを選んでいたら、そちらを優先する。
+			if (nav !== threadNavSeq || !autoSelectedThread) return;
+			threadNavSeq += 1;
 			autoSelectedThread = true;
 			currentThreadUrl = live.url;
 			fetchState = null;
@@ -1178,6 +1220,12 @@
 		]);
 	}
 
+	/// その取得結果がもう古いか (取得中にスレが切り替わった / より新しい取得が
+	/// 始まった)。
+	function isStaleLoad(url: string, seq: number): boolean {
+		return url !== currentThreadUrl || seq !== threadLoadSeq;
+	}
+
 	async function loadCurrentThread(forceReset: boolean) {
 		if (!currentThreadUrl) return;
 		// 一度スレ落ち判定したら自動更新をスキップ (手動 reloadThreadFull
@@ -1185,19 +1233,20 @@
 		if (threadDead && !forceReset) return;
 		if (forceReset) threadDead = false;
 		const seq = ++threadLoadSeq;
+		// この呼び出しが取得するスレ。取得中にスレが切り替わったら結果を捨てる。
+		const url = currentThreadUrl;
 		threadLoading = true;
 		threadLoadingSince = Date.now();
 		if (forceReset) threadReloading = true;
 		try {
 			const prev = forceReset ? null : fetchState;
-			const [newPosts, newState] = await withTimeout(
-				fetchThread(currentThreadUrl, prev),
-				12_000,
-				'fetchThread',
-			);
-			// Snapshot whether the user was anchored to the bottom *before*
-			// we mutate `posts`, so reactive re-render extends the
-			// scrollable area without losing the anchor.
+			const [newPosts, newState] = await withTimeout(fetchThread(url, prev), 12_000, 'fetchThread');
+			// 取得中にスレが切り替わった / より新しい取得が始まったなら、古い結果は
+			// 捨てる。書き込むと、手動で開いたスレに前のスレのレスが混ざり (レス
+			// 番号の重複キーで一覧の描画処理ごと落ちる)、増分状態も前のスレのもので
+			// 上書きされて以後の自動更新が誤った位置から取得する (実機 QA: 裏の
+			// 自動更新の取得中にスレを開くと、前のスレに引き戻されたように見えた)。
+			if (isStaleLoad(url, seq)) return;
 			// 追加前の件数。置換経路 (定期リシンク / fullReload) でも件数が増えて
 			// いれば新着ありとしてスクロールする。以前は置換経路では一切スクロール
 			// せず、5 分ごとのリシンクに新着が重なるたびに最下部から取り残されて
@@ -1250,6 +1299,8 @@
 				}
 			}
 		} catch (e) {
+			// 古い取得の失敗は、今のスレのエラー表示やスレ落ち判定に使わない。
+			if (isStaleLoad(url, seq)) return;
 			const msg = errorMessage(e);
 			setLastError('bbs-fetch', msg);
 			if (isThreadGoneError(msg)) {
@@ -1860,8 +1911,11 @@
 		if (!u) return;
 		showThreadList = false;
 		// tryLoadBoard はスレ URL ならそのスレを、板 URL ならその板の最新スレを
-		// 開く。手入力 URL もこれで賄える。
-		await tryLoadBoard(u);
+		// 開く。スレ URL の指定は手動選択として扱う (満レスでも最新へ飛ばない)。
+		// 板 URL は「その板の最新スレ」を求める操作なので自動選択のまま。
+		// どちらもユーザー操作なので、まず進行中の自動移動を無効化する。
+		threadNavSeq += 1;
+		await tryLoadBoard(u, { manual: true });
 	}
 
 	async function refreshThreadListPanel() {
@@ -1881,15 +1935,14 @@
 	async function pickThreadFromPanel(entry: SubjectEntry) {
 		const board = currentBoardUrl ?? channelInfo?.url;
 		if (!board) return;
-		try {
-			currentThreadUrl = await threadUrlOf(board, entry.key);
-		} catch {
-			currentThreadUrl = `${board.replace(/\/+$/, '')}/${entry.key}/`;
-		}
-		fetchState = null;
-		posts = [];
 		showThreadList = false;
-		await loadCurrentThread(true);
+		await openThreadManually(async () => {
+			try {
+				return await threadUrlOf(board, entry.key);
+			} catch {
+				return `${board.replace(/\/+$/, '')}/${entry.key}/`;
+			}
+		});
 	}
 
 	function onWriteKey(e: KeyboardEvent) {
