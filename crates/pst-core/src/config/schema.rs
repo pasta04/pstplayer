@@ -243,8 +243,10 @@ fn default_autoscroll_speed() -> u32 {
     600
 }
 
+/// BBS の自動更新間隔 (秒) の既定値。フロントの DEFAULT_REFRESH_SEC
+/// (視聴画面) と api.ts のフォールバックも同じ値にすること。
 fn default_refresh_sec() -> u32 {
-    5
+    10
 }
 
 fn default_display_mode() -> String {
@@ -563,6 +565,15 @@ mod tests {
             p.volume,
             "溢れた分は初期音量に戻る"
         );
+    }
+
+    /// BBS 自動更新間隔の既定は 10 秒。フロント (視聴画面の DEFAULT_REFRESH_SEC /
+    /// api.ts のフォールバック) も同じ値なので、変えるときは両方そろえること。
+    #[test]
+    fn bbs_auto_refresh_default_is_10s() {
+        assert_eq!(BbsConfig::default().auto_refresh_sec, 10);
+        let empty: BbsConfig = toml::from_str("").expect("parse empty");
+        assert_eq!(empty.auto_refresh_sec, 10, "キー欠落時も 10 秒");
     }
 
     /// 自動更新間隔が TOML を往復しても保たれること (既定値で潰れない)。

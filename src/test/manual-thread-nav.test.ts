@@ -67,6 +67,9 @@ const counts: Record<string, number> = { '100': MAX, '200': 5, '300': 3 };
 /// は返らずに取得中のまま止まる。
 const gates: Record<string, Promise<void> | undefined> = {};
 
+/// config の bbs 節。テストごとに差し替える (既定は自動更新 5 秒)。
+let bbsCfg: Record<string, unknown> = { autoRefreshSec: 5 };
+
 const keyOf = (u: string) => u.match(/(\d+)\/?$/)?.[1] ?? '';
 function postsFor(key: string) {
 	return Array.from({ length: counts[key] ?? 0 }, (_, i) => ({
@@ -103,7 +106,7 @@ vi.mock('$lib/api', () => {
 			url: 'http://localhost:7144/pls/0123456789abcdef0123456789abcdef',
 		})),
 		// 自動更新間隔は明示する (既定値の変更にテストが左右されないように)。
-		getConfig: vi.fn(async () => ({ bbs: { autoRefreshSec: 5 }, player: {}, peercast: {} })),
+		getConfig: vi.fn(async () => ({ bbs: bbsCfg, player: {}, peercast: {} })),
 		listThreads: vi.fn(async () => [
 			{ key: '300', title: 'スレ300', count: counts['300'] },
 			{ key: '200', title: 'スレ200', count: counts['200'] },
@@ -135,6 +138,7 @@ import Page from '../routes/+page.svelte';
 beforeEach(() => {
 	counts['200'] = 5;
 	delete gates['200'];
+	bbsCfg = { autoRefreshSec: 5 };
 	vi.mocked(api.fetchThread).mockClear();
 	vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
 });
@@ -272,4 +276,19 @@ test('裏の自動更新の取得中に手動でスレを選んでも、古い�
 		expect(keyOf(u as string)).toBe('100');
 		expect((prev as { lastCount: number } | null)?.lastCount).toBe(MAX);
 	}
+});
+
+// 視聴画面をマウントする仕組みを共有するため、ここに置く。
+test('自動更新間隔の既定は 10 秒 (設定に値が無いとき)', async () => {
+	bbsCfg = {};
+	await mountOnAutoThread();
+	vi.mocked(api.fetchThread).mockClear();
+	const polls = () => vi.mocked(api.fetchThread).mock.calls.filter(([, prev]) => prev).length;
+
+	// 5 秒間隔なら 6 秒後までに 1 回は取りに行っているはず。10 秒なら 0 回。
+	await vi.advanceTimersByTimeAsync(6_000);
+	expect(polls()).toBe(0);
+
+	await vi.advanceTimersByTimeAsync(6_000);
+	expect(polls()).toBeGreaterThanOrEqual(1);
 });

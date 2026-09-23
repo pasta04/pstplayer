@@ -728,7 +728,7 @@ function browserConfig(s: ServerConfigResponse): Config {
 		bbs: {
 			defaultName: s.bbs?.default_name ?? '',
 			defaultMail: s.bbs?.default_mail ?? 'sage',
-			autoRefreshSec: 5,
+			autoRefreshSec: 10,
 			displayMode: 'plain',
 			submitKey: 'ctrl_enter',
 			notifyOnNewPost: false,

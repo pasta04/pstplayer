@@ -159,7 +159,7 @@
 	let posts = $state<Post[]>([]);
 	let fetchState = $state<FetchState | null>(null);
 	let threadLoading = $state(false);
-	// 「更新中…」インジケータ表示用。5 秒毎のサイレント自動更新では出さず、
+	// 「更新中…」インジケータ表示用。定期のサイレント自動更新では出さず、
 	// 初回表示 / スレ切替 / 手動の全再取得 (forceReset) の時だけ出す。
 	// 自動更新のたびに点滅すると鬱陶しい (実機 QA で発覚)。
 	let threadReloading = $state(false);
@@ -247,10 +247,9 @@
 	let volumeChannelName: string | null = null;
 	let volumeSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
-	// Seconds until the next BBS auto-refresh tick (5s cycle).
 	/// BBS 自動更新間隔の既定値 (秒)。config の bbs.auto_refresh_sec が
 	/// 読めないときのフォールバック。Rust 側の default_refresh_sec と同値。
-	const DEFAULT_REFRESH_SEC = 5;
+	const DEFAULT_REFRESH_SEC = 10;
 	/// 実際に使う BBS 自動更新間隔 (秒)。設定 (bbs.autoRefreshSec) から
 	/// reloadBbsPrefs() で読み込む。以前はここが定数 5 のハードコードで、
 	/// 設定画面で変更しても視聴画面に一切反映されなかった (実機 QA)。
@@ -2295,7 +2294,7 @@
 				{#if threadReloading}
 					<!-- 絶対配置のオーバーレイにして .posts の高さに影響させない。
 					     兄弟 flex アイテムにすると出入りでスクロールがビクンと
-					     動く。さらに 5 秒毎の自動更新では出さず (threadReloading は
+					     動く。さらに定期の自動更新では出さず (threadReloading は
 					     forceReset 時のみ)、点滅で鬱陶しくならないようにする。 -->
 					<div class="refresh-indicator">更新中…</div>
 				{/if}
