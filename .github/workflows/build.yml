@@ -81,15 +81,21 @@ jobs:
       - name: Install libmpv (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           # shinchiro's mpv-dev only ships MinGW import lib (libmpv.dll.a).
           # MSVC needs mpv.lib — generate it from libmpv-2.dll via
           # dumpbin /exports → .def → lib /def:.
-          $url  = 'https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20260530/mpv-dev-x86_64-v3-20260530-git-13a3e3a.7z'
           $tmp  = "$env:TEMP\mpv-dev.7z"
           $base = "$env:GITHUB_WORKSPACE\mpv-dev"
           $sub  = Join-Path $base '64'
-          Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $tmp
+          # 配布元は古いリリースを削除する運用で、日付固定の URL は数か月で
+          # 404 になる (2026-05-30 版が消えて Windows ジョブが全滅した)。
+          # 最新リリースから名前パターンで取得する。
+          gh release download --repo shinchiro/mpv-winbuild-cmake `
+            --pattern 'mpv-dev-x86_64-v3-*.7z' --output $tmp --clobber
+          if ($LASTEXITCODE -ne 0) { throw "libmpv の取得に失敗しました" }
           New-Item -ItemType Directory -Force -Path $sub | Out-Null
           & 'C:\Program Files\7-Zip\7z.exe' x $tmp -o"$sub" -y
 
