@@ -2234,7 +2234,7 @@
 						bind:this={filterInput}
 						bind:value={filter}
 						type="search"
-						placeholder="検索 / >>123 / id:xxx で抽出"
+						placeholder="レス検索"
 						title="検索:本文-名前-ID-番号 / >>N or >>N-M でレス番号抽出 / id:xxx で同一 ID 抽出"
 					/>
 					{#if filter}
@@ -2333,7 +2333,6 @@
 			{#if currentThreadUrl && !threadDead}
 				<span class="t-refresh" title="次の自動更新までの秒">↻ {refreshCountdown}s</span>
 			{/if}
-			<span class="t-list">≡</span>
 		</button>
 	</div>
 
@@ -2744,15 +2743,6 @@
 					<button onclick={onOpenSettings} title="設定">⚙</button>
 				</span>
 			{/if}
-			{#if currentThreadUrl}
-				<!-- スレッド表示中のレス件数。`.length` 直読みは本番で追従しない
-				     ため iterate ベースの postCount を使う (上の $effect を参照)。
-				     フィルタ中は表示中件数も併記。 -->
-				<span class="s-posts" title="現スレッドのレス件数 (フィルタ中は表示中 / 全件)">
-					📝 {#if visiblePosts.length !== postCount}{visiblePosts.length} /
-					{/if}{postCount}
-				</span>
-			{/if}
 		</span>
 	</div>
 </div>
@@ -3139,9 +3129,6 @@
 		flex: 1;
 	}
 
-	.t-list {
-		color: rgba(255, 255, 255, 0.85);
-	}
 	.t-refresh {
 		color: rgba(255, 255, 255, 0.75);
 		font-size: 0.72rem;
@@ -3207,13 +3194,8 @@
 	.s-info,
 	.s-up,
 	.s-size,
-	.s-vol,
-	.s-posts {
+	.s-vol {
 		color: rgba(255, 255, 255, 0.85);
-	}
-	.s-posts {
-		font-variant-numeric: tabular-nums;
-		white-space: nowrap;
 	}
 	.s-vol {
 		min-width: 3rem;
