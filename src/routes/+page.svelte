@@ -895,12 +895,10 @@
 		if (!channelInfo) return null;
 		const name = channelInfo.name || '(unnamed)';
 		const br = channelInfo.bitrate ? `${channelInfo.bitrate} kbps` : '-';
-		const ldir = channelStatus ? `L:${channelStatus.localDirects}` : '';
-		const lrel = channelStatus ? `R:${channelStatus.localRelays}` : '';
 		const fps = playerStat?.fps && playerStat.fps > 0 ? `${playerStat.fps.toFixed(1)}fps` : '';
 		const size =
 			playerStat?.width && playerStat?.height ? `${playerStat.width}×${playerStat.height}` : '';
-		return { name, br, ldir, lrel, fps, size };
+		return { name, br, fps, size };
 	});
 
 	// 稼働時間 (uptime) を 1 秒刻みで表示するためのライブ値。status 受信時刻
@@ -2578,14 +2576,6 @@
 						<dd>{channelStatus.status || '-'}</dd>
 						<dt>稼働時間</dt>
 						<dd>{formatUptime(liveUptimeSec)}</dd>
-						<dt>ローカル接続</dt>
-						<dd>
-							直 {channelStatus.localDirects} / リレー {channelStatus.localRelays}
-						</dd>
-						<dt>全体接続</dt>
-						<dd>
-							直 {channelStatus.totalDirects} / リレー {channelStatus.totalRelays}
-						</dd>
 						<dt>受信中</dt>
 						<dd>{channelStatus.isReceiving ? 'はい' : 'いいえ'}</dd>
 						<dt>配信元</dt>
@@ -2712,8 +2702,6 @@
 				<span class="s-info">
 					{statusLine.br}
 					{#if statusLine.fps}({statusLine.fps}){/if}
-					{statusLine.ldir}
-					{statusLine.lrel}
 				</span>
 				{#if statusLine.size}<span class="s-size">{statusLine.size}</span>{/if}
 				<span class="s-up">{formatUptime(liveUptimeSec)}</span>
