@@ -8,9 +8,6 @@ on:
     branches:
       - main
       - master
-      # 開発ブランチでも artifact を取れるよう一時的に許可。
-      # main マージ後はこの行を削除し、main / master + workflow_dispatch のみに戻す。
-      - claude/focused-mendel-rvEAd
     tags:
       # `0.1.0` 等の SemVer タグで release ジョブも走る。
       # SemVer 2.0.0 に従い `v` プレフィクスは付けない (FAQ で
