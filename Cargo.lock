@@ -3037,7 +3037,7 @@ checksum = "33cb294fe86a74cbcf50d4445b37da762029549ebeea341421c7c70370f86cac"
 
 [[package]]
 name = "pst-core"
-version = "0.0.1"
+version = "1.0.0"
 dependencies = [
  "ammonia",
  "chrono",
@@ -3057,7 +3057,7 @@ dependencies = [
 
 [[package]]
 name = "pst-server"
-version = "0.0.1"
+version = "1.0.0"
 dependencies = [
  "axum",
  "directories",
@@ -3077,7 +3077,7 @@ dependencies = [
 
 [[package]]
 name = "pstplayer"
-version = "0.0.1"
+version = "1.0.0"
 dependencies = [
  "libmpv2",
  "libmpv2-sys",
