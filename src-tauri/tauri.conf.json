@@ -1,0 +1,45 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"productName": "PSTPlayer",
+	"identifier": "io.github.pasta04.pstplayer",
+	"build": {
+		"beforeDevCommand": "npm run dev",
+		"devUrl": "http://localhost:1420",
+		"beforeBuildCommand": "npm run build",
+		"frontendDist": "../build"
+	},
+	"app": {
+		"windows": [
+			{
+				"label": "main",
+				"title": "PSTPlayer",
+				"width": 1024,
+				"height": 640,
+				"minWidth": 640,
+				"minHeight": 360,
+				"resizable": true,
+				"decorations": true,
+				"transparent": false,
+				"zoomHotkeysEnabled": true
+			}
+		],
+		"security": {
+			"csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; frame-src 'none'"
+		}
+	},
+	"bundle": {
+		"active": true,
+		"targets": "all",
+		"icon": [
+			"icons/32x32.png",
+			"icons/64x64.png",
+			"icons/128x128.png",
+			"icons/128x128@2x.png",
+			"icons/icon.icns",
+			"icons/icon.ico"
+		],
+		"category": "Video",
+		"shortDescription": "PeerCast viewer",
+		"longDescription": "Cross-platform PeerCast viewer with integrated BBS support."
+	}
+}

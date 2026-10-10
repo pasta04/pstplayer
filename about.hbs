@@ -1,0 +1,45 @@
+# Third-Party Licenses
+
+PSTPlayer の配布バイナリに同梱されている (静的リンクされた / 一部
+として埋め込まれた) サードパーティ依存とそのライセンス一覧。
+
+- 生成元: [`cargo-about`](https://github.com/EmbarkStudios/cargo-about) (設定: `about.toml`)
+- 動的リンク扱いのため本リストに含まれない依存:
+  - **libmpv** (LGPL-2.1+) — 同梱の `libmpv-2.dll` / `libmpv.2.dylib`
+    / システムの `libmpv.so`。差し替え可能性を維持するため動的リンク。
+  - **WebView ランタイム** (Edge WebView2 / WebKit / WebKitGTK) — OS
+    付属。
+
+PSTPlayer 本体は MIT License で配布されます。下記の各ライセンスは
+それぞれの著作権者の表記を維持しつつ含まれています。
+
+---
+
+## ライセンス別サマリ
+
+{{#each overview}}
+- {{{name}}} ({{count}} クレート)
+{{/each}}
+
+---
+
+{{#each licenses}}
+## {{{name}}}
+
+> SPDX ID: `{{{id}}}`
+
+### 該当クレート
+
+{{#each used_by}}
+- **{{{crate.name}}}** {{{crate.version}}}
+{{/each}}
+
+### ライセンス全文
+
+```
+{{{text}}}
+```
+
+---
+
+{{/each}}

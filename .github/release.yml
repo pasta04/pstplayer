@@ -1,0 +1,32 @@
+# GitHub の auto-generated release notes (`gh release create
+# --generate-notes` / "Generate release notes" ボタン) の整形ルール。
+#
+# 前回タグ以降に merge された PR を以下のセクションに箇条書きする。
+# ラベルが付いていない PR も拾えるよう、ワイルドカード `*` のセクション
+# を末尾に置く。
+#
+# 参考: https://docs.github.com/ja/repositories/releasing-projects-on-github/automatically-generated-release-notes
+changelog:
+  exclude:
+    # メンテ系の PR はノートから除外。
+    labels:
+      - skip-changelog
+      - dependencies
+    authors:
+      - dependabot
+  categories:
+    - title: 🚀 機能追加
+      labels:
+        - feature
+        - enhancement
+    - title: 🐛 バグ修正
+      labels:
+        - bug
+        - fix
+    - title: 📝 ドキュメント
+      labels:
+        - documentation
+        - docs
+    - title: 🔧 その他
+      labels:
+        - '*'

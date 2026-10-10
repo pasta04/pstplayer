@@ -1,0 +1,236 @@
+# ユースケース
+
+PSTPlayer (Desktop) と pst-server (LAN 内中継サーバ) を組み合わせた時の
+代表的なユースケースを整理する。これを土台に [ADR-0006](decisions/0006-auto-record-and-multiview.md)
+(ハブ & スポーク / 自動録画 / マルチビュー) の実装範囲と優先度を決め
+ていく。
+
+## アクター
+
+| 略号 | 説明 |
+| --- | --- |
+| **U1** | Desktop 単体利用者。Windows/macOS/Linux で PSTPlayer.exe を直接起動 |
+| **U2** | モバイル利用者。iPad / iPhone / Android のブラウザから LAN 内の pst-server にアクセス |
+| **U3** | 常駐録画オペレーター。Pi 等の常時起動サーバを LAN に置く |
+| **U4** | マルチ視聴ユーザー。複数チャンネルを同時に見たい (Desktop or モバイル) |
+| **U5** | PCRPlayer 移行ユーザー。外部ツールから URL 渡しで起動する従来運用 |
+| **S1** | pst-server プロセス自身 (アクター扱い、自動録画タスク) |
+
+---
+
+## ユースケース一覧
+
+### UC-01: 単一配信を視聴 + 書き込み (Desktop ライト用途)
+
+- アクター: U1 / U5
+- トリガ: PeerCast URL をクリップボードから貼り付け / CLI 引数で起動
+- 主シナリオ:
+  1. PSTPlayer を起動 (タスクバー / Dock のアイコン or CLI)
+  2. メインウィンドウ (= ハブ) に URL 入力欄が出る (将来は YP も)
+  3. URL を貼って Open → ビューアウィンドウが開いて再生開始
+  4. 同ウィンドウの BBS ペインで読み書き
+  5. 視聴終了で ウィンドウを閉じる
+- 期待: PCRPlayer と同等の「1 配信 1 ウィンドウ」の単純動作
+- 注意: ライト用途では「ハブ + ビューア」の 2 ウィンドウ表示が煩わしい。
+  ハブを自動最小化 or 「最後のビューアを閉じたらハブも閉じる」モードを
+  設定で選べると良い (TBD)
+
+### UC-02: YP からチャンネルを選んで視聴 (Desktop)
+
+- アクター: U1
+- トリガ: ハブで「YP を更新」 / 起動時に自動更新
+- 主シナリオ:
+  1. ハブが YP の index.txt を取得 (peercast.yp_url)
+  2. 一覧テーブルに チャンネル名 / ジャンル / 詳細 / 視聴者数 を表示
+  3. お気に入りに合致する行は上位固定 + 色付きで表示
+  4. クリック → ビューアウィンドウが開いて再生開始
+- 期待: 「視聴開始まで URL を一切タイプしない」体験
+- TBD: YP URL は config 必須にするか、初回起動時のセットアップで誘導
+  するか
+
+### UC-03: 同時複数視聴 (Desktop マルチビュー)
+
+- アクター: U4 (Desktop)
+- 採用方針 (ADR-0006): **YP ウィンドウは常駐ハブ + 視聴は別プロセス**
+- 主シナリオ:
+  1. ユーザは `pstplayer` の YP ウィンドウを開いている
+  2. YP の行クリック → `pstplayer.exe <url>` を URL 引数付きで spawn
+     → 子プロセスで配信 A の視聴ウィンドウが開く (libmpv + BBS)
+  3. YP ウィンドウは **閉じずにそのまま表示し続ける**
+  4. 別の行をクリック → 子プロセスで配信 B が開く、と N 個並ぶ
+  5. 同じ `channel_id` を 2 度開いた場合は既存ウィンドウにフォーカス
+     (channel_id 単位の single_instance)
+  6. 視聴ウィンドウを閉じても YP は残る (= さらに別チャンネルを選べる)
+- 期待: OS 標準のウィンドウ管理 (タイル / マルチモニタ) を活かす +
+  クラッシュ耐性 (1 視聴ウィンドウが落ちても他は無影響)
+- 制約: CPU / メモリは「libmpv × N」。常識的には 2-4 本まで
+- 1 ウィンドウ内タイル表示は採用しない (Web グリッドは pst-server 側
+  で対応済み。ADR-0006 §A の理由も参照)
+
+### UC-04: モバイルブラウザで視聴 + 書き込み (Server 単独)
+
+- アクター: U2
+- トリガ: ブラウザで `http://pst-server.lan/` にアクセス
+- 主シナリオ:
+  1. 初回起動でホーム画面に PWA 追加 (任意)
+  2. チャンネル一覧 (= 紐付け先 PeerCastStation の getChannels) が出る
+  3. お気に入りは上位固定 + 色付き
+  4. 行クリックで `/hls/{id}` 再生 + BBS 読み書き (将来)
+- 期待: ネイティブアプリ並みの体験 (フルスクリーン / オフライン UI)
+- 注意: HLS 視聴は Safari ネイティブ、Chromium 系は hls.js (同梱済み)
+
+### UC-05: モバイル / Web 複数視聴 (Server グリッド)
+
+- アクター: U4 (モバイル / ブラウザ)
+- トリガ: Web UI でグリッドモード切替
+- 主シナリオ:
+  1. 「グリッド」ボタンを押すと、画面が `<video>` × N のタイルに
+  2. YP / お気に入りからタイルを追加 / 削除
+  3. 各タイルは独立 HLS 再生 (CPU / 帯域はクライアント裁量)
+- 期待: 1 端末で複数配信を「ながら見」
+- 制約: 帯域 (1.5 Mbps × 9 ≒ 13.5 Mbps) と CPU。スマホでは 2-4 本が
+  実用上限
+- TBD: BBS ペインはどう表示するか (タブ / 折りたたみ / 別ウィンドウ)
+
+### UC-06: 視聴中に手動録画 (Desktop / Server 共通)
+
+- アクター: U1 / U2 / U4
+- トリガ: ビューア (Desktop) or `<video>` 横 (Server) の「⏺ 録画」ボタン
+- 主シナリオ:
+  1. 視聴中のチャンネルを録画開始 (再エンコードなし)
+  2. もう一度押す or 配信終了で停止
+- 期待: 「今見ている配信を残したい」を即時に
+- ファイル名: `YYYYMMDD_HHmmss_<channel_name>.<ext>`
+- 注意: Desktop は libmpv 1 本制約のため「視聴中チャンネル = 1 本」。
+  Server は複数チャンネル並行録画可
+
+### UC-07: 自動配信録画 (Server / U3)
+
+- アクター: U3 / S1
+- トリガ: pst-server 起動中、お気に入りに `auto_record = true` の
+  ルールあり
+- 主シナリオ:
+  1. AutoRecorder task が 30-60 秒間隔で getChannels を polling
+  2. 新規に出現したチャンネルがお気に入りにマッチ
+  3. `RecordingState.start(channel_id, name)` を発火
+  4. 配信が消えたら grace 期間後に stop
+- 期待: 「気づいたら見逃した」が起きない。Pi が黙々と録る
+- 制約: max_concurrent で総量規制、SD カード保護のため `[recording]
+  enabled=true, dir="/mnt/usb/..."` 等の明示設定が必要
+- 不在時の運用: 録画一覧 + 削除 UI は不要 (= ユーザーがファイラで
+  管理する想定、本ロードマップで明示削除済み)
+
+### UC-08: 自動配信録画 (Desktop 同居運用)
+
+- アクター: U1 / U3
+- トリガ: Desktop と同じ PC 上で `pst-server` を常駐させておく
+- 採用方針 (ADR-0006): **`pst-server` を Desktop に同居させる**
+  (新規 Tauri ハブを作らず、既存 `pst-server` をそのまま流用)
+- 主シナリオ:
+  1. ログイン時に `pst-server` が起動する
+     - Linux: systemd ユーザ unit
+     - macOS: launchd plist (`~/Library/LaunchAgents/`)
+     - **Windows**: スタートアップ folder (`shell:startup`) に
+       コンソール非表示の `.vbs` ラッパー経由のショートカット
+       (**サービス方式は採用しない**)
+  2. `pst-server.toml` の `[[favorites.rules]]` で `auto_record=true`
+     を設定済
+  3. `pst-server` の AutoRecorder task が `getChannels` を polling し、
+     新規にマッチした配信を自動で録画開始
+  4. 配信終了 (grace 期間経過) で stop
+- 期待: ウィンドウは増えない (常駐プロセスは画面に出ない)、視聴したい時
+  は別アプリ `pstplayer` で / 必要なら同じ PC のブラウザで `/`
+- インストール: 上記 3 OS 分の起動設定例を `docs/usage/server.md`
+  に整備予定 (Step 5)
+
+### UC-09: 設定編集
+
+#### UC-09a: Desktop の設定
+
+- アクター: U1
+- トリガ: ハブの設定ボタン / Ctrl+,
+- 主シナリオ: 既存の設定ダイアログ (タブ式) を表示 / 編集 / 保存
+- 編集対象: PeerCast 接続先 / BBS / プレイヤー (snapshot/recording) /
+  お気に入り / ショートカット / 履歴
+
+#### UC-09b: pst-server の設定
+
+- アクター: U3
+- トリガ: ブラウザで `/settings.html` を開く
+- 主シナリオ: PeerCastStation Web UI と同様のフォームで編集 → 保存で
+  pst-server.toml に書き戻し
+- 編集対象: PeerCast 接続先 / サーバ / ログ / 録画 / お気に入り
+- 注意: 現状認証なし (LAN 内利用前提)
+
+### UC-10: 外部ツール連携 (Desktop)
+
+- アクター: U5 (PCRPlayer からの移行組)
+- トリガ: 他アプリ (例: PeerCast の Web UI のリンクから外部プレイヤー
+  指定) が `pstplayer http://.../pls/<id>` で起動
+- 主シナリオ:
+  1. PSTPlayer がワンショット起動
+  2. URL 引数が CLI 引数として渡される (`pst-core::cli::parse`)
+  3. `--no-autoplay` 無しなら自動再生開始
+  4. 起動済みの PSTPlayer がある場合の二重起動防止 (single_instance)
+- 期待: PCRPlayer と完全互換の引数仕様
+- 補助: `pstplayer://` URL スキーマ (ロードマップ低優先) があれば
+  ブラウザのワンクリック起動も可能
+
+---
+
+## マトリクス: ユースケース × 関連コンポーネント
+
+|     | Desktop ハブ | Desktop ビューア | pst-server | Web UI | 録画ストア |
+| --- | :---: | :---: | :---: | :---: | :---: |
+| UC-01 単独視聴      | ●   | ●   |     |     |     |
+| UC-02 YP 視聴       | ●   | ●   |     |     |     |
+| UC-03 マルチ視聴 D  | ●   | ●×N |     |     |     |
+| UC-04 モバイル単独  |     |     | ●   | ●   |     |
+| UC-05 グリッド W    |     |     | ●   | ●   |     |
+| UC-06 手動録画      | ●   | ●   | ●   | ●   | ●   |
+| UC-07 自動録画 S    |     |     | ●   |     | ●   |
+| UC-08 自動録画 D    | ●   |     |     |     | ●   |
+| UC-09a 設定 D       | ●   |     |     |     |     |
+| UC-09b 設定 S       |     |     | ●   | ●   |     |
+| UC-10 外部連携      | ●   | ●   |     |     |     |
+
+→ **Desktop ハブ** はほぼ全ユースケースで「司令塔」になる。先に
+ADR-0006 Step 3 (ハブ & スポーク化) を完成させると後続の自動録画
+(UC-08) も乗せやすい。
+
+---
+
+## ノンユースケース (今回スコープ外)
+
+明示的に「やらない」もの:
+
+- ローカル動画ファイルの再生 (オフライン)
+- 録画ファイルの一覧 / 削除 UI (ファイラで管理する前提)
+- マルチ PeerCast 切替 (config で 1 ホスト固定)
+- WAN 公開を前提とした認証 / OAuth (LAN 限定運用)
+- 録画フォーマット変換 / 編集 (再エンコードなしの素データ保存のみ)
+- DRM / 有料配信対応
+- iOS / Android のネイティブアプリ (PWA で代替)
+
+---
+
+## 実装状況
+
+ADR-0006 Step 1〜5 完了済 (2026-06 時点):
+
+| UC | 実装状況 | 担当バイナリ |
+| --- | --- | --- |
+| UC-01 単独視聴      | ✅ MVP | pstplayer (ビューア) |
+| UC-02 YP 視聴       | ✅ ハブ画面で複数 YP fetch | pstplayer (ハブ) → ビューア spawn |
+| UC-03 マルチ視聴 D  | ✅ single_instance + spawn | pstplayer (ハブ) ×N viewer |
+| UC-04 モバイル単独  | ✅ HLS + Web UI | pst-server |
+| UC-05 グリッド W    | ✅ Web タイル | pst-server |
+| UC-06 手動録画      | ✅ Desktop / Web 両方 | pstplayer / pst-server |
+| UC-07 自動録画 S    | ✅ AutoRecorder task | pst-server |
+| UC-08 自動録画 D    | ✅ pst-server 同居 + 起動 docs | pst-server (常駐) |
+| UC-09a 設定 D       | ✅ Tauri 設定ダイアログ | pstplayer |
+| UC-09b 設定 S       | ✅ /settings.html | pst-server Web |
+| UC-10 外部連携      | ✅ PCRPlayer 互換引数 | pstplayer |
+
+残課題は 3 OS 実機 QA とドキュメントの追補 (詳細は
+[`roadmap.md`](roadmap.md) フェーズ 3)。
