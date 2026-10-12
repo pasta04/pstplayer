@@ -43,6 +43,14 @@
 	import { selectLiveThread } from '$lib/thread-select';
 	import { formatUptime, linkifySanitized, renderBodyHtml, renderIdHtml } from '$lib/format';
 	import {
+		autoReconnectText,
+		manualReconnectDone,
+		manualReconnectText,
+		manualReconnectTimeoutText,
+		MANUAL_RECONNECT_TIMEOUT_SEC,
+		type PeerCastState,
+	} from '$lib/reconnect-status';
+	import {
 		followAfterScroll,
 		gapToBottom,
 		isNearBottom as metricsNearBottom,
@@ -96,6 +104,23 @@
 	// イベントで更新される。詳細は src-tauri/src/player/engine.rs。
 	let reconnectStatus = $state<string | null>(null);
 	let reconnectStatusTimer: ReturnType<typeof setTimeout> | null = null;
+	/// 再接続 / 切断ボタンの処理中。押した直後からボタンを処理中の見た目にし、
+	/// 二重押しを防ぐ (以前は押しても何も変わらず、効いたのか分からなかった)。
+	let actionBusy = $state<'bump' | 'stop' | null>(null);
+	/// 再接続の進行状況 (表示用)。手動 (再接続ボタン) と自動 (切断を検知した
+	/// バックエンドの再試行) のどちらか。進行中はステータスバーに経過と PeerCast
+	/// 本体の接続状況を出し、スピナーを回す。
+	let manualReconnect = $state<{ startedAt: number; loaded: boolean } | null>(null);
+	let autoReconnect = $state<{
+		attempt: number;
+		max: number;
+		delaySec: number;
+		reason: string;
+	} | null>(null);
+	/// 再接続中だけ PeerCast の状態を 1 秒ごとに取り直すタイマー (通常の
+	/// channel:status は 5 秒間隔で、再接続の様子を追うには粗い)。
+	let reconnectWatch: ReturnType<typeof setInterval> | null = null;
+	let reconnectWatchBusy = false;
 
 	// ── Display toggles (T/Z/X/B/C shortcuts + 表示 menu) ────────────
 	let showBbsPane = $state(true);
@@ -424,11 +449,18 @@
 			delay_sec: number;
 			end_file_reason: string;
 		}>('player:reconnecting', (e) => {
+			// 手動の再接続中は、その切断 (Bump で上流が切り替わった) で自動再接続が
+			// 走っても手動側の表示を優先する。
+			if (manualReconnect) return;
 			const p = e.payload;
-			showReconnectStatus(
-				`自動再接続中… 試行 ${p.attempt}/${p.max} (${p.delay_sec}秒後 / reason=${p.end_file_reason})`,
-				null, // 次のイベントまで表示し続ける
-			);
+			autoReconnect = {
+				attempt: p.attempt,
+				max: p.max,
+				delaySec: p.delay_sec,
+				reason: p.end_file_reason,
+			};
+			renderReconnect(); // 次のイベントまで表示し続ける
+			startReconnectWatch();
 		});
 		// 再生が実際に始まった (mpv FILE_LOADED)。再接続シーケンス中だった
 		// なら成功したということなので「自動再接続中…」表示を畳む。これが
@@ -439,8 +471,15 @@
 			was_reconnect: boolean;
 			attempt: number;
 		}>('player:file_loaded', (e) => {
+			if (manualReconnect) {
+				// 手動の再接続で読み込み直せた。PeerCast が受信中なら完了。
+				manualReconnect = { ...manualReconnect, loaded: true };
+				renderReconnect();
+				return;
+			}
+			endReconnect();
 			if (e.payload.was_reconnect) {
-				showReconnectStatus(`再接続しました (試行 ${e.payload.attempt} 回目)`, 5000);
+				showReconnectStatus(`✓ 再接続しました (試行 ${e.payload.attempt} 回目)`, 5000);
 			} else {
 				clearReconnectStatus();
 			}
@@ -449,6 +488,8 @@
 			reason: string;
 			end_file_reason: string;
 		}>('player:reconnect_stopped', (e) => {
+			if (manualReconnect) return; // 手動の再接続の結果を優先する
+			endReconnect();
 			const p = e.payload;
 			const msg = reconnectStopMessage(p.reason, p.end_file_reason);
 			if (msg) {
@@ -562,6 +603,7 @@
 		if (playerTimer) clearInterval(playerTimer);
 		if (countdownTimer) clearInterval(countdownTimer);
 		if (reconnectStatusTimer) clearTimeout(reconnectStatusTimer);
+		if (reconnectWatch) clearInterval(reconnectWatch);
 		if (reanchorTimer) clearTimeout(reanchorTimer);
 		// 音量変更直後に閉じられても取りこぼさないよう、保留分を流す。
 		if (volumeSaveTimer) {
@@ -663,6 +705,58 @@
 	let postsInnerEl: HTMLDivElement | null = $state(null);
 
 	// ── 自動再接続ステータス表示 ─────────────────────────────────
+
+	function peercastState(): PeerCastState | null {
+		return channelStatus
+			? { status: channelStatus.status, isReceiving: channelStatus.isReceiving }
+			: null;
+	}
+
+	/// 進行中の再接続の表示を更新し、手動の再接続なら完了 / 時間切れを判定する。
+	function renderReconnect() {
+		const pc = peercastState();
+		if (manualReconnect) {
+			const elapsed = (Date.now() - manualReconnect.startedAt) / 1000;
+			if (manualReconnectDone(manualReconnect.loaded, pc)) {
+				endReconnect();
+				showReconnectStatus('✓ 再接続しました', 4000);
+			} else if (elapsed >= MANUAL_RECONNECT_TIMEOUT_SEC) {
+				endReconnect();
+				showReconnectStatus(`⚠ ${manualReconnectTimeoutText(pc)}`, 15000);
+			} else {
+				showReconnectStatus(manualReconnectText(elapsed, pc), null);
+			}
+		} else if (autoReconnect) {
+			showReconnectStatus(autoReconnectText(autoReconnect, pc), null);
+		}
+	}
+
+	function startReconnectWatch() {
+		if (reconnectWatch) return;
+		reconnectWatch = setInterval(async () => {
+			if (reconnectWatchBusy) return;
+			reconnectWatchBusy = true;
+			try {
+				if (endpoint && channelId) {
+					channelStatus = await fetchChannelStatus(endpoint, channelId);
+					statusAtMs = Date.now();
+				}
+			} catch {
+				/* PeerCast が応答しない間は直前の状態のまま表示する */
+			} finally {
+				reconnectWatchBusy = false;
+			}
+			renderReconnect();
+		}, 1_000);
+	}
+
+	/// 再接続の進行を終える (表示用の状態と監視タイマーを片付ける)。
+	function endReconnect() {
+		if (reconnectWatch) clearInterval(reconnectWatch);
+		reconnectWatch = null;
+		manualReconnect = null;
+		autoReconnect = null;
+	}
 
 	function showReconnectStatus(msg: string, autoHideMs: number | null) {
 		reconnectStatus = msg;
@@ -1395,7 +1489,15 @@
 	// ── Channel actions ──────────────────────────────────────────────
 
 	async function onBump() {
-		if (!endpoint || !channelId) return;
+		if (!endpoint || !channelId || actionBusy) return;
+		actionBusy = 'bump';
+		// 押した瞬間から「再接続中」を出し、PeerCast の接続状況を追う。完了は
+		// 再生の読み込み直し + PeerCast の受信中で判定する (renderReconnect)。
+		// 再生していない (切断後) なら読み込み直すものが無いので PeerCast だけで判定。
+		autoReconnect = null;
+		manualReconnect = { startedAt: Date.now(), loaded: !streamUrl };
+		renderReconnect();
+		startReconnectWatch();
 		try {
 			await bumpChannel(endpoint, channelId);
 			// Bump は PeerCast にソース再取得を促すだけで、libmpv は切れた
@@ -1406,12 +1508,18 @@
 			}
 			clearLastError('player-action');
 		} catch (e) {
+			endReconnect();
+			clearReconnectStatus();
 			setLastError('player-action', errorMessage(e));
+		} finally {
+			actionBusy = null;
 		}
 	}
 
 	async function onStop() {
-		if (!endpoint || !channelId) return;
+		if (!endpoint || !channelId || actionBusy) return;
+		actionBusy = 'stop';
+		endReconnect();
 		// 確認ダイアログ (window.confirm) は出さない。mpv 子窓の裏に隠れて
 		// 操作不能 = ウィンドウがフリーズする原因になった (実機 QA)。切断は
 		// 非破壊的 (再接続可) なので確認なしで実行する。
@@ -1424,8 +1532,11 @@
 			await stopChannelPolling().catch(() => undefined);
 			streamUrl = null;
 			clearLastError('player-action');
+			showReconnectStatus('■ 切断しました', 4000);
 		} catch (e) {
 			setLastError('player-action', errorMessage(e));
+		} finally {
+			actionBusy = null;
 		}
 	}
 
@@ -2713,8 +2824,9 @@
 
 		<span class="s-msg">
 			{#if reconnectStatus}
-				<span class="reconnect" title="自動再接続の状態 (詳細は engine.rs)"
-					>⟳ {reconnectStatus}</span
+				<span class="reconnect" title={reconnectStatus}
+					>{#if manualReconnect || autoReconnect}<span class="spinner" aria-hidden="true"
+						></span>{/if}{reconnectStatus}</span
 				>
 			{/if}
 			{#if lastError}
@@ -2726,8 +2838,18 @@
 		<span class="s-right">
 			{#if statusLine}
 				<span class="s-actions">
-					<button onclick={onBump} title="再接続 (Bump)">↻</button>
-					<button onclick={onStop} title="切断 (Stop)">■</button>
+					<button
+						onclick={onBump}
+						title="再接続 (Bump)"
+						disabled={actionBusy !== null}
+						class:busy={actionBusy === 'bump' || manualReconnect !== null}>↻</button
+					>
+					<button
+						onclick={onStop}
+						title="切断 (Stop)"
+						disabled={actionBusy !== null}
+						class:busy={actionBusy === 'stop'}>■</button
+					>
 					<button onclick={onOpenSettings} title="設定">⚙</button>
 				</span>
 			{/if}
@@ -3237,8 +3359,30 @@
 		line-height: 1.4;
 	}
 
-	.s-actions button:hover {
+	.s-actions button:hover:not(:disabled) {
 		background: rgba(0, 0, 0, 0.5);
+	}
+	/* 押した手応え: 押している間は沈み込んで明るくなる。 */
+	.s-actions button:active:not(:disabled) {
+		transform: translateY(1px);
+		background: rgba(255, 255, 255, 0.18);
+		border-color: rgba(255, 255, 255, 0.45);
+	}
+	.s-actions button:disabled {
+		cursor: default;
+		opacity: 0.55;
+	}
+	/* 処理中 (再接続中 / 切断中) のボタン。押されたことと進行中であることを示す。 */
+	.s-actions button.busy {
+		opacity: 1;
+		color: #f5b942;
+		border-color: #f5b942;
+		animation: action-busy 1s ease-in-out infinite;
+	}
+	@keyframes action-busy {
+		50% {
+			background: rgba(245, 185, 66, 0.25);
+		}
 	}
 
 	.muted {
@@ -3272,6 +3416,29 @@
 		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+	/* 再接続の進行中だけ回るリング (文字ごと回らないよう要素を分ける)。 */
+	.reconnect .spinner {
+		display: inline-block;
+		width: 0.75em;
+		height: 0.75em;
+		margin-right: 0.35em;
+		vertical-align: -0.05em;
+		border: 2px solid color-mix(in srgb, currentColor 25%, transparent);
+		border-top-color: currentColor;
+		border-radius: 50%;
+		animation: reconnect-spin 0.8s linear infinite;
+	}
+	@keyframes reconnect-spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.reconnect .spinner,
+		.s-actions button.busy {
+			animation-duration: 2.4s;
+		}
 	}
 
 	/* Linked anchors / IDs inside post bodies and header. */
